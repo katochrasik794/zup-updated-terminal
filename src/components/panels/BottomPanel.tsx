@@ -8,7 +8,7 @@ import ColumnVisibilityPopup from '../modals/ColumnVisibilityPopup'
 import PositionClosedToast from '../ui/PositionClosedToast'
 import GroupClosePopup from './GroupClosePopup'
 
-export default function BottomPanel({ openPositions, onClosePosition, onCloseGroup, closedToast, setClosedToast }) {
+export default function BottomPanel({ openPositions, onClosePosition, onCloseGroup, closedToast, setClosedToast, onCloseAll, onHide, isMinimized = false }: any) {
   const [activeTab, setActiveTab] = useState('Open')
   const [isGrouped, setIsGrouped] = useState(true)
   const [expandedGroups, setExpandedGroups] = useState({})
@@ -23,8 +23,8 @@ export default function BottomPanel({ openPositions, onClosePosition, onCloseGro
     volume: true,
     openPrice: true,
     currentPrice: false,
-    tp: false,
-    sl: false,
+    tp: true,
+    sl: true,
     ticket: true,
     openTime: true,
     swap: true,
@@ -55,6 +55,8 @@ export default function BottomPanel({ openPositions, onClosePosition, onCloseGro
         ...pos,
         count: 0,
         totalVolume: 0,
+        totalBuyVolume: 0,
+        totalSellVolume: 0,
         totalPL: 0,
         totalSwap: 0,
         totalCommission: 0,
@@ -62,21 +64,31 @@ export default function BottomPanel({ openPositions, onClosePosition, onCloseGro
       }
     }
     acc[pos.symbol].count += 1
-    acc[pos.symbol].totalVolume += parseFloat(pos.volume)
+    const vol = parseFloat(pos.volume)
+    acc[pos.symbol].totalVolume += vol
+    if (pos.type === 'Buy') {
+      acc[pos.symbol].totalBuyVolume += vol
+    } else if (pos.type === 'Sell') {
+      acc[pos.symbol].totalSellVolume += vol
+    }
     acc[pos.symbol].totalPL += parseFloat(pos.pl.replace('+', ''))
     acc[pos.symbol].totalSwap += parseFloat(pos.swap || 0)
     acc[pos.symbol].totalCommission += parseFloat(pos.commission || 0)
     acc[pos.symbol].positions.push(pos)
     return acc
-  }, {})).map(group => ({
-    ...group,
-    volume: group.totalVolume.toFixed(2),
-    pl: (group.totalPL > 0 ? '+' : '') + group.totalPL.toFixed(2),
-    swap: group.totalSwap.toFixed(2),
-    commission: group.totalCommission.toFixed(2),
-    // Use approximation for open price in group view
-    openPrice: group.positions[0].openPrice
-  }))
+  }, {})).map((group: any) => {
+    const isHedged = group.totalBuyVolume > 0 && group.totalSellVolume > 0 && Math.abs(group.totalBuyVolume - group.totalSellVolume) < 0.0001;
+    return {
+      ...group,
+      type: isHedged ? 'Hedged' : group.positions[0].type,
+      volume: group.totalVolume.toFixed(2),
+      pl: (group.totalPL > 0 ? '+' : '') + group.totalPL.toFixed(2),
+      swap: group.totalSwap.toFixed(2),
+      commission: group.totalCommission.toFixed(2),
+      // Use approximation for open price in group view
+      openPrice: group.positions[0].openPrice
+    }
+  })
 
   const toggleGroup = (symbol) => {
     setExpandedGroups(prev => ({
@@ -220,11 +232,27 @@ export default function BottomPanel({ openPositions, onClosePosition, onCloseGro
   const renderCell = (colId, position, isGroupedView) => {
     switch (colId) {
       case 'type':
+        const isBuy = position.type === 'Buy'
+        const isSell = position.type === 'Sell'
+        const isHedged = position.type === 'Hedged'
+
+        let badgeClass = ''
+        if (isBuy) badgeClass = 'bg-[#00ffaa]/10 text-[#00ffaa]'
+        else if (isSell) badgeClass = 'bg-[#f6465d]/10 text-[#f6465d]'
+        else badgeClass = 'bg-white/10 text-white'
+
         return (
-          <div className="flex items-center gap-1.5">
-            <div className={`w-2 h-2 rounded-full ${position.type === 'Buy' ? 'bg-[#0099ff]' : 'bg-[#f6465d]'}`}></div>
-            <span className="text-white">{position.type}</span>
-          </div>
+          <span className={`px-2 py-0.5 rounded text-[13px] font-medium inline-flex items-center gap-1.5 w-fit ${badgeClass}`}>
+            {isHedged ? (
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="6" cy="6" r="6" fill="#f6465d" />
+                <path d="M6 0C2.68629 0 0 2.68629 0 6C0 9.31371 2.68629 12 6 12V0Z" fill="#0099ff" />
+              </svg>
+            ) : (
+              <span className={`w-2 h-2 rounded-full ${isBuy ? 'bg-[#00ffaa]' : 'bg-[#f6465d]'}`}></span>
+            )}
+            {position.type === 'Hedged' ? 'Hedged' : position.type}
+          </span>
         )
       case 'volume':
         return <span className="text-white border-b border-dashed border-gray-500">{position.volume}</span>
@@ -233,9 +261,35 @@ export default function BottomPanel({ openPositions, onClosePosition, onCloseGro
       case 'currentPrice':
         return <span className="text-white">{position.currentPrice || (position.closePrice) || '-'}</span>
       case 'tp':
-        return <span className="text-[#8b9096]">{position.tp || 'Add'}</span>
+        if (isGroupedView) {
+          return <span className="text-[#8b9096]">...</span>
+        }
+        return (
+          <span
+            className="text-[#8b9096] cursor-pointer hover:text-white hover:underline decoration-dashed decoration-1 underline-offset-2"
+            onClick={(e) => {
+              e.stopPropagation()
+              setEditingPosition(position)
+            }}
+          >
+            {position.tp || 'Add'}
+          </span>
+        )
       case 'sl':
-        return <span className="text-[#8b9096]">{position.sl || 'Add'}</span>
+        if (isGroupedView) {
+          return <span className="text-[#8b9096]">...</span>
+        }
+        return (
+          <span
+            className="text-[#8b9096] cursor-pointer hover:text-white hover:underline decoration-dashed decoration-1 underline-offset-2"
+            onClick={(e) => {
+              e.stopPropagation()
+              setEditingPosition(position)
+            }}
+          >
+            {position.sl || 'Add'}
+          </span>
+        )
       case 'ticket':
         return <span className="text-white">{!isGroupedView ? position.ticket : ''}</span>
       case 'openTime':
@@ -274,298 +328,352 @@ export default function BottomPanel({ openPositions, onClosePosition, onCloseGro
 
 
   return (
-    <div className="h-full bg-background flex flex-col overflow-hidden font-sans rounded-md min-h-0 relative border border-gray-800">
+    <div className={`flex flex-col overflow-hidden rounded-md border border-gray-800 ${isMinimized ? 'h-[40px] bg-black border-none' : 'h-full bg-background min-h-0 relative'}`} style={{ fontFamily: "'Manrope', 'Manrope Fallback', sans-serif" }}>
       {/* Header Section */}
-      <div className="flex items-center justify-between px-1 border-b border-gray-800 bg-background h-[40px] min-h-[40px]">
+      <div className={`flex items-center justify-between px-1 border-b border-gray-800 h-[40px] min-h-[40px] ${isMinimized ? 'bg-black border-t' : 'bg-background'}`}>
         {/* Tabs */}
+        {/* Tabs - conditionally render based on isMinimized */}
         <div className="flex items-center h-full">
-          {tabs.map(tab => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`relative h-full px-5 text-[14px] font-medium transition-colors flex items-center gap-1 cursor-pointer ${activeTab === tab
-                ? 'text-white after:content-[""] after:absolute after:bottom-0 after:left-0 after:w-full after:h-[2px] after:bg-white'
-                : 'text-[#8b9096] hover:text-white'
-                }`}
-            >
-              {tab}
-              {tab === 'Open' && (
-                <span className={`text-[11px] px-1.5 py-0.5 rounded-[3px] leading-none ${activeTab === 'Open' ? 'bg-[#2a3038] text-white' : 'bg-[#2a3038] text-[#8b9096]'
-                  }`}>{openPositions.length}</span>
-              )}
-            </button>
-          ))}
+          {isMinimized ? (
+            <div className="px-5 text-[14px] font-medium text-white flex items-center gap-2">
+              <span>Open Positions</span>
+              <span className="text-[11px] px-1.5 py-0.5 rounded-[3px] leading-none bg-[#2a3038] text-white">
+                {openPositions.length}
+              </span>
+            </div>
+          ) : (
+            tabs.map(tab => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={`relative h-full px-5 text-[14px] font-medium transition-colors flex items-center gap-1 cursor-pointer ${activeTab === tab
+                  ? 'text-white after:content-[""] after:absolute after:bottom-0 after:left-0 after:w-full after:h-[2px] after:bg-white'
+                  : 'text-[#8b9096] hover:text-white'
+                  }`}
+              >
+                {tab}
+                {tab === 'Open' && (
+                  <span className={`text-[11px] px-1.5 py-0.5 rounded-[3px] leading-none ${activeTab === 'Open' ? 'bg-[#2a3038] text-white' : 'bg-[#2a3038] text-[#8b9096]'
+                    }`}>{openPositions.length}</span>
+                )}
+              </button>
+            ))
+          )}
         </div>
 
         {/* Actions */}
         <div className="flex items-center gap-1">
-          {/* Group/Ungroup Toggle */}
-          <div className="flex items-center border border-[#2a353e] rounded p-[2px] mr-2">
-            <Tooltip text="Group positions">
-              <button
-                onClick={() => setIsGrouped(true)}
-                className={`p-1 rounded cursor-pointer transition-colors ${isGrouped ? 'bg-[#2a353e] text-white' : 'text-[#8b9096] hover:text-white'}`}
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 7L3 12l9 5 9-5-9-5z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 17l-9-5 9-5 9 5-9 5z" />
-                </svg>
-              </button>
-            </Tooltip>
-            <Tooltip text="Ungroup positions">
-              <button
-                onClick={() => setIsGrouped(false)}
-                className={`p-1 rounded cursor-pointer transition-colors ${!isGrouped ? 'bg-[#2a353e] text-white' : 'text-[#8b9096] hover:text-white'}`}
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 2L2 7l10 5 10-5-10-5z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2 17l10 5 10-5M2 12l10 5 10-5" />
-                </svg>
-              </button>
-            </Tooltip>
-          </div>
+          {!isMinimized && (
+            <>
+              {/* Group/Ungroup Toggle */}
+              <div className="flex items-center border border-[#2a353e] rounded p-[2px] mr-2">
+                <Tooltip text="Group positions">
+                  <button
+                    onClick={() => setIsGrouped(true)}
+                    className={`p-1 rounded cursor-pointer transition-colors ${isGrouped ? 'bg-[#2a353e] text-white' : 'text-[#8b9096] hover:text-white'}`}
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 7L3 12l9 5 9-5-9-5z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 17l-9-5 9-5 9 5-9 5z" />
+                    </svg>
+                  </button>
+                </Tooltip>
+                <Tooltip text="Ungroup positions">
+                  <button
+                    onClick={() => setIsGrouped(false)}
+                    className={`p-1 rounded cursor-pointer transition-colors ${!isGrouped ? 'bg-[#2a353e] text-white' : 'text-[#8b9096] hover:text-white'}`}
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 2L2 7l10 5 10-5-10-5z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2 17l10 5 10-5M2 12l10 5 10-5" />
+                    </svg>
+                  </button>
+                </Tooltip>
+              </div>
 
-          <div ref={settingsButtonRef}>
-            <IconButton
-              tooltip="Settings"
-              onClick={() => setIsColumnPopupOpen(!isColumnPopupOpen)}
-              className={isColumnPopupOpen ? 'text-white' : ''}
-            >
-              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" />
+              <div ref={settingsButtonRef}>
+                <IconButton
+                  tooltip="Settings"
+                  onClick={() => setIsColumnPopupOpen(!isColumnPopupOpen)}
+                  className={isColumnPopupOpen ? 'text-white' : ''}
+                >
+                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" />
+                  </svg>
+                </IconButton>
+              </div>
+            </>
+          )}
+          <IconButton tooltip={isMinimized ? "Show panel" : "Hide panel"} onClick={onHide}>
+            {isMinimized ? (
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
               </svg>
-            </IconButton>
-          </div>
-          <IconButton tooltip="Hide panel">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
+            ) : (
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            )}
           </IconButton>
         </div>
       </div>
 
       {/* Table */}
-      <div className="flex-1 overflow-auto bg-background min-h-0">
-        <table className="w-full text-[14px] border-collapse min-w-max">
-          <thead className="sticky top-0 bg-background z-40">
-            <tr className="text-[12px] text-gray-400 border-b border-gray-800">
-              {/* Symbol is fixed */}
-              <th className="px-4 py-[4px] text-left font-normal whitespace-nowrap">Symbol</th>
-
-              {/* Dynamic Columns */}
-              {columnOrder.map(colId => visibleColumns[colId] && (
-                <th key={colId} className={`px-4 py-[4px] font-normal whitespace-nowrap text-${columnDefs[colId].align}`}>
-                  {columnDefs[colId].label}
-                </th>
-              ))}
-
-              {/* Sticky Columns Header */}
-              <th className="px-4 text-right font-normal whitespace-nowrap sticky right-[90px] bg-background z-50 shadow-[-10px_0_10px_-5px_rgba(0,0,0,0.3)] border-b border-gray-800">P/L</th>
-              <th className="px-4 text-center font-normal w-[90px] min-w-[90px] sticky right-0 bg-background z-50 border-b border-gray-800"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {activeTab === 'Open' && (isGrouped ? groupedPositions : openPositions).map((position, idx) => (
-              <Fragment key={isGrouped ? `group-${position.symbol}` : `pos-${idx}`}>
-                <tr
-                  onClick={() => isGrouped && toggleGroup(position.symbol)}
-                  className={`border-b border-gray-800 hover:bg-[#1c252f] group ${isGrouped ? 'cursor-pointer' : ''}`}
-                >
-                  <td className="px-4 py-3 whitespace-nowrap">
-                    <div className="flex items-center gap-2">
-                      <div className="w-6 h-6 relative">
-                        <FlagIcon type={position.flag || 'xauusd'} />
-                      </div>
-                      <span className="text-white font-medium">{position.symbol}</span>
-                      {isGrouped && position.count > 1 && (
-                        <span className="ml-1 text-[12px] bg-[#2a3038] text-[#8b9096] px-1.5 rounded">{position.count}</span>
-                      )}
-                    </div>
-                  </td>
+      {!isMinimized && (
+        <>
+          <div className="flex-1 overflow-auto bg-background min-h-0">
+            <table className="w-full text-[14px] border-collapse min-w-max">
+              <thead className="sticky top-0 bg-[#0b0f14] z-40">
+                <tr className="text-[12px] text-gray-400 border-b border-gray-800">
+                  {/* Symbol is fixed */}
+                  <th className="px-4 py-[4px] text-left font-normal whitespace-nowrap bg-[#0b0f14] z-50 sticky left-0">Symbol</th>
 
                   {/* Dynamic Columns */}
                   {columnOrder.map(colId => visibleColumns[colId] && (
-                    <td key={colId} className={`px-4 py-3 whitespace-nowrap text-${columnDefs[colId].align}`}>
-                      {renderCell(colId, position, isGrouped)}
-                    </td>
+                    <th key={colId} className={`px-4 py-[4px] font-normal whitespace-nowrap text-${columnDefs[colId].align}`}>
+                      {columnDefs[colId].label}
+                    </th>
                   ))}
 
-                  {/* Sticky Columns Data */}
-                  <td className="px-4 py-3 text-right whitespace-nowrap sticky right-[90px] bg-background group-hover:bg-[#1c252f] z-20 shadow-[-10px_0_10px_-5px_rgba(0,0,0,0.3)] border-b border-gray-800">
-                    <span className={`font-medium ${position.plColor}`}>{position.pl}</span>
-                  </td>
-                  <td className="px-4 py-3 text-center whitespace-nowrap sticky right-0 bg-background group-hover:bg-[#1c252f] z-20 border-b border-gray-800">
-                    <div className="flex items-center justify-center gap-1">
-                      {!isGrouped ? (
-                        <>
-                          <IconButton
-                            tooltip="Edit"
-                            placement="left"
-                            className="text-[#8b9096]"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setEditingPosition(position);
-                            }}
-                          >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                            </svg>
-                          </IconButton>
-                          <IconButton
-                            tooltip="Close position"
-                            placement="left"
-                            className="text-[#8b9096]"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              onClosePosition(position)
-                            }}
-                          >
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                          </IconButton>
-                        </>
-                      ) : (
-                        <IconButton
-                          tooltip="Close all positions"
-                          placement="left"
-                          className="text-[#8b9096]"
-                          onClick={(e) => handleCloseGroup(e, position.symbol)}
-                        >
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                          </svg>
-                        </IconButton>
-                      )}
-                    </div>
-                  </td>
+                  {/* Sticky Columns Header */}
+                  <th className="px-4 text-right font-normal whitespace-nowrap sticky right-[90px] bg-[#0b0f14] z-50 shadow-[-10px_0_10px_-5px_rgba(0,0,0,0.3)] border-b border-gray-800">P/L</th>
+                  <th className="px-4 text-center font-normal w-[90px] min-w-[90px] sticky right-0 bg-[#0b0f14] z-50 border-b border-gray-800"></th>
                 </tr>
+              </thead>
+              <tbody>
+                {activeTab === 'Open' && (isGrouped ? groupedPositions : openPositions).map((position, idx) => (
+                  <Fragment key={isGrouped ? `group-${position.symbol}` : `pos-${idx}`}>
+                    <tr
+                      onClick={() => isGrouped && toggleGroup(position.symbol)}
+                      className={`border-b border-gray-800 hover:bg-[#1c252f] group ${isGrouped ? 'cursor-pointer' : ''}`}
+                    >
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <div className="flex items-center gap-2">
+                          {isGrouped && (
+                            <div className={`text-gray-400 transition-transform duration-200 ${expandedGroups[position.symbol] ? '' : '-rotate-90'}`}>
+                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <polyline points="6 9 12 15 18 9" />
+                              </svg>
+                            </div>
+                          )}
+                          <div className="w-6 h-6 relative">
+                            <FlagIcon type={position.flag || 'xauusd'} />
+                          </div>
+                          <span className="text-white font-medium">{position.symbol}</span>
+                          {isGrouped && position.count > 1 && (
+                            <span className="ml-1 text-[12px] bg-[#2a3038] text-[#8b9096] px-1.5 rounded">{position.count}</span>
+                          )}
+                        </div>
+                      </td>
 
-                {/* Expanded Sub-rows (only for Grouped view) */}
-                {isGrouped && expandedGroups[position.symbol] && position.positions.map((subPos, subIdx) => (
+                      {/* Dynamic Columns */}
+                      {columnOrder.map(colId => visibleColumns[colId] && (
+                        <td key={colId} className={`px-4 py-3 whitespace-nowrap text-${columnDefs[colId].align}`}>
+                          {renderCell(colId, position, isGrouped)}
+                        </td>
+                      ))}
+
+                      {/* Sticky Columns Data */}
+                      <td className="px-4 py-3 text-right whitespace-nowrap sticky right-[90px] bg-[#0b0f14] group-hover:bg-[#1c252f] z-20 shadow-[-10px_0_10px_-5px_rgba(0,0,0,0.3)] border-b border-gray-800">
+                        <span className={`font-medium ${position.plColor}`}>{position.pl}</span>
+                      </td>
+                      <td className="px-4 py-3 text-center whitespace-nowrap sticky right-0 bg-[#0b0f14] group-hover:bg-[#1c252f] z-20 border-b border-gray-800">
+                        <div className="flex items-center justify-center gap-1">
+                          {!isGrouped ? (
+                            <>
+                              <IconButton
+                                tooltip="Edit"
+                                placement="left"
+                                className="text-[#8b9096]"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditingPosition(position);
+                                }}
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                </svg>
+                              </IconButton>
+                              <IconButton
+                                tooltip="Close position"
+                                placement="left"
+                                className="text-[#8b9096]"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  onClosePosition(position)
+                                }}
+                              >
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                              </IconButton>
+                            </>
+                          ) : (
+                            <IconButton
+                              tooltip="Close all positions"
+                              placement="left"
+                              className="text-[#8b9096]"
+                              onClick={(e) => handleCloseGroup(e, position.symbol)}
+                            >
+                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                            </IconButton>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+
+
+                    {/* Expanded Sub-rows (Transitions) */}
+                    {isGrouped && (
+                      <tr className="border-b border-gray-800">
+                        <td colSpan={100} className="p-0 border-none">
+                          <div
+                            className="grid transition-[grid-template-rows] duration-[400ms] ease-in-out"
+                            style={{ gridTemplateRows: expandedGroups[position.symbol] ? '1fr' : '0fr' }}
+                          >
+                            <div className="overflow-hidden">
+                              <table className="w-full border-collapse">
+                                <tbody>
+                                  {position.positions.map((subPos, subIdx) => (
+                                    <tr
+                                      key={`${position.symbol}-${subIdx}`}
+                                      className="border-b border-gray-800 hover:bg-[#1c252f] group/sub"
+                                    >
+                                      <td className="px-4 py-3 whitespace-nowrap">
+                                        <div className="flex items-center gap-2 pl-8">
+                                          <div className="w-6 h-6 relative opacity-50">
+                                            <FlagIcon type={subPos.flag || 'xauusd'} />
+                                          </div>
+                                          <span className="text-gray-400 font-medium">{subPos.symbol}</span>
+                                        </div>
+                                      </td>
+
+                                      {/* Dynamic Columns */}
+                                      {columnOrder.map(colId => visibleColumns[colId] && (
+                                        <td key={colId} className={`px-4 py-3 whitespace-nowrap text-${columnDefs[colId].align}`}>
+                                          {renderCell(colId, subPos, false)}
+                                        </td>
+                                      ))}
+
+                                      {/* Sticky Columns Data */}
+                                      <td className="px-4 py-3 text-right whitespace-nowrap sticky right-[90px] bg-[#0b0f14] group-hover/sub:bg-[#1c252f] z-20 shadow-[-10px_0_10px_-5px_rgba(0,0,0,0.3)] border-b border-gray-800">
+                                        <span className={`font-medium ${subPos.plColor}`}>{subPos.pl}</span>
+                                      </td>
+                                      <td className="px-4 py-3 text-center whitespace-nowrap sticky right-0 bg-[#0b0f14] group-hover/sub:bg-[#1c252f] z-20 border-b border-gray-800">
+                                        <div className="flex items-center justify-center gap-1">
+                                          <IconButton
+                                            tooltip="Edit"
+                                            placement="left"
+                                            className="text-[#8b9096]"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setEditingPosition(subPos);
+                                            }}
+                                          >
+                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                            </svg>
+                                          </IconButton>
+                                          <IconButton
+                                            tooltip="Close position"
+                                            placement="left"
+                                            className="text-[#8b9096]"
+                                            onClick={(e) => {
+                                              e.stopPropagation()
+                                              onClosePosition(subPos)
+                                            }}
+                                          >
+                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                            </svg>
+                                          </IconButton>
+                                        </div>
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                ))}
+                {activeTab === 'Closed' && closedPositions.map((position, idx) => (
                   <tr
-                    key={`sub-${subPos.ticket}`}
-                    className="border-b border-gray-800 bg-background hover:bg-[#1c252f] group"
+                    key={idx}
+                    className="border-b border-gray-800 hover:bg-[#1c252f] group"
                   >
-                    <td className="px-4 py-3 whitespace-nowrap pl-8"> {/* Indent symbol */}
-                      <span className="text-white font-medium">{subPos.symbol}</span>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 relative">
+                          <FlagIcon type={position.flag || 'xauusd'} />
+                        </div>
+                        <span className="text-white font-medium">{position.symbol}</span>
+                      </div>
                     </td>
 
                     {/* Dynamic Columns */}
                     {columnOrder.map(colId => visibleColumns[colId] && (
                       <td key={colId} className={`px-4 py-3 whitespace-nowrap text-${columnDefs[colId].align}`}>
-                        {renderCell(colId, subPos, false)}
+                        {renderCell(colId, position, false)}
                       </td>
                     ))}
 
                     {/* Sticky Columns Data */}
-                    <td className="px-4 py-3 text-right whitespace-nowrap sticky right-[90px] bg-background group-hover:bg-[#1c252f] z-20 shadow-[-10px_0_10px_-5px_rgba(0,0,0,0.3)] border-b border-gray-800">
-                      <span className={`font-medium ${subPos.plColor}`}>{subPos.pl}</span>
+                    <td className="px-4 py-3 text-right whitespace-nowrap sticky right-[60px] bg-[#0b0f14] group-hover:bg-[#1c252f] z-20 shadow-[-10px_0_10px_-5px_rgba(0,0,0,0.3)] border-b border-gray-800">
+                      <span className={`font-medium ${position.plColor}`}>{position.pl}</span>
                     </td>
-                    <td className="px-4 py-3 text-center whitespace-nowrap sticky right-0 bg-background group-hover:bg-[#1c252f] z-20 border-b border-gray-800">
-                      <div className="flex items-center justify-center gap-1">
-                        <IconButton
-                          tooltip="Edit"
-                          placement="left"
-                          className="text-[#8b9096]"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setEditingPosition(subPos);
-                          }}
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                          </svg>
-                        </IconButton>
-                        <IconButton
-                          tooltip="Close position"
-                          placement="left"
-                          className="text-[#8b9096]"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            onClosePosition(subPos)
-                          }}
-                        >
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                          </svg>
-                        </IconButton>
-                      </div>
+                    <td className="px-4 py-3 text-center whitespace-nowrap sticky right-0 bg-[#0b0f14] group-hover:bg-[#1c252f] z-20 border-b border-gray-800">
+                      {/* Empty cell for closed positions */}
                     </td>
                   </tr>
                 ))}
-              </Fragment>
-            ))}
-            {activeTab === 'Closed' && closedPositions.map((position, idx) => (
-              <tr
-                key={idx}
-                className="border-b border-gray-800 hover:bg-[#1c252f] group"
-              >
-                <td className="px-4 py-3 whitespace-nowrap">
-                  <div className="flex items-center gap-2">
-                    <div className="w-6 h-6 relative">
-                      <FlagIcon type={position.flag || 'xauusd'} />
-                    </div>
-                    <span className="text-white font-medium">{position.symbol}</span>
-                  </div>
-                </td>
 
-                {/* Dynamic Columns */}
-                {columnOrder.map(colId => visibleColumns[colId] && (
-                  <td key={colId} className={`px-4 py-3 whitespace-nowrap text-${columnDefs[colId].align}`}>
-                    {renderCell(colId, position, false)}
-                  </td>
-                ))}
+                {activeTab === 'Pending' && (
+                  <tr>
+                    <td colSpan="13" className="text-center py-16 text-[#8b9096]">
+                      No pending orders
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
 
-                {/* Sticky Columns Data */}
-                <td className="px-4 py-3 text-right whitespace-nowrap sticky right-[60px] bg-background group-hover:bg-[#1c252f] z-20 shadow-[-10px_0_10px_-5px_rgba(0,0,0,0.3)] border-b border-gray-800">
-                  <span className={`font-medium ${position.plColor}`}>{position.pl}</span>
-                </td>
-                <td className="px-4 py-3 text-center whitespace-nowrap sticky right-0 bg-background group-hover:bg-[#1c252f] z-20 border-b border-gray-800">
-                  {/* Empty cell for closed positions */}
-                </td>
-              </tr>
-            ))}
+          <ModifyPositionModal
+            isOpen={!!editingPosition}
+            onClose={() => setEditingPosition(null)}
+            position={editingPosition}
+          />
+          <ColumnVisibilityPopup
+            isOpen={isColumnPopupOpen}
+            onClose={() => setIsColumnPopupOpen(false)}
+            visibleColumns={visibleColumns}
+            toggleColumn={toggleColumn}
+            anchorRef={settingsButtonRef}
+            columnOrder={columnOrder}
+            setColumnOrder={setColumnOrder}
+            columns={columnDefs}
+          />
 
-            {activeTab === 'Pending' && (
-              <tr>
-                <td colSpan="13" className="text-center py-16 text-[#8b9096]">
-                  No pending orders
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+          <PositionClosedToast
+            position={closedToast}
+            onClose={() => setClosedToast(null)}
+          />
 
-      <ModifyPositionModal
-        isOpen={!!editingPosition}
-        onClose={() => setEditingPosition(null)}
-        position={editingPosition}
-      />
-      <ColumnVisibilityPopup
-        isOpen={isColumnPopupOpen}
-        onClose={() => setIsColumnPopupOpen(false)}
-        visibleColumns={visibleColumns}
-        toggleColumn={toggleColumn}
-        anchorRef={settingsButtonRef}
-        columnOrder={columnOrder}
-        setColumnOrder={setColumnOrder}
-        columns={columnDefs}
-      />
-
-      <PositionClosedToast
-        position={closedToast}
-        onClose={() => setClosedToast(null)}
-      />
-
-      <GroupClosePopup
-        isOpen={groupPopup.isOpen}
-        onClose={() => setGroupPopup({ ...groupPopup, isOpen: false })}
-        onConfirm={confirmCloseGroup}
-        position={groupPopup.position}
-        symbol={groupPopup.symbol}
-      />
+          <GroupClosePopup
+            isOpen={groupPopup.isOpen}
+            onClose={() => setGroupPopup({ ...groupPopup, isOpen: false })}
+            onConfirm={confirmCloseGroup}
+            position={groupPopup.position}
+            symbol={groupPopup.symbol}
+          />
+        </>
+      )}
     </div >
   )
 }

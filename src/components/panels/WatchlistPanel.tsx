@@ -261,8 +261,8 @@ export default function WatchlistPanel({ onClose }) {
 
       {/* Table Header */}
       <div className="grid grid-cols-[30px_1fr_auto_auto_auto_30px] gap-0 border-b border-gray-800 bg-background text-[11px] font-medium text-gray-500 uppercase">
-        <div className="py-2 text-center"></div> {/* Grip placeholder */}
-        <div className="py-2 pl-2 text-left">Symbol</div>
+        <div className="py-2 text-center bg-[#0b0e14] border-r border-gray-800"></div> {/* Grip placeholder */}
+        <div className="py-2 pl-2 text-left bg-[#0b0e14] border-r border-gray-800">Symbol</div>
 
         {isVisible('bid') && <div className="py-2 px-1 text-center w-[70px]">Bid</div>}
         {isVisible('ask') && <div className="py-2 px-1 text-center w-[70px]">Ask</div>}
@@ -280,23 +280,26 @@ export default function WatchlistPanel({ onClose }) {
             onDragStart={(e) => handleDragStart(e, idx)}
             onDragEnter={(e) => handleDragEnter(e, idx)}
             onDragEnd={handleDragEnd}
-            className="group grid grid-cols-[30px_1fr_auto_auto_auto_30px] gap-0 items-center border-b border-gray-800 hover:bg-[#1c252f] transition-colors h-[36px] cursor-pointer"
+            className="group grid grid-cols-[30px_1fr_auto_auto_auto_30px] gap-0 items-center border-b border-gray-800 hover:bg-[#1c252f] transition-colors h-[40px] cursor-pointer"
           >
             {/* Grip Handle */}
-            <div className="flex items-center justify-center text-[#565c66] cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100">
+            <div className="flex items-center justify-center text-[#565c66] cursor-grab active:cursor-grabbing bg-[#0b0e14] group-hover:bg-[#1c252f] h-full transition-colors border-r border-gray-800">
               <LuGripVertical size={14} />
             </div>
 
             {/* Symbol */}
-            <div className="pl-2 flex flex-col justify-center">
+            <div className="pl-2 flex flex-col justify-center border-r border-gray-800 bg-[#0b0e14] group-hover:bg-[#1c252f] h-full transition-colors">
               <span className="text-[13px] font-bold text-gray-200">{item.symbol}</span>
               {isVisible('description') && <span className="text-[10px] text-gray-500">{item.name}</span>}
             </div>
 
             {/* Bid */}
             {isVisible('bid') && (
-              <div className="px-1 w-[70px] text-center">
-                <span className={`text-[12px] font-mono px-1.5 py-0.5 rounded-sm ${showPriceHighlight ? 'bg-[#2ebd85]/20 text-[#2ebd85]' : 'bg-[#2a303c] text-gray-300'}`}>
+              <div className="px-1 w-[70px] text-center flex items-center justify-center h-full">
+                <span className={`text-[12px] font-medium px-1.5 py-1 rounded-[4px] w-full block ${showPriceHighlight
+                  ? (item.changeColor === 'green' ? 'bg-[#2ebd85] text-white' : item.changeColor === 'red' ? 'bg-[#f6465d] text-white' : 'bg-[#2a303c] text-white')
+                  : (item.changeColor === 'green' ? 'bg-[#2ebd85] text-white' : item.changeColor === 'red' ? 'bg-[#f6465d] text-white' : 'bg-[#2a303c] text-white')
+                  }`}>
                   {item.bid}
                 </span>
               </div>
@@ -304,8 +307,11 @@ export default function WatchlistPanel({ onClose }) {
 
             {/* Ask */}
             {isVisible('ask') && (
-              <div className="px-1 w-[70px] text-center">
-                <span className={`text-[12px] font-mono px-1.5 py-0.5 rounded-sm ${showPriceHighlight ? 'bg-[#2ebd85]/20 text-[#2ebd85]' : 'bg-[#2a303c] text-gray-300'}`}>
+              <div className="px-1 w-[70px] text-center flex items-center justify-center h-full">
+                <span className={`text-[12px] font-medium px-1.5 py-1 rounded-[4px] w-full block ${showPriceHighlight
+                  ? (item.changeColor === 'green' ? 'bg-[#2ebd85] text-white' : item.changeColor === 'red' ? 'bg-[#f6465d] text-white' : 'bg-[#2a303c] text-white')
+                  : (item.changeColor === 'green' ? 'bg-[#2ebd85] text-white' : item.changeColor === 'red' ? 'bg-[#f6465d] text-white' : 'bg-[#2a303c] text-white')
+                  }`}>
                   {item.ask}
                 </span>
               </div>
@@ -313,13 +319,13 @@ export default function WatchlistPanel({ onClose }) {
 
             {/* 1D Change */}
             {isVisible('change') && (
-              <div className={`px-1 w-[60px] text-center text-[11px] font-medium ${item.changeColor === 'green' ? 'text-[#2ebd85]' : item.changeColor === 'red' ? 'text-[#f6465d]' : 'text-gray-400'}`}>
+              <div className={`px-1 w-[60px] text-center text-[11px] font-medium flex items-center justify-center h-full ${item.changeColor === 'green' ? 'text-[#2ebd85]' : item.changeColor === 'red' ? 'text-[#f6465d]' : 'text-gray-400'}`}>
                 {item.change}
               </div>
             )}
 
             {/* Star / Favorite */}
-            <div className="flex items-center justify-center">
+            <div className="flex items-center justify-center h-full">
               <button
                 onClick={(e) => { e.stopPropagation(); toggleFavorite(item.id); }}
                 className={`text-[14px] transition-colors ${item.favorite ? 'text-[#f59e0b]' : 'text-gray-600 hover:text-gray-400'}`}

@@ -13,7 +13,7 @@ export default function PriceAlertsDropdown({ isOpen, onClose }) {
       />
 
       {/* Dropdown Container */}
-      <div className="absolute top-full right-0 mt-2 w-[360px] bg-[#0b0f14] border border-gray-700 rounded-lg shadow-2xl z-50 overflow-hidden font-sans">
+      <div className="absolute top-full right-0 mt-2 w-[360px] bg-[#02040d] border border-gray-700 rounded-lg shadow-2xl z-50 overflow-hidden font-sans">
 
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700">

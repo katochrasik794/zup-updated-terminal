@@ -6,7 +6,7 @@ export default function DepositPopup({ isOpen, onClose }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-xs">
-      <div className="bg-[#0b0f14] rounded-lg shadow-2xl w-[600px] overflow-hidden border border-gray-700 font-sans">
+      <div className="bg-[#02040d] rounded-lg shadow-2xl w-[600px] overflow-hidden border border-gray-700 font-sans">
 
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-700">

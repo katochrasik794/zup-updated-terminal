@@ -1,6 +1,8 @@
 "use client";
 import { useEffect } from 'react'
 
+import ReactDOM from 'react-dom'
+
 export default function PositionClosedToast({ position, onClose }) {
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -11,8 +13,8 @@ export default function PositionClosedToast({ position, onClose }) {
 
   if (!position) return null
 
-  return (
-    <div className="absolute bottom-4 left-4 z-50 bg-[#0b0f14] text-[#b2b5be] rounded-md shadow-lg border border-[#363c47] w-[320px] overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-300">
+  return ReactDOM.createPortal(
+    <div className="fixed bottom-4 left-4 z-[99999] bg-[#0b0f14] text-[#b2b5be] rounded-md shadow-lg border border-gray-800 w-[320px] overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-300">
       <div className="p-4 relative">
         <button
           onClick={onClose}
@@ -47,6 +49,7 @@ export default function PositionClosedToast({ position, onClose }) {
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }

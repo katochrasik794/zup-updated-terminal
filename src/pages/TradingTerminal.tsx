@@ -18,12 +18,14 @@ export default function TradingTerminal() {
   const leftPanelRef = useRef<ImperativePanelHandle>(null)
   const [closedToast, setClosedToast] = useState(null)
   const [isRightSidebarOpen, setIsRightSidebarOpen] = useState(true)
+  const [isBottomPanelVisible, setIsBottomPanelVisible] = useState(true)
 
   const [openPositions, setOpenPositions] = useState([
+    // 4 Buy positions for XAU/USD
     {
       symbol: 'XAU/USD',
       type: 'Buy',
-      volume: '0.01',
+      volume: '1.00',
       openPrice: '4,174.936',
       currentPrice: '4,174.225',
       tp: 'Add',
@@ -39,7 +41,7 @@ export default function TradingTerminal() {
     {
       symbol: 'XAU/USD',
       type: 'Buy',
-      volume: '0.01',
+      volume: '1.00',
       openPrice: '4,175.347',
       currentPrice: '4,174.225',
       tp: 'Add',
@@ -55,7 +57,7 @@ export default function TradingTerminal() {
     {
       symbol: 'XAU/USD',
       type: 'Buy',
-      volume: '0.01',
+      volume: '1.00',
       openPrice: '4,153.111',
       currentPrice: '4,174.225',
       tp: 'Add',
@@ -71,7 +73,7 @@ export default function TradingTerminal() {
     {
       symbol: 'XAU/USD',
       type: 'Buy',
-      volume: '0.01',
+      volume: '1.00',
       openPrice: '4,160.565',
       currentPrice: '4,174.225',
       tp: 'Add',
@@ -84,10 +86,11 @@ export default function TradingTerminal() {
       plColor: 'text-[#00ffaa]',
       flag: 'xauusd'
     },
+    // 3 Sell positions for XAU/USD to create Hedged scenario (if 4th sell added later)
     {
       symbol: 'XAU/USD',
-      type: 'Buy',
-      volume: '0.01',
+      type: 'Sell',
+      volume: '1.00',
       openPrice: '4,160.256',
       currentPrice: '4,174.225',
       tp: 'Add',
@@ -96,10 +99,43 @@ export default function TradingTerminal() {
       openTime: 'Nov 26, 11:04:32 AM',
       swap: '0',
       commission: '-0.33',
-      pl: '+49.32',
+      pl: '-49.32',
+      plColor: 'text-[#f6465d]',
+      flag: 'xauusd'
+    },
+    {
+      symbol: 'XAU/USD',
+      type: 'Sell',
+      volume: '1.00',
+      openPrice: '4,180.000',
+      currentPrice: '4,174.225',
+      tp: 'Add',
+      sl: 'Add',
+      ticket: '69975878',
+      openTime: 'Nov 26, 11:10:00 AM',
+      swap: '0',
+      commission: '-0.33',
+      pl: '+20.00',
       plColor: 'text-[#00ffaa]',
       flag: 'xauusd'
     },
+    {
+      symbol: 'XAU/USD',
+      type: 'Sell',
+      volume: '1.00',
+      openPrice: '4,190.000',
+      currentPrice: '4,174.225',
+      tp: 'Add',
+      sl: 'Add',
+      ticket: '69975879',
+      openTime: 'Nov 26, 11:15:00 AM',
+      swap: '0',
+      commission: '-0.33',
+      pl: '+55.00',
+      plColor: 'text-[#00ffaa]',
+      flag: 'xauusd'
+    },
+    // Remaining positions
     {
       symbol: 'BTC',
       type: 'Buy',
@@ -176,34 +212,58 @@ export default function TradingTerminal() {
       </ResizablePanel>
 
       {/* Horizontal resize handle */}
-      <ResizableHandle disabled={!isSidebarExpanded} className={!isSidebarExpanded ? "pointer-events-none w-0" : ""} />
+      <ResizableHandle withHandle={false} disabled={!isSidebarExpanded} className={!isSidebarExpanded ? "pointer-events-none w-0" : ""} />
 
       {/* Main content area with status bar */}
       <ResizablePanel defaultSize={97} className="flex flex-col h-full gap-1">
         {/* Top content area */}
         <div className="relative flex flex-1 overflow-hidden gap-1">
-          {/* Center resizable area with vertical panels */}
-          <ResizablePanelGroup direction="vertical" className="flex-1">
-            {/* Chart section */}
-            <ResizablePanel defaultSize={70} minSize={40} maxSize={85} className="min-h-0 overflow-hidden">
-              <ChartSection />
-            </ResizablePanel>
+          <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
+            <ResizablePanelGroup direction="vertical" className="flex-1">
+              {/* Chart section */}
+              <ResizablePanel defaultSize={70} minSize={40} maxSize={85} className="min-h-0 overflow-hidden">
+                <ChartSection />
+              </ResizablePanel>
 
-            {/* Vertical resize handle */}
-            <ResizableHandle />
+              {isBottomPanelVisible && (
+                <>
+                  {/* Vertical resize handle */}
+                  <ResizableHandle withHandle={false} className="" />
 
-            {/* Bottom panel */}
-            <ResizablePanel defaultSize={30} minSize={15} maxSize={60} className="min-h-0 overflow-hidden">
-              <BottomPanel
-                openPositions={openPositions}
-                onClosePosition={handleClosePosition}
-                onCloseGroup={handleCloseGroup}
-                closedToast={closedToast}
-                setClosedToast={setClosedToast}
-                onCloseAll={handleCloseAll}
-              />
-            </ResizablePanel>
-          </ResizablePanelGroup>
+                  {/* Bottom panel */}
+                  <ResizablePanel defaultSize={30} minSize={15} maxSize={60} className="min-h-0 overflow-hidden">
+                    <BottomPanel
+                      openPositions={openPositions}
+                      onClosePosition={handleClosePosition}
+                      onCloseGroup={handleCloseGroup}
+                      closedToast={closedToast}
+                      setClosedToast={setClosedToast}
+                      onCloseAll={handleCloseAll}
+                      onHide={() => setIsBottomPanelVisible(false)}
+                    />
+                  </ResizablePanel>
+                </>
+              )}
+            </ResizablePanelGroup>
+
+            {/* Minimized Bottom Panel */}
+            {!isBottomPanelVisible && (
+              <div className="flex-none h-[40px] border-t border-gray-800 bg-black">
+                <BottomPanel
+                  openPositions={openPositions}
+                  onClosePosition={handleClosePosition}
+                  onCloseGroup={handleCloseGroup}
+                  closedToast={closedToast}
+                  setClosedToast={setClosedToast}
+                  onCloseAll={handleCloseAll}
+                  isMinimized={true}
+                  onHide={() => setIsBottomPanelVisible(true)}
+                />
+              </div>
+            )}
+          </div>
+
+
 
           {/* Right sidebar - Order Panel with full height */}
           {isRightSidebarOpen && (
@@ -223,6 +283,8 @@ export default function TradingTerminal() {
             </button>
           )}
         </div>
+
+
 
         {/* Status bar only for center and right areas */}
         <StatusBar

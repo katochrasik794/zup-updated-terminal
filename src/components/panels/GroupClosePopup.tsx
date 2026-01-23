@@ -22,7 +22,7 @@ export default function GroupClosePopup({ isOpen, onClose, onConfirm, position, 
   return (
     <div
       ref={popupRef}
-      className="fixed z-[100] bg-[#0b0f14] border border-[#363c47] rounded-lg shadow-xl p-4 flex flex-col gap-4 w-[320px]"
+      className="fixed z-[100] bg-[#0b0f14] border border-gray-800 rounded-lg shadow-xl p-4 flex flex-col gap-4 w-[320px]"
       style={{
         top: position.top,
         left: position.left,
@@ -42,7 +42,7 @@ export default function GroupClosePopup({ isOpen, onClose, onConfirm, position, 
         </button>
         <button
           onClick={onConfirm}
-          className="flex-1 py-2 text-[14px] font-medium text-[#141d22] bg-[#b2b5be] hover:bg-white rounded transition-colors cursor-pointer"
+          className="flex-1 py-2 text-[14px] font-medium text-black bg-[#8b5cf6] hover:bg-[#7c3aed] rounded transition-colors cursor-pointer"
         >
           Confirm
         </button>

@@ -38,7 +38,7 @@ const ModifyPositionModal = ({ isOpen, onClose, position }) => {
       className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-[2px]"
       onClick={handleBackdropClick}
     >
-      <div className="bg-background rounded-lg w-[400px] shadow-2xl overflow-hidden font-sans text-gray-200">
+      <div className="bg-[#0b0f14] border border-gray-800 rounded-lg w-[400px] shadow-2xl overflow-hidden font-sans text-gray-200">
         {/* Header */}
         <div className="px-4 pt-4 pb-2 flex justify-between items-start">
           {/* Left Column: Symbol info */}
@@ -84,7 +84,7 @@ const ModifyPositionModal = ({ isOpen, onClose, position }) => {
 
         {/* Tabs */}
         <div className="px-4 py-3">
-          <div className="flex bg-background p-[3px] rounded border border-[#2a3038]">
+          <div className="flex bg-[#0b0f14] p-[3px] rounded border border-[#2a3038]">
             {['Modify', 'Partial close', 'Close by'].map((tab) => {
               const id = tab.toLowerCase().replace(' ', '');
               const isActive = activeTab === id;
@@ -93,8 +93,8 @@ const ModifyPositionModal = ({ isOpen, onClose, position }) => {
                   key={id}
                   onClick={() => setActiveTab(id)}
                   className={`flex-1 py-1.5 text-[13px] font-medium rounded-[4px] transition-all ${isActive
-                      ? 'bg-[#2a353e] text-white shadow-sm'
-                      : 'text-[#8b9096] hover:text-white'
+                    ? 'bg-[#8b5cf6] text-black shadow-sm'
+                    : 'text-[#8b9096] hover:text-white'
                     }`}
                 >
                   {tab}
@@ -259,7 +259,7 @@ const ModifyPositionModal = ({ isOpen, onClose, position }) => {
           {/* Action Button */}
           <button
             onClick={onClose}
-            className="w-full h-[40px] bg-[#eec802] hover:bg-[#ffdd2d] text-black text-[14px] font-medium rounded transition-colors mt-2"
+            className="w-full h-[40px] bg-[#8b5cf6] hover:bg-[#8b5cf6] text-black text-[14px] font-medium rounded transition-colors mt-2"
           >
             {activeTab === 'modify' ? 'Modify position' : 'Close position'}
           </button>

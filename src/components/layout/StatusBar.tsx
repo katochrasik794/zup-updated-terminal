@@ -4,7 +4,7 @@ import { GiNetworkBars } from "react-icons/gi";
 import CloseAllPositionsDropdown from "../modals/CloseAllPositionsDropdown";
 import { usePrivacy } from '../../context/PrivacyContext';
 
-export default function StatusBar({ openPositions = [], onCloseAll }) {
+export default function StatusBar({ openPositions = [], onCloseAll }: any) {
   const { hideBalance } = usePrivacy();
   const totalPL = openPositions.reduce((sum, pos) => sum + parseFloat(pos.pl.replace('+', '')), 0)
   const [showDropdown, setShowDropdown] = useState(false)

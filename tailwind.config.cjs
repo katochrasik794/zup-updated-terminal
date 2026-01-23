@@ -11,8 +11,8 @@ module.exports = {
                 danger: '#EF4444',
                 info: '#3B82F6',
                 warning: '#F59E0B',
-                background: '#0b0f14',
-                surface: '#0b0f14',
+                background: '#02040d',
+                surface: '#02040d',
             },
             fontFamily: {
                 sans: ['Manrope', 'Manrope Fallback', 'sans-serif'],
