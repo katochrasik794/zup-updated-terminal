@@ -1,7 +1,7 @@
-# FINCRM Trading Terminal - Project Structure
+# Zuperior Trading Terminal - Project Structure
 
 ## Overview
-This is a React-based trading terminal application that replicates the FINCRM trading interface with modern styling and functionality.
+This is a React-based trading terminal application that replicates the Zuperior trading interface with modern styling and functionality.
 
 ## Main Sections
 
@@ -67,7 +67,7 @@ This is a React-based trading terminal application that replicates the FINCRM tr
 
 ## Styling
 - Uses Tailwind CSS for styling
-- Dark theme with colors matching FINCRM branding
+- Dark theme with colors matching Zuperior branding
 - Responsive grid layouts for different screen sizes
 - Hover effects and interactive states
 
