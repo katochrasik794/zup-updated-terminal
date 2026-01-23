@@ -96,7 +96,7 @@ export default function SymbolSearchPopup({ isOpen, onClose, onSelectSymbol, tri
 
       {/* Dropdown Popup */}
       <div
-        className={`${triggerRef ? 'fixed' : 'absolute top-full left-0 mt-2'} w-[400px] bg-[#121212] border border-gray-700 rounded-lg shadow-2xl z-50`}
+        className={`${triggerRef ? 'fixed' : 'absolute top-full left-0 mt-2'} w-[400px] bg-[#0b0f14] border border-gray-700 rounded-lg shadow-2xl z-50`}
         style={triggerRef ? { top: position.top, left: position.left } : {}}
       >
         {/* Search Bar */}
@@ -132,7 +132,7 @@ export default function SymbolSearchPopup({ isOpen, onClose, onSelectSymbol, tri
         {/* Instruments List */}
         <div className="max-h-[320px] overflow-y-auto custom-scrollbar">
           <table className="w-full">
-            <thead className="sticky top-0 bg-[#121212] border-b border-gray-700">
+            <thead className="sticky top-0 bg-[#0b0f14] border-b border-gray-700">
               <tr className="text-gray-500 text-[10px] uppercase">
                 <th className="px-4 py-2 text-left font-medium">Symbol</th>
                 <th className="px-4 py-2 text-left font-medium">Description</th>

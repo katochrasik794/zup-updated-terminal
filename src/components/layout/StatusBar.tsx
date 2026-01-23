@@ -2,8 +2,10 @@
 import { useState, useRef } from 'react'
 import { GiNetworkBars } from "react-icons/gi";
 import CloseAllPositionsDropdown from "../modals/CloseAllPositionsDropdown";
+import { usePrivacy } from '../../context/PrivacyContext';
 
 export default function StatusBar({ openPositions = [], onCloseAll }) {
+  const { hideBalance } = usePrivacy();
   const totalPL = openPositions.reduce((sum, pos) => sum + parseFloat(pos.pl.replace('+', '')), 0)
   const [showDropdown, setShowDropdown] = useState(false)
   const buttonRef = useRef(null)
@@ -12,17 +14,17 @@ export default function StatusBar({ openPositions = [], onCloseAll }) {
     <div className="bg-background flex items-center justify-between px-4 py-2 text-xs text-gray-400 font-medium rounded-tl-md relative border-t border-gray-800">
       {/* Left section - Account info */}
       <div className="flex items-center gap-6">
-        <span>Equity: <span className="text-gray-200 font-mono">1,290.14 USD</span></span>
-        <span>Free Margin: <span className="text-gray-200 font-mono">1,273.73 USD</span></span>
-        <span>Balance: <span className="text-gray-200 font-mono">978.14 USD</span></span>
-        <span>Margin: <span className="text-gray-200 font-mono">10.41 USD</span></span>
-        <span>Margin level: <span className="text-gray-200 font-mono">12,335.64%</span></span>
+        <span>Equity: <span className="text-gray-200 font-mono">{hideBalance ? '****' : '1,290.14 USD'}</span></span>
+        <span>Free Margin: <span className="text-gray-200 font-mono">{hideBalance ? '****' : '1,273.73 USD'}</span></span>
+        <span>Balance: <span className="text-gray-200 font-mono">{hideBalance ? '****' : '978.14 USD'}</span></span>
+        <span>Margin: <span className="text-gray-200 font-mono">{hideBalance ? '****' : '10.41 USD'}</span></span>
+        <span>Margin level: <span className="text-gray-200 font-mono">{hideBalance ? '****' : '12,335.64%'}</span></span>
       </div>
 
       {/* Right section - P/L, Close all, Connection */}
       <div className="flex items-center gap-4">
         <span>Total P/L, USD: <span className={`font-mono ${totalPL >= 0 ? 'text-[#2ebd85]' : 'text-[#f6465d]'}`}>
-          {totalPL >= 0 ? '+' : ''}{totalPL.toFixed(2)}
+          {hideBalance ? '****' : <>{totalPL >= 0 ? '+' : ''}{totalPL.toFixed(2)}</>}
         </span></span>
 
         <button

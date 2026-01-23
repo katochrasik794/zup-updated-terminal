@@ -57,9 +57,11 @@ const InstrumentTab = ({ tab, isActive, onClick, onClose }) => {
 }
 
 import { useSidebar } from '../../context/SidebarContext'
+import { usePrivacy } from '../../context/PrivacyContext';
 
 export default function Navbar({ logoLarge, logoSmall }) {
   const { isSidebarExpanded } = useSidebar();
+  const { hideBalance } = usePrivacy();
   const [tabs, setTabs] = useState([
     { id: '1', symbol: 'XAU/USD', flagType: 'xauusd', isActive: true },
     { id: '2', symbol: 'US500', flagType: 'us500', isActive: false },
@@ -132,7 +134,7 @@ export default function Navbar({ logoLarge, logoSmall }) {
 
   return (
     <nav className="bg-background flex-shrink-0 border border-gray-800">
-      <div className="flex items-center h-16 py-2 ">
+      <div className="flex items-center h-14 py-2 ">
         {/* Logo */}
         <div className="px-4 flex-shrink-0">
           <div className='flex items-center'>
@@ -217,7 +219,7 @@ export default function Navbar({ logoLarge, logoSmall }) {
                   <div className="flex items-center gap-0">
                     <span className="flex items-center">
                       <div>
-                        <span className="text-white text-[15px] font-semi-bold">{balance}</span>
+                        <span className="text-white text-[15px] font-semi-bold">{hideBalance ? '****' : balance}</span>
                       </div>
                       <div>
                         <span

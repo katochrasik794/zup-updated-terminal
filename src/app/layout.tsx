@@ -1,5 +1,6 @@
 import "./globals.css";
 import ClientLayout from "../components/layout/ClientLayout";
+import { PrivacyProvider } from "../context/PrivacyContext";
 
 export const metadata = {
     title: "Zuperior Terminal",
@@ -10,9 +11,11 @@ export default function RootLayout({ children }) {
     return (
         <html lang="en">
             <body className="antialiased">
-                <ClientLayout>
-                    {children}
-                </ClientLayout>
+                <PrivacyProvider>
+                    <ClientLayout>
+                        {children}
+                    </ClientLayout>
+                </PrivacyProvider>
             </body>
         </html>
     );

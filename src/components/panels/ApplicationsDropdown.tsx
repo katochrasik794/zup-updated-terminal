@@ -13,7 +13,7 @@ export default function ApplicationsDropdown({ isOpen, onClose }) {
       />
 
       {/* Dropdown Container */}
-      <div className="absolute top-full right-0 mt-2 w-[240px] bg-[#121212] border border-gray-700 rounded-lg shadow-2xl z-50 overflow-hidden font-sans py-2">
+      <div className="absolute top-full right-0 mt-2 w-[240px] bg-[#0b0f14] border border-gray-700 rounded-lg shadow-2xl z-50 overflow-hidden font-sans py-2">
 
         <a href="#" className="flex items-center gap-3 px-4 py-3 text-gray-300 hover:bg-[#2d3a45] hover:text-white transition-colors">
           <FiLayout size={18} />

@@ -94,7 +94,7 @@ export default function CloseAllPositionsDropdown({ isOpen, onClose, onConfirm, 
     <div
       ref={dropdownRef}
       style={style}
-      className="fixed z-[100] bg-[#121212] rounded-lg shadow-2xl w-[320px] border border-[#363c47] overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-200"
+      className="fixed z-[100] bg-[#0b0f14] rounded-lg shadow-2xl w-[320px] border border-[#363c47] overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-200"
     >
       <div className="p-4">
         <h3 className="text-white font-medium text-[14px] mb-3">
