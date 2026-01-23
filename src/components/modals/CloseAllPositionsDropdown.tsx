@@ -8,7 +8,7 @@ export default function CloseAllPositionsDropdown({ isOpen, onClose, onConfirm, 
   // Calculate stats
   const stats = positions.reduce((acc, pos) => {
     const pl = parseFloat(pos.pl.replace('+', ''))
-    
+
     // All
     acc.all.count++
     acc.all.pl += pl
@@ -59,8 +59,8 @@ export default function CloseAllPositionsDropdown({ isOpen, onClose, onConfirm, 
 
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target) && 
-          anchorRef.current && !anchorRef.current.contains(event.target)) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target) &&
+        anchorRef.current && !anchorRef.current.contains(event.target)) {
         onClose()
       }
     }
@@ -91,10 +91,10 @@ export default function CloseAllPositionsDropdown({ isOpen, onClose, onConfirm, 
   ]
 
   return (
-    <div 
+    <div
       ref={dropdownRef}
       style={style}
-      className="fixed z-[100] bg-[#2a3038] rounded-lg shadow-2xl w-[320px] border border-[#363c47] overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-200"
+      className="fixed z-[100] bg-[#121212] rounded-lg shadow-2xl w-[320px] border border-[#363c47] overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-200"
     >
       <div className="p-4">
         <h3 className="text-white font-medium text-[14px] mb-3">
@@ -107,7 +107,7 @@ export default function CloseAllPositionsDropdown({ isOpen, onClose, onConfirm, 
             const isDisabled = stat.count === 0
 
             return (
-              <label 
+              <label
                 key={opt.id}
                 className={`flex items-center justify-between cursor-pointer group p-2 rounded hover:bg-[#363c47] transition-colors ${isDisabled ? 'opacity-50 pointer-events-none' : ''}`}
               >
@@ -120,7 +120,7 @@ export default function CloseAllPositionsDropdown({ isOpen, onClose, onConfirm, 
                       checked={selectedOption === opt.id}
                       onChange={(e) => setSelectedOption(e.target.value)}
                       disabled={isDisabled}
-                      className="peer appearance-none w-4 h-4 border border-[#565c66] rounded-full checked:border-[#fcd535] checked:bg-[#fcd535] transition-colors"
+                      className="peer appearance-none w-4 h-4 border border-[#565c66] rounded-full checked:border-[#8b5cf6] checked:bg-[#8b5cf6] transition-colors"
                     />
                   </div>
                   <div className="flex items-center gap-2">
@@ -152,7 +152,7 @@ export default function CloseAllPositionsDropdown({ isOpen, onClose, onConfirm, 
               onConfirm(selectedOption)
               onClose()
             }}
-            className="flex-1 py-2 text-[13px] font-medium text-[#141d22] bg-[#fcd535] hover:bg-[#ffe54f] transition-colors rounded"
+            className="flex-1 py-2 text-[13px] font-medium text-[#141d22] bg-[#8b5cf6] hover:bg-[#ffe54f] transition-colors rounded"
           >
             Confirm
           </button>

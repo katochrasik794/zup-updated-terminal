@@ -8,7 +8,7 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
     const { isSidebarExpanded } = useSidebar();
 
     return (
-        <div className="h-screen flex flex-col bg-[#3f474b] overflow-hidden gap-1">
+        <div className="h-screen flex flex-col bg-background overflow-hidden gap-1">
             <Navbar
                 logoLarge="/logo-full.png"
                 logoSmall="/logo-icon.webp"

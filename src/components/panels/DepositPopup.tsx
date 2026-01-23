@@ -6,12 +6,12 @@ export default function DepositPopup({ isOpen, onClose }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-xs">
-      <div className="bg-[#1a2329] rounded-lg shadow-2xl w-[600px] overflow-hidden border border-gray-700 font-sans">
-        
+      <div className="bg-[#121212] rounded-lg shadow-2xl w-[600px] overflow-hidden border border-gray-700 font-sans">
+
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-700">
           <h2 className="text-xl font-bold text-white">Make a deposit</h2>
-          <button 
+          <button
             onClick={onClose}
             className="text-gray-400 hover:text-white transition-colors"
           >
@@ -21,7 +21,7 @@ export default function DepositPopup({ isOpen, onClose }) {
 
         {/* Content */}
         <div className="p-6 grid grid-cols-2 gap-6">
-          
+
           {/* Demo Column */}
           <div className="flex flex-col h-full">
             <h3 className="text-lg font-bold text-white mb-4">Demo</h3>
@@ -57,7 +57,7 @@ export default function DepositPopup({ isOpen, onClose }) {
                 Instant, automated withdrawals
               </li>
             </ul>
-            <button className="w-full py-3 bg-[#ffe600] hover:bg-[#e6cf00] text-black font-bold rounded transition-colors text-sm mt-auto">
+            <button className="w-full py-3 bg-[#8b5cf6] hover:bg-[#e6cf00] text-black font-bold rounded transition-colors text-sm mt-auto">
               Deposit on real account
             </button>
           </div>

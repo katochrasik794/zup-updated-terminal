@@ -34,11 +34,11 @@ const ModifyPositionModal = ({ isOpen, onClose, position }) => {
   };
 
   return ReactDOM.createPortal(
-    <div 
+    <div
       className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-[2px]"
       onClick={handleBackdropClick}
     >
-      <div className="bg-[#2c3438] rounded-lg w-[400px] shadow-2xl overflow-hidden font-sans text-gray-200">
+      <div className="bg-background rounded-lg w-[400px] shadow-2xl overflow-hidden font-sans text-gray-200">
         {/* Header */}
         <div className="px-4 pt-4 pb-2 flex justify-between items-start">
           {/* Left Column: Symbol info */}
@@ -71,7 +71,7 @@ const ModifyPositionModal = ({ isOpen, onClose, position }) => {
                 {position.currentPrice || position.openPrice}
               </div>
             </div>
-            <button 
+            <button
               onClick={onClose}
               className="text-[#8b9096] hover:text-white transition-colors cursor-pointer mt-1"
             >
@@ -84,7 +84,7 @@ const ModifyPositionModal = ({ isOpen, onClose, position }) => {
 
         {/* Tabs */}
         <div className="px-4 py-3">
-          <div className="flex bg-[#141d22] p-[3px] rounded border border-[#2a3038]">
+          <div className="flex bg-background p-[3px] rounded border border-[#2a3038]">
             {['Modify', 'Partial close', 'Close by'].map((tab) => {
               const id = tab.toLowerCase().replace(' ', '');
               const isActive = activeTab === id;
@@ -92,11 +92,10 @@ const ModifyPositionModal = ({ isOpen, onClose, position }) => {
                 <button
                   key={id}
                   onClick={() => setActiveTab(id)}
-                  className={`flex-1 py-1.5 text-[13px] font-medium rounded-[4px] transition-all ${
-                    isActive 
-                      ? 'bg-[#2a353e] text-white shadow-sm' 
+                  className={`flex-1 py-1.5 text-[13px] font-medium rounded-[4px] transition-all ${isActive
+                      ? 'bg-[#2a353e] text-white shadow-sm'
                       : 'text-[#8b9096] hover:text-white'
-                  }`}
+                    }`}
                 >
                   {tab}
                 </button>
@@ -122,8 +121,8 @@ const ModifyPositionModal = ({ isOpen, onClose, position }) => {
                   </Tooltip>
                 </div>
                 <div className="flex h-[38px] border border-[#2a3038] rounded hover:border-[#8b9096] transition-colors group focus-within:border-[#0099ff] bg-[#1e222d]">
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     placeholder="Not set"
                     value={tpValue}
                     onChange={(e) => setTpValue(e.target.value)}
@@ -137,7 +136,7 @@ const ModifyPositionModal = ({ isOpen, onClose, position }) => {
                       </svg>
                     </button>
                     <div className="flex h-full border-l border-[#2a3038]">
-                      <button 
+                      <button
                         onClick={() => adjustValue(setTpValue, tpValue, -0.1)}
                         className="w-[32px] h-full flex items-center justify-center text-[#8b9096] hover:bg-[#2a3038] hover:text-white transition-colors"
                       >
@@ -146,7 +145,7 @@ const ModifyPositionModal = ({ isOpen, onClose, position }) => {
                         </svg>
                       </button>
                       <div className="w-[1px] h-full bg-[#2a3038]"></div>
-                      <button 
+                      <button
                         onClick={() => adjustValue(setTpValue, tpValue, 0.1)}
                         className="w-[32px] h-full flex items-center justify-center text-[#8b9096] hover:bg-[#2a3038] hover:text-white transition-colors"
                       >
@@ -172,8 +171,8 @@ const ModifyPositionModal = ({ isOpen, onClose, position }) => {
                   </Tooltip>
                 </div>
                 <div className="flex h-[38px] border border-[#2a3038] rounded hover:border-[#8b9096] transition-colors group focus-within:border-[#0099ff] bg-[#1e222d]">
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     placeholder="Not set"
                     value={slValue}
                     onChange={(e) => setSlValue(e.target.value)}
@@ -187,7 +186,7 @@ const ModifyPositionModal = ({ isOpen, onClose, position }) => {
                       </svg>
                     </button>
                     <div className="flex h-full border-l border-[#2a3038]">
-                      <button 
+                      <button
                         onClick={() => adjustValue(setSlValue, slValue, -0.1)}
                         className="w-[32px] h-full flex items-center justify-center text-[#8b9096] hover:bg-[#2a3038] hover:text-white transition-colors"
                       >
@@ -196,7 +195,7 @@ const ModifyPositionModal = ({ isOpen, onClose, position }) => {
                         </svg>
                       </button>
                       <div className="w-[1px] h-full bg-[#2a3038]"></div>
-                      <button 
+                      <button
                         onClick={() => adjustValue(setSlValue, slValue, 0.1)}
                         className="w-[32px] h-full flex items-center justify-center text-[#8b9096] hover:bg-[#2a3038] hover:text-white transition-colors"
                       >
@@ -218,8 +217,8 @@ const ModifyPositionModal = ({ isOpen, onClose, position }) => {
                 </div>
                 <div className="flex h-[38px] border border-[#2a3038] rounded hover:border-[#8b9096] transition-colors group focus-within:border-[#0099ff] bg-[#1e222d]">
                   <div className="flex-1 flex items-center px-3">
-                    <input 
-                      type="text" 
+                    <input
+                      type="text"
                       value={partialVolume}
                       onChange={(e) => setPartialVolume(e.target.value)}
                       className="w-full bg-transparent text-[14px] text-white placeholder-[#585c63] outline-none"
@@ -227,7 +226,7 @@ const ModifyPositionModal = ({ isOpen, onClose, position }) => {
                     <span className="text-[14px] text-[#8b9096] ml-2">Lots</span>
                   </div>
                   <div className="flex h-full border-l border-[#2a3038]">
-                    <button 
+                    <button
                       onClick={() => adjustValue(setPartialVolume, partialVolume, -0.01)}
                       className="w-[32px] h-full flex items-center justify-center text-[#8b9096] hover:bg-[#2a3038] hover:text-white transition-colors"
                     >
@@ -236,7 +235,7 @@ const ModifyPositionModal = ({ isOpen, onClose, position }) => {
                       </svg>
                     </button>
                     <div className="w-[1px] h-full bg-[#2a3038]"></div>
-                    <button 
+                    <button
                       onClick={() => adjustValue(setPartialVolume, partialVolume, 0.01)}
                       className="w-[32px] h-full flex items-center justify-center text-[#8b9096] hover:bg-[#2a3038] hover:text-white transition-colors"
                     >
@@ -258,13 +257,13 @@ const ModifyPositionModal = ({ isOpen, onClose, position }) => {
           )}
 
           {/* Action Button */}
-          <button 
+          <button
             onClick={onClose}
             className="w-full h-[40px] bg-[#eec802] hover:bg-[#ffdd2d] text-black text-[14px] font-medium rounded transition-colors mt-2"
           >
             {activeTab === 'modify' ? 'Modify position' : 'Close position'}
           </button>
-          
+
           {activeTab === 'partialclose' && (
             <div className="text-center text-[13px] text-[#8b9096]">
               Estimated profit: <span className={position.plColor}>{position.pl} USD</span>

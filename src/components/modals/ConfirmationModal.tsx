@@ -1,13 +1,13 @@
 "use client";
 import { useEffect, useRef } from 'react'
 
-export default function ConfirmationModal({ 
-  isOpen, 
-  onClose, 
-  onConfirm, 
-  title, 
-  message, 
-  confirmText = 'Confirm', 
+export default function ConfirmationModal({
+  isOpen,
+  onClose,
+  onConfirm,
+  title,
+  message,
+  confirmText = 'Confirm',
   cancelText = 'Cancel',
   useAbsolutePosition = false,
   width = 'w-[400px]'
@@ -30,14 +30,14 @@ export default function ConfirmationModal({
 
   return (
     <div className={`${useAbsolutePosition ? 'absolute' : 'fixed'} inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200`}>
-      <div 
+      <div
         ref={modalRef}
-        className={`bg-[#2a3038] rounded-lg shadow-2xl ${width} border border-[#363c47] overflow-hidden transform transition-all scale-100`}
+        className={`bg-background rounded-lg shadow-2xl ${width} border border-[#363c47] overflow-hidden transform transition-all scale-100`}
       >
         {/* Header */}
         <div className="px-6 py-4 border-b border-[#363c47] flex items-center justify-between">
           <h3 className="text-white font-medium text-lg">{title}</h3>
-          <button 
+          <button
             onClick={onClose}
             className="text-[#8b9096] hover:text-white transition-colors"
           >
@@ -56,7 +56,7 @@ export default function ConfirmationModal({
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 bg-[#23282f] flex justify-end gap-3">
+        <div className="px-6 py-4 bg-background flex justify-end gap-3">
           <button
             onClick={onClose}
             className="px-4 py-2 text-[13px] font-medium text-[#b2b5be] hover:text-white transition-colors rounded hover:bg-[#363c47]"

@@ -7,18 +7,18 @@ export default function PriceAlertsDropdown({ isOpen, onClose }) {
   return (
     <>
       {/* Transparent Backdrop for click-outside */}
-      <div 
+      <div
         className="fixed inset-0 z-40"
         onClick={onClose}
       />
 
       {/* Dropdown Container */}
-      <div className="absolute top-full right-0 mt-2 w-[360px] bg-[#1a2329] border border-gray-700 rounded-lg shadow-2xl z-50 overflow-hidden font-sans">
-        
+      <div className="absolute top-full right-0 mt-2 w-[360px] bg-[#121212] border border-gray-700 rounded-lg shadow-2xl z-50 overflow-hidden font-sans">
+
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700">
           <span className="text-gray-200 text-base font-medium">Price alerts</span>
-          <button 
+          <button
             className="text-gray-400 hover:text-white transition-colors cursor-pointer"
             title="Add alert"
           >
@@ -31,7 +31,7 @@ export default function PriceAlertsDropdown({ isOpen, onClose }) {
           <p className="text-gray-400 mb-6 text-sm">
             Get notified instantly about price movements
           </p>
-          
+
           <button className="flex items-center gap-2 px-4 py-2 bg-[#2d3a45] hover:bg-[#384652] text-white rounded text-sm font-medium transition-colors cursor-pointer">
             <FiPlus size={16} />
             New alert

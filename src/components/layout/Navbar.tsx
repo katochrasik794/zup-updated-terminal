@@ -131,7 +131,7 @@ export default function Navbar({ logoLarge, logoSmall }) {
   }
 
   return (
-    <nav className="bg-[#141d22] flex-shrink-0">
+    <nav className="bg-background flex-shrink-0 border border-gray-800">
       <div className="flex items-center h-16 py-2 ">
         {/* Logo */}
         <div className="px-4 flex-shrink-0">
@@ -295,7 +295,7 @@ export default function Navbar({ logoLarge, logoSmall }) {
           {/* Deposit Button */}
           <div>
             <button
-              className="cursor-pointer flex items-center gap-2 px-17 py-2 text-white border border-transparent hover:border-gray-400 bg-[#222d35] rounded transition-colors"
+              className="cursor-pointer flex items-center gap-2 px-17 py-2 text-white border border-transparent hover:border-gray-400 bg-[#8b5cf6] rounded transition-colors"
               data-test="deposit-button"
               type="button"
               onClick={() => setIsDepositPopupOpen(true)}

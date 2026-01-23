@@ -7,14 +7,14 @@ export default function ProfileDropdown({ isOpen, onClose }) {
   return (
     <>
       {/* Transparent Backdrop for click-outside */}
-      <div 
+      <div
         className="fixed inset-0 z-40"
         onClick={onClose}
       />
 
       {/* Dropdown Container */}
-      <div className="absolute top-full right-0 mt-2 w-[260px] bg-[#1a2329] border border-gray-700 rounded-lg shadow-2xl z-50 overflow-hidden font-sans py-2">
-        
+      <div className="absolute top-full right-0 mt-2 w-[260px] bg-[#121212] border border-gray-700 rounded-lg shadow-2xl z-50 overflow-hidden font-sans py-2">
+
         {/* Header - User Info */}
         <div className="px-4 py-3 border-b border-gray-700 flex items-center gap-3">
           <div className="w-8 h-8 rounded-full border border-gray-500 flex items-center justify-center text-gray-300">

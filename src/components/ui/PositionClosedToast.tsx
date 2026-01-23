@@ -12,9 +12,9 @@ export default function PositionClosedToast({ position, onClose }) {
   if (!position) return null
 
   return (
-    <div className="absolute bottom-4 left-4 z-50 bg-[#2a3038] text-[#b2b5be] rounded-md shadow-lg border border-[#363c47] w-[320px] overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-300">
+    <div className="absolute bottom-4 left-4 z-50 bg-[#121212] text-[#b2b5be] rounded-md shadow-lg border border-[#363c47] w-[320px] overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-300">
       <div className="p-4 relative">
-        <button 
+        <button
           onClick={onClose}
           className="absolute top-2 right-2 text-[#6e757c] hover:text-white transition-colors"
         >
@@ -31,13 +31,13 @@ export default function PositionClosedToast({ position, onClose }) {
               <polyline points="9 11 12 14 22 4" />
             </svg>
           </div>
-          
+
           <div className="flex-1">
             <h3 className="text-white font-medium text-[14px] leading-tight mb-1">Position closed</h3>
             <p className="text-[13px] text-[#b2b5be] mb-3">
               {position.type} {position.volume} lot {position.symbol} at {position.currentPrice}
             </p>
-            
+
             <div className="flex items-center justify-between text-[13px]">
               <span className="text-[#b2b5be]">Profit</span>
               <span className="text-[#2ebd85] font-medium font-mono">

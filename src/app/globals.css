@@ -21,12 +21,14 @@ html:lang(sw),
 body:lang(sw),
 html:lang(uz),
 body:lang(uz) {
-  font-family: 'Manrope', sans-serif;
+  font-family: 'Manrope', 'Manrope Fallback', sans-serif;
+  font-style: normal;
 }
 
 /* Apply Manrope to all elements */
 * {
-  font-family: 'Manrope', sans-serif;
+  font-family: 'Manrope', 'Manrope Fallback', sans-serif;
+  font-style: normal;
 }
 
 /* Global styles for full screen height */
@@ -36,8 +38,12 @@ html,
 body,
 #root {
   height: 100%;
+  width: 100%;
+  margin: 0;
+  padding: 0;
   overflow: hidden;
-  background-color: #000000;
+  background-color: #02040d !important;
+  /* Zuperior Background */
   /* Ensure gaps are visible as black */
 }
 

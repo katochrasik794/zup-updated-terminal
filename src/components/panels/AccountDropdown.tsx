@@ -22,7 +22,7 @@ export default function AccountDropdown({ isOpen, onClose }) {
       />
 
       {/* Dropdown Container */}
-      <div className="absolute top-full right-0 mt-2 w-[360px] bg-[#1a2329] border border-gray-700 rounded-lg shadow-2xl z-50 overflow-hidden font-sans">
+      <div className="absolute top-full right-0 mt-2 w-[360px] bg-[#121212] border border-gray-700 rounded-lg shadow-2xl z-50 overflow-hidden font-sans">
 
         {/* Header - Hide Balance */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700">

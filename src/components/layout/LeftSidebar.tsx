@@ -37,7 +37,7 @@ export default function LeftSidebar({ onPanelStateChange, isExpanded }) {
   return (
     <div className={`flex h-full overflow-hidden min-h-0 gap-1`}>
       {/* ${!hasActivePanel ? 'border-r-4 border-gray-600' : ''} */}
-      <aside className={`w-[48px] flex flex-col items-center py-3 gap-4 flex-shrink-0 h-full bg-[#141d22] rounded-tr-lg`}>
+      <aside className={`w-[48px] flex flex-col items-center py-3 gap-4 flex-shrink-0 h-full bg-background rounded-tr-lg border border-gray-800`}>
         {/* Instruments Button */}
         <div>
           <Tooltip text="Instruments" placement="right">
@@ -91,17 +91,17 @@ export default function LeftSidebar({ onPanelStateChange, isExpanded }) {
       {hasActivePanel && (
         <>
           {activePanel === 'instruments' && (
-            <div className="bg-[#1a1f26] border-r border-gray-700 flex flex-col h-full min-h-0 overflow-hidden flex-1 rounded-t-md">
+            <div className="bg-background border-r border-gray-700 flex flex-col h-full min-h-0 overflow-hidden flex-1 rounded-t-md">
               <WatchlistPanel onClose={closePanel} />
             </div>
           )}
           {activePanel === 'calendar' && (
-            <div className="bg-[#1a1f26] border-r border-gray-700 flex flex-col h-full min-h-0 overflow-hidden flex-1 rounded-t-md">
+            <div className="bg-background border-r border-gray-700 flex flex-col h-full min-h-0 overflow-hidden flex-1 rounded-t-md">
               <EconomicCalendarPanel onClose={closePanel} />
             </div>
           )}
           {activePanel === 'settings' && (
-            <div className="bg-[#1a1f26] border-r border-gray-700 flex flex-col h-full min-h-0 overflow-hidden flex-1 rounded-t-md">
+            <div className="bg-background border-r border-gray-700 flex flex-col h-full min-h-0 overflow-hidden flex-1 rounded-t-md">
               <SettingsPanel onClose={closePanel} />
             </div>
           )}

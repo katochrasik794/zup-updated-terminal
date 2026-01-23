@@ -84,7 +84,7 @@ export default function CloseAllPositionsModal({ isOpen, onClose, onConfirm, pos
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
       <div
         ref={modalRef}
-        className="bg-[#2a3038] rounded-lg shadow-2xl w-[400px] border border-[#363c47] overflow-hidden"
+        className="bg-background rounded-lg shadow-2xl w-[400px] border border-[#363c47] overflow-hidden"
       >
         <div className="p-6">
           <h3 className="text-white font-medium text-[16px] mb-4">
@@ -143,7 +143,7 @@ export default function CloseAllPositionsModal({ isOpen, onClose, onConfirm, pos
                 onConfirm(selectedOption)
                 onClose()
               }}
-              className="flex-1 py-2.5 text-[14px] font-medium text-[#141d22] bg-[#fcd535] hover:bg-[#ffe54f] transition-colors rounded"
+              className="flex-1 py-2.5 text-[14px] font-medium text-[#141d22] bg-[#8b5cf6] hover:bg-[#ffe54f] transition-colors rounded"
             >
               Confirm
             </button>

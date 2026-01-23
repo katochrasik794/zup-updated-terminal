@@ -11,7 +11,7 @@ export default function OrderModeModal({ isOpen, onClose, onConfirm, mode }) {
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm">
-      <div className="bg-[#1e2329] w-[500px] rounded-lg shadow-2xl border border-[#2a2f36] flex flex-col max-h-[90vh]">
+      <div className="bg-background w-[500px] rounded-lg shadow-2xl border border-[#2a2f36] flex flex-col max-h-[90vh]">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-[#2a2f36]">
           <h2 className="text-xl font-bold text-white">
@@ -67,28 +67,28 @@ export default function OrderModeModal({ isOpen, onClose, onConfirm, mode }) {
         {/* Footer */}
         <div className="px-6 py-4 border-t border-[#2a2f36] flex flex-col gap-4">
           <div className="flex items-center gap-2">
-            <input 
-              type="checkbox" 
-              id="dont-show" 
+            <input
+              type="checkbox"
+              id="dont-show"
               checked={dontShowAgain}
               onChange={(e) => setDontShowAgain(e.target.checked)}
-              className="w-4 h-4 rounded border-gray-600 bg-[#2a2f36] text-[#facc15] focus:ring-0 focus:ring-offset-0 cursor-pointer"
+              className="w-4 h-4 rounded border-gray-600 bg-[#2a2f36] text-[#8b5cf6] focus:ring-0 focus:ring-offset-0 cursor-pointer"
             />
             <label htmlFor="dont-show" className="text-[14px] text-gray-400 cursor-pointer select-none">
               Don't show again
             </label>
           </div>
-          
+
           <div className="flex items-center justify-end gap-3">
-            <button 
+            <button
               onClick={onClose}
               className="px-4 py-2 bg-[#2a2f36] hover:bg-[#363c45] text-white text-[14px] font-medium rounded transition-colors"
             >
               Cancel
             </button>
-            <button 
+            <button
               onClick={() => onConfirm(dontShowAgain)}
-              className="px-4 py-2 bg-[#facc15] hover:bg-[#eab308] text-black text-[14px] font-bold rounded transition-colors"
+              className="px-4 py-2 bg-[#8b5cf6] hover:bg-[#eab308] text-black text-[14px] font-bold rounded transition-colors"
             >
               Yes, proceed
             </button>

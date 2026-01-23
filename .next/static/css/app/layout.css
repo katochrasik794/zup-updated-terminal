@@ -1053,9 +1053,6 @@
   .bg-\[\#1a1f26\] {
     background-color: #1a1f26;
   }
-  .bg-\[\#1a2329\] {
-    background-color: #1a2329;
-  }
   .bg-\[\#1c1c1c\] {
     background-color: #1c1c1c;
   }
@@ -1064,9 +1061,6 @@
   }
   .bg-\[\#1e222d\] {
     background-color: #1e222d;
-  }
-  .bg-\[\#1e2329\] {
-    background-color: #1e2329;
   }
   .bg-\[\#1e2830\] {
     background-color: #1e2830;
@@ -1086,9 +1080,6 @@
   .bg-\[\#2a3441\] {
     background-color: #2a3441;
   }
-  .bg-\[\#2c3438\] {
-    background-color: #2c3438;
-  }
   .bg-\[\#2d3a45\] {
     background-color: #2d3a45;
   }
@@ -1104,14 +1095,14 @@
   .bg-\[\#3b4148\] {
     background-color: #3b4148;
   }
-  .bg-\[\#3f474b\] {
-    background-color: #3f474b;
-  }
   .bg-\[\#007bff\] {
     background-color: #007bff;
   }
   .bg-\[\#7f8792\] {
     background-color: #7f8792;
+  }
+  .bg-\[\#8b5cf6\] {
+    background-color: #8b5cf6;
   }
   .bg-\[\#0099ff\] {
     background-color: #0099ff;
@@ -1121,9 +1112,6 @@
   }
   .bg-\[\#158bf9\] {
     background-color: #158bf9;
-  }
-  .bg-\[\#222d35\] {
-    background-color: #222d35;
   }
   .bg-\[\#363c45\] {
     background-color: #363c45;
@@ -1137,8 +1125,8 @@
   .bg-\[\#2962ff\] {
     background-color: #2962ff;
   }
-  .bg-\[\#23282f\] {
-    background-color: #23282f;
+  .bg-\[\#121212\] {
+    background-color: #121212;
   }
   .bg-\[\#263239\] {
     background-color: #263239;
@@ -1163,9 +1151,6 @@
   }
   .bg-\[\#facc15\] {
     background-color: #facc15;
-  }
-  .bg-\[\#fcd535\] {
-    background-color: #fcd535;
   }
   .bg-\[\#ff444f\] {
     background-color: #ff444f;
@@ -1484,6 +1469,9 @@
   .text-\[\#007bff\] {
     color: #007bff;
   }
+  .text-\[\#8b5cf6\] {
+    color: #8b5cf6;
+  }
   .text-\[\#8b9096\] {
     color: #8b9096;
   }
@@ -1525,9 +1513,6 @@
   }
   .text-\[\#facc15\] {
     color: #facc15;
-  }
-  .text-\[\#fcd535\] {
-    color: #fcd535;
   }
   .text-\[\#ff444f\] {
     color: #ff444f;
@@ -1898,24 +1883,24 @@
       }
     }
   }
+  .checked\:border-\[\#8b5cf6\] {
+    &:checked {
+      border-color: #8b5cf6;
+    }
+  }
   .checked\:border-\[\#b2b5be\] {
     &:checked {
       border-color: #b2b5be;
     }
   }
-  .checked\:border-\[\#fcd535\] {
+  .checked\:bg-\[\#8b5cf6\] {
     &:checked {
-      border-color: #fcd535;
+      background-color: #8b5cf6;
     }
   }
   .checked\:bg-\[\#b2b5be\] {
     &:checked {
       background-color: #b2b5be;
-    }
-  }
-  .checked\:bg-\[\#fcd535\] {
-    &:checked {
-      background-color: #fcd535;
     }
   }
   .focus-within\:border-\[\#0099ff\] {
@@ -2034,13 +2019,6 @@
     &:hover {
       @media (hover: hover) {
         background-color: #0069d9;
-      }
-    }
-  }
-  .hover\:bg-\[\#141d22\] {
-    &:hover {
-      @media (hover: hover) {
-        background-color: #141d22;
       }
     }
   }
@@ -2388,17 +2366,22 @@ html:lang(sw),
 body:lang(sw),
 html:lang(uz),
 body:lang(uz) {
-  font-family: 'Manrope', sans-serif;
+  font-family: 'Manrope', 'Manrope Fallback', sans-serif;
+  font-style: normal;
 }
 * {
-  font-family: 'Manrope', sans-serif;
+  font-family: 'Manrope', 'Manrope Fallback', sans-serif;
+  font-style: normal;
 }
 html,
 body,
 #root {
   height: 100%;
+  width: 100%;
+  margin: 0;
+  padding: 0;
   overflow: hidden;
-  background-color: #000000;
+  background-color: #02040d !important;
 }
 ::-webkit-scrollbar {
   width: 12px;

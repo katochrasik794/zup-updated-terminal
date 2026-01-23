@@ -72,9 +72,9 @@ export default function SymbolSearchPopup({ isOpen, onClose, onSelectSymbol, tri
 
   const filteredInstruments = searchTerm
     ? instruments.filter(item =>
-        item.symbol.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.name.toLowerCase().includes(searchTerm.toLowerCase())
-      )
+      item.symbol.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.name.toLowerCase().includes(searchTerm.toLowerCase())
+    )
     : instruments.filter(item => item.favorite)
 
   const handleSelectSymbol = (symbol) => {
@@ -89,14 +89,14 @@ export default function SymbolSearchPopup({ isOpen, onClose, onSelectSymbol, tri
   return (
     <>
       {/* Transparent Backdrop for click-outside */}
-      <div 
+      <div
         className="fixed inset-0 z-40"
         onClick={onClose}
       />
-      
+
       {/* Dropdown Popup */}
-      <div 
-        className={`${triggerRef ? 'fixed' : 'absolute top-full left-0 mt-2'} w-[400px] bg-[#1a2329] border border-gray-700 rounded-lg shadow-2xl z-50`}
+      <div
+        className={`${triggerRef ? 'fixed' : 'absolute top-full left-0 mt-2'} w-[400px] bg-[#121212] border border-gray-700 rounded-lg shadow-2xl z-50`}
         style={triggerRef ? { top: position.top, left: position.left } : {}}
       >
         {/* Search Bar */}
@@ -108,7 +108,7 @@ export default function SymbolSearchPopup({ isOpen, onClose, onSelectSymbol, tri
               placeholder="Search symbol"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 bg-[#141d22] border border-gray-600 rounded text-sm text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+              className="w-full pl-9 pr-3 py-2 bg-background border border-gray-600 rounded text-sm text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
               autoFocus
             />
           </div>
@@ -116,12 +116,12 @@ export default function SymbolSearchPopup({ isOpen, onClose, onSelectSymbol, tri
 
         {/* Favorites Section */}
         <div className="px-2 py-2">
-          <button className="w-full flex items-center justify-between px-3 py-2 text-left text-gray-300 hover:bg-[#141d22] rounded transition-colors">
+          <button className="w-full flex items-center justify-between px-3 py-2 text-left text-gray-300 hover:bg-background rounded transition-colors">
             <span className="text-xs font-medium uppercase tracking-wider">Favorites</span>
-            <svg 
-              className="w-3 h-3 text-gray-400" 
-              fill="none" 
-              stroke="currentColor" 
+            <svg
+              className="w-3 h-3 text-gray-400"
+              fill="none"
+              stroke="currentColor"
               viewBox="0 0 24 24"
             >
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -132,7 +132,7 @@ export default function SymbolSearchPopup({ isOpen, onClose, onSelectSymbol, tri
         {/* Instruments List */}
         <div className="max-h-[320px] overflow-y-auto custom-scrollbar">
           <table className="w-full">
-            <thead className="sticky top-0 bg-[#1a2329] border-b border-gray-700">
+            <thead className="sticky top-0 bg-[#121212] border-b border-gray-700">
               <tr className="text-gray-500 text-[10px] uppercase">
                 <th className="px-4 py-2 text-left font-medium">Symbol</th>
                 <th className="px-4 py-2 text-left font-medium">Description</th>
@@ -143,7 +143,7 @@ export default function SymbolSearchPopup({ isOpen, onClose, onSelectSymbol, tri
               {filteredInstruments.map((item, idx) => (
                 <tr
                   key={`${item.symbol}-${idx}`}
-                  className="border-b border-gray-800 hover:bg-[#141d22] cursor-pointer transition-colors group"
+                  className="border-b border-gray-800 hover:bg-background cursor-pointer transition-colors group"
                   onClick={() => handleSelectSymbol(item)}
                 >
                   <td className="px-4 py-2.5">
@@ -165,7 +165,7 @@ export default function SymbolSearchPopup({ isOpen, onClose, onSelectSymbol, tri
                   <td className="px-4 py-2.5 text-center">
                     {item.favorite && (
                       <svg width="14" height="14" fill="#ffd700" stroke="#ffd700" strokeWidth="1">
-                        <path d="M8 2l1.5 3h3.5l-2.5 2 1 3.5-3-2-3 2 1-3.5-2.5-2h3.5z"/>
+                        <path d="M8 2l1.5 3h3.5l-2.5 2 1 3.5-3-2-3 2 1-3.5-2.5-2h3.5z" />
                       </svg>
                     )}
                   </td>

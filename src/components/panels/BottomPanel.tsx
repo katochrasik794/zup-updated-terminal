@@ -274,9 +274,9 @@ export default function BottomPanel({ openPositions, onClosePosition, onCloseGro
 
 
   return (
-    <div className="h-full bg-[#141d22] flex flex-col overflow-hidden font-sans rounded-md min-h-0 relative">
+    <div className="h-full bg-background flex flex-col overflow-hidden font-sans rounded-md min-h-0 relative border border-gray-800">
       {/* Header Section */}
-      <div className="flex items-center justify-between px-1 border-b border-[#2a3038] bg-[#141d22] h-[40px] min-h-[40px]">
+      <div className="flex items-center justify-between px-1 border-b border-gray-800 bg-background h-[40px] min-h-[40px]">
         {/* Tabs */}
         <div className="flex items-center h-full">
           {tabs.map(tab => (
@@ -345,10 +345,10 @@ export default function BottomPanel({ openPositions, onClosePosition, onCloseGro
       </div>
 
       {/* Table */}
-      <div className="flex-1 overflow-auto bg-[#141d22] min-h-0">
+      <div className="flex-1 overflow-auto bg-background min-h-0">
         <table className="w-full text-[14px] border-collapse min-w-max">
-          <thead className="sticky top-0 bg-[#141d22] z-40">
-            <tr className="text-[12px] text-gray-400 border-b border-[#2a3038]">
+          <thead className="sticky top-0 bg-background z-40">
+            <tr className="text-[12px] text-gray-400 border-b border-gray-800">
               {/* Symbol is fixed */}
               <th className="px-4 py-[4px] text-left font-normal whitespace-nowrap">Symbol</th>
 
@@ -360,8 +360,8 @@ export default function BottomPanel({ openPositions, onClosePosition, onCloseGro
               ))}
 
               {/* Sticky Columns Header */}
-              <th className="px-4 text-right font-normal whitespace-nowrap sticky right-[90px] bg-[#141d22] z-50 shadow-[-10px_0_10px_-5px_rgba(0,0,0,0.3)] border-b border-[#2a3038]">P/L</th>
-              <th className="px-4 text-center font-normal w-[90px] min-w-[90px] sticky right-0 bg-[#141d22] z-50 border-b border-[#2a3038]"></th>
+              <th className="px-4 text-right font-normal whitespace-nowrap sticky right-[90px] bg-background z-50 shadow-[-10px_0_10px_-5px_rgba(0,0,0,0.3)] border-b border-gray-800">P/L</th>
+              <th className="px-4 text-center font-normal w-[90px] min-w-[90px] sticky right-0 bg-background z-50 border-b border-gray-800"></th>
             </tr>
           </thead>
           <tbody>
@@ -369,7 +369,7 @@ export default function BottomPanel({ openPositions, onClosePosition, onCloseGro
               <Fragment key={isGrouped ? `group-${position.symbol}` : `pos-${idx}`}>
                 <tr
                   onClick={() => isGrouped && toggleGroup(position.symbol)}
-                  className={`border-b border-[#2a3038] hover:bg-[#1c252f] group ${isGrouped ? 'cursor-pointer' : ''}`}
+                  className={`border-b border-gray-800 hover:bg-[#1c252f] group ${isGrouped ? 'cursor-pointer' : ''}`}
                 >
                   <td className="px-4 py-3 whitespace-nowrap">
                     <div className="flex items-center gap-2">
@@ -391,10 +391,10 @@ export default function BottomPanel({ openPositions, onClosePosition, onCloseGro
                   ))}
 
                   {/* Sticky Columns Data */}
-                  <td className="px-4 py-3 text-right whitespace-nowrap sticky right-[90px] bg-[#141d22] group-hover:bg-[#1c252f] z-20 shadow-[-10px_0_10px_-5px_rgba(0,0,0,0.3)] border-b border-[#2a3038]">
+                  <td className="px-4 py-3 text-right whitespace-nowrap sticky right-[90px] bg-background group-hover:bg-[#1c252f] z-20 shadow-[-10px_0_10px_-5px_rgba(0,0,0,0.3)] border-b border-gray-800">
                     <span className={`font-medium ${position.plColor}`}>{position.pl}</span>
                   </td>
-                  <td className="px-4 py-3 text-center whitespace-nowrap sticky right-0 bg-[#141d22] group-hover:bg-[#1c252f] z-20 border-b border-[#2a3038]">
+                  <td className="px-4 py-3 text-center whitespace-nowrap sticky right-0 bg-background group-hover:bg-[#1c252f] z-20 border-b border-gray-800">
                     <div className="flex items-center justify-center gap-1">
                       {!isGrouped ? (
                         <>
@@ -445,7 +445,7 @@ export default function BottomPanel({ openPositions, onClosePosition, onCloseGro
                 {isGrouped && expandedGroups[position.symbol] && position.positions.map((subPos, subIdx) => (
                   <tr
                     key={`sub-${subPos.ticket}`}
-                    className="border-b border-[#2a3038] bg-[#141d22] hover:bg-[#1c252f] group"
+                    className="border-b border-gray-800 bg-background hover:bg-[#1c252f] group"
                   >
                     <td className="px-4 py-3 whitespace-nowrap pl-8"> {/* Indent symbol */}
                       <span className="text-white font-medium">{subPos.symbol}</span>
@@ -459,10 +459,10 @@ export default function BottomPanel({ openPositions, onClosePosition, onCloseGro
                     ))}
 
                     {/* Sticky Columns Data */}
-                    <td className="px-4 py-3 text-right whitespace-nowrap sticky right-[90px] bg-[#141d22] group-hover:bg-[#1c252f] z-20 shadow-[-10px_0_10px_-5px_rgba(0,0,0,0.3)] border-b border-[#2a3038]">
+                    <td className="px-4 py-3 text-right whitespace-nowrap sticky right-[90px] bg-background group-hover:bg-[#1c252f] z-20 shadow-[-10px_0_10px_-5px_rgba(0,0,0,0.3)] border-b border-gray-800">
                       <span className={`font-medium ${subPos.plColor}`}>{subPos.pl}</span>
                     </td>
-                    <td className="px-4 py-3 text-center whitespace-nowrap sticky right-0 bg-[#141d22] group-hover:bg-[#1c252f] z-20 border-b border-[#2a3038]">
+                    <td className="px-4 py-3 text-center whitespace-nowrap sticky right-0 bg-background group-hover:bg-[#1c252f] z-20 border-b border-gray-800">
                       <div className="flex items-center justify-center gap-1">
                         <IconButton
                           tooltip="Edit"
@@ -499,7 +499,7 @@ export default function BottomPanel({ openPositions, onClosePosition, onCloseGro
             {activeTab === 'Closed' && closedPositions.map((position, idx) => (
               <tr
                 key={idx}
-                className="border-b border-[#2a3038] hover:bg-[#1c252f] group"
+                className="border-b border-gray-800 hover:bg-[#1c252f] group"
               >
                 <td className="px-4 py-3 whitespace-nowrap">
                   <div className="flex items-center gap-2">
@@ -518,10 +518,10 @@ export default function BottomPanel({ openPositions, onClosePosition, onCloseGro
                 ))}
 
                 {/* Sticky Columns Data */}
-                <td className="px-4 py-3 text-right whitespace-nowrap sticky right-[60px] bg-[#141d22] group-hover:bg-[#1c252f] z-20 shadow-[-10px_0_10px_-5px_rgba(0,0,0,0.3)] border-b border-[#2a3038]">
+                <td className="px-4 py-3 text-right whitespace-nowrap sticky right-[60px] bg-background group-hover:bg-[#1c252f] z-20 shadow-[-10px_0_10px_-5px_rgba(0,0,0,0.3)] border-b border-gray-800">
                   <span className={`font-medium ${position.plColor}`}>{position.pl}</span>
                 </td>
-                <td className="px-4 py-3 text-center whitespace-nowrap sticky right-0 bg-[#141d22] group-hover:bg-[#1c252f] z-20 border-b border-[#2a3038]">
+                <td className="px-4 py-3 text-center whitespace-nowrap sticky right-0 bg-background group-hover:bg-[#1c252f] z-20 border-b border-gray-800">
                   {/* Empty cell for closed positions */}
                 </td>
               </tr>

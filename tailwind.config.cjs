@@ -12,9 +12,10 @@ module.exports = {
                 info: '#3B82F6',
                 warning: '#F59E0B',
                 background: '#02040d',
+                surface: '#121212',
             },
             fontFamily: {
-                sans: ['Manrope', 'sans-serif'],
+                sans: ['Manrope', 'Manrope Fallback', 'sans-serif'],
                 mono: ['JetBrains Mono', 'monospace'],
             },
         },

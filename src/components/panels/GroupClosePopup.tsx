@@ -20,11 +20,11 @@ export default function GroupClosePopup({ isOpen, onClose, onConfirm, position, 
   if (!isOpen || !position) return null
 
   return (
-    <div 
+    <div
       ref={popupRef}
-      className="fixed z-[100] bg-[#2a3038] border border-[#363c47] rounded-lg shadow-xl p-4 flex flex-col gap-4 w-[320px]"
-      style={{ 
-        top: position.top, 
+      className="fixed z-[100] bg-[#121212] border border-[#363c47] rounded-lg shadow-xl p-4 flex flex-col gap-4 w-[320px]"
+      style={{
+        top: position.top,
         left: position.left,
         transform: 'translateY(-100%)' // Move up by its own height
       }}
@@ -32,7 +32,7 @@ export default function GroupClosePopup({ isOpen, onClose, onConfirm, position, 
       <div className="text-white text-[14px] font-medium leading-tight">
         Close all {symbol} positions at the market price?
       </div>
-      
+
       <div className="flex gap-3 w-full">
         <button
           onClick={onClose}
