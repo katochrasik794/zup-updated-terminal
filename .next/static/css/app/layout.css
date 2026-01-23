@@ -6,9 +6,8 @@
 @layer theme, base, components, utilities;
 @layer theme {
   :root, :host {
-    --font-sans: aktiv-grotesk, sans-serif;
-    --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
-      "Courier New", monospace;
+    --font-sans: 'Manrope', sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
     --color-red-400: oklch(70.4% 0.191 22.216);
     --color-red-500: oklch(63.7% 0.237 25.331);
     --color-red-900: oklch(39.6% 0.141 25.723);
@@ -2374,19 +2373,29 @@
     }
   }
 }
-html:lang(en), body:lang(en), 
-html:lang(es), body:lang(es), 
-html:lang(fr), body:lang(fr), 
-html:lang(id), body:lang(id), 
-html:lang(pt), body:lang(pt), 
-html:lang(sw), body:lang(sw), 
-html:lang(uz), body:lang(uz) {
-  font-family: aktiv-grotesk, sans-serif;
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@100..800&family=Manrope:wght@200..800&display=swap');
+html:lang(en),
+body:lang(en),
+html:lang(es),
+body:lang(es),
+html:lang(fr),
+body:lang(fr),
+html:lang(id),
+body:lang(id),
+html:lang(pt),
+body:lang(pt),
+html:lang(sw),
+body:lang(sw),
+html:lang(uz),
+body:lang(uz) {
+  font-family: 'Manrope', sans-serif;
 }
 * {
-  font-family: aktiv-grotesk, sans-serif;
+  font-family: 'Manrope', sans-serif;
 }
-html, body, #root {
+html,
+body,
+#root {
   height: 100%;
   overflow: hidden;
   background-color: #000000;
@@ -2800,4 +2809,3 @@ html, body, #root {
     }
   }
 }
-

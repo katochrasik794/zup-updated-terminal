@@ -1,32 +1,44 @@
 @import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@100..800&family=Manrope:wght@200..800&display=swap');
 
 @theme {
-  --font-sans: aktiv-grotesk, sans-serif;
+  --font-sans: 'Manrope', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
 }
 
-/* Global font-family configuration with Aktiv-Grotesk */
-html:lang(en), body:lang(en), 
-html:lang(es), body:lang(es), 
-html:lang(fr), body:lang(fr), 
-html:lang(id), body:lang(id), 
-html:lang(pt), body:lang(pt), 
-html:lang(sw), body:lang(sw), 
-html:lang(uz), body:lang(uz) {
-  font-family: aktiv-grotesk, sans-serif;
+/* Global font-family configuration */
+html:lang(en),
+body:lang(en),
+html:lang(es),
+body:lang(es),
+html:lang(fr),
+body:lang(fr),
+html:lang(id),
+body:lang(id),
+html:lang(pt),
+body:lang(pt),
+html:lang(sw),
+body:lang(sw),
+html:lang(uz),
+body:lang(uz) {
+  font-family: 'Manrope', sans-serif;
 }
 
-/* Apply Aktiv-Grotesk to all elements */
+/* Apply Manrope to all elements */
 * {
-  font-family: aktiv-grotesk, sans-serif;
+  font-family: 'Manrope', sans-serif;
 }
 
 /* Global styles for full screen height */
 
 
-html, body, #root {
+html,
+body,
+#root {
   height: 100%;
   overflow: hidden;
-  background-color: #000000; /* Ensure gaps are visible as black */
+  background-color: #000000;
+  /* Ensure gaps are visible as black */
 }
 
 /* Custom scrollbar styles */
@@ -37,17 +49,21 @@ html, body, #root {
 }
 
 ::-webkit-scrollbar-track {
-  background: #20232A; /* Dark track matching image */
+  background: #20232A;
+  /* Dark track matching image */
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #A8B1BD; /* Light blue-ish gray thumb matching image */
-  border: 3.5px solid #20232A; /* Increased border to make thumb thinner */
+  background: #A8B1BD;
+  /* Light blue-ish gray thumb matching image */
+  border: 3.5px solid #20232A;
+  /* Increased border to make thumb thinner */
   border-radius: 6px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #C0C8D4; /* Slightly lighter on hover */
+  background: #C0C8D4;
+  /* Slightly lighter on hover */
 }
 
 ::-webkit-scrollbar-corner {
@@ -109,16 +125,19 @@ html, body, #root {
 
 /* Navbar specific scrollbar */
 .navbar-scrollbar::-webkit-scrollbar {
-  height: 6px; /* Thinner scrollbar height */
+  height: 6px;
+  /* Thinner scrollbar height */
 }
 
 .navbar-scrollbar::-webkit-scrollbar-thumb {
-  border: 1px solid #20232A; /* Smaller border for thinner scrollbar */
+  border: 1px solid #20232A;
+  /* Smaller border for thinner scrollbar */
   border-radius: 3px;
 }
 
 .navbar-scrollbar::-webkit-scrollbar-button {
-  display: none; /* Hide buttons for cleaner look on navbar */
+  display: none;
+  /* Hide buttons for cleaner look on navbar */
 }
 
 /* Smooth resize handle styles */
