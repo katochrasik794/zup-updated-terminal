@@ -40,16 +40,15 @@ export default function LeftSidebar({ onPanelStateChange, isExpanded }) {
         {/* Instruments Button */}
         <div>
           <Tooltip text="Instruments" placement="right">
-            <button 
-              className={`cursor-pointer w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-200 rounded-sm transition-all duration-200 ${
-                activePanel === 'instruments' ? 'bg-[#263239] border border-gray-400 text-gray-200' : 'hover:bg-[#263239] hover:border hover:border-gray-400 border-2 border-transparent'
-              }`}
+            <button
+              className={`cursor-pointer w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-200 rounded-sm transition-all duration-200 ${activePanel === 'instruments' ? 'bg-[#263239] border border-gray-400 text-gray-200' : 'hover:bg-[#263239] hover:border hover:border-gray-400 border-2 border-transparent'
+                }`}
               type="button"
               data-test="aside-panel-watchlist-button"
               aria-label="Instruments"
               onClick={() => togglePanel('instruments')}
             >
-              <LuList size={15} className={activePanel === 'instruments' ? 'text-gray-200' : 'text-gray-300'} />
+              <LuList size={20} className={activePanel === 'instruments' ? 'text-gray-200' : 'text-gray-300'} />
             </button>
           </Tooltip>
         </div>
@@ -57,16 +56,15 @@ export default function LeftSidebar({ onPanelStateChange, isExpanded }) {
         {/* Economic Calendar Button */}
         <div>
           <Tooltip text="Economic calendar" placement="right">
-            <button 
-              className={`cursor-pointer w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-200 rounded-sm transition-all duration-200 ${
-                activePanel === 'calendar' ? 'bg-[#263239] border border-gray-400 text-gray-200' : 'hover:bg-[#263239] hover:border hover:border-gray-400 border-2 border-transparent'
-              }`}
+            <button
+              className={`cursor-pointer w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-200 rounded-sm transition-all duration-200 ${activePanel === 'calendar' ? 'bg-[#263239] border border-gray-400 text-gray-200' : 'hover:bg-[#263239] hover:border hover:border-gray-400 border-2 border-transparent'
+                }`}
               type="button"
               data-test="aside-panel-calendar-events-button"
               aria-label="Economic calendar"
               onClick={() => togglePanel('calendar')}
             >
-              <LuCalendar size={14} className={activePanel === 'calendar' ? 'text-white' : 'text-gray-300'} />
+              <LuCalendar size={20} className={activePanel === 'calendar' ? 'text-white' : 'text-gray-300'} />
             </button>
           </Tooltip>
         </div>
@@ -74,21 +72,20 @@ export default function LeftSidebar({ onPanelStateChange, isExpanded }) {
         {/* Settings Button */}
         <div>
           <Tooltip text="Settings" placement="right">
-            <button 
-              className={`cursor-pointer w-8 h-8 flex items-center justify-center text-gray-400 hover:text-white rounded-sm transition-all duration-200 ${
-                activePanel === 'settings' ? 'bg-[#263239] border border-gray-400 text-gray-200' : 'hover:bg-[#263239] hover:border hover:border-gray-400 border-2 border-transparent'
-              }`}
+            <button
+              className={`cursor-pointer w-8 h-8 flex items-center justify-center text-gray-400 hover:text-white rounded-sm transition-all duration-200 ${activePanel === 'settings' ? 'bg-[#263239] border border-gray-400 text-gray-200' : 'hover:bg-[#263239] hover:border hover:border-gray-400 border-2 border-transparent'
+                }`}
               type="button"
               data-test="aside-panel-settings-button"
               aria-label="Settings"
               onClick={() => togglePanel('settings')}
             >
-              <LuSettings size={14} className={activePanel === 'settings' ? 'text-white' : 'text-gray-300'} />
+              <LuSettings size={20} className={activePanel === 'settings' ? 'text-white' : 'text-gray-300'} />
             </button>
           </Tooltip>
         </div>
       </aside>
-      
+
       {/* Panel Content - only show when panel is active */}
       {hasActivePanel && (
         <>

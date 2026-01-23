@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react'
-import { 
-  FiX, 
-  FiPlus, 
+import {
+  FiX,
+  FiPlus,
   FiChevronDown,
   FiDollarSign
 } from 'react-icons/fi'
@@ -23,7 +23,7 @@ const InstrumentTab = ({ tab, isActive, onClick, onClose }) => {
   `
 
   return (
-    <div 
+    <div
       className={tabClasses}
       onClick={() => onClick(tab.id)}
       data-test={`instrument-tab-${tab.symbol}`}
@@ -40,7 +40,7 @@ const InstrumentTab = ({ tab, isActive, onClick, onClose }) => {
       >
         <FiX size={14} className="stroke-current fill-none" />
       </button>
-      
+
       {/* Tab content */}
       <div className="flex items-center justify-center gap-2 h-full">
         <div className="w-8 h-8">
@@ -78,7 +78,7 @@ export default function Navbar({ isSidebarExpanded, logoLarge, logoSmall }) {
   const addTabButtonRef = useRef(null)
 
   const handleTabClick = (tabId) => {
-    setTabs(prevTabs => 
+    setTabs(prevTabs =>
       prevTabs.map(tab => ({
         ...tab,
         isActive: tab.id === tabId
@@ -89,14 +89,14 @@ export default function Navbar({ isSidebarExpanded, logoLarge, logoSmall }) {
   const handleCloseTab = (tabId) => {
     const tabIndex = tabs.findIndex(tab => tab.id === tabId)
     const isActiveTab = tabs[tabIndex]?.isActive
-    
+
     const newTabs = tabs.filter(tab => tab.id !== tabId)
-    
+
     // If we closed the active tab, make the first remaining tab active
     if (isActiveTab && newTabs.length > 0) {
       newTabs[0].isActive = true
     }
-    
+
     setTabs(newTabs)
   }
 
@@ -106,7 +106,7 @@ export default function Navbar({ isSidebarExpanded, logoLarge, logoSmall }) {
 
   const handleSelectSymbol = (symbolData) => {
     const existingTab = tabs.find(tab => tab.symbol === symbolData.symbol)
-    
+
     if (existingTab) {
       handleTabClick(existingTab.id)
       return
@@ -119,8 +119,8 @@ export default function Navbar({ isSidebarExpanded, logoLarge, logoSmall }) {
       flagType: symbolData.symbol.toLowerCase().replace('/', ''),
       isActive: true
     }
-    
-    setTabs(prevTabs => 
+
+    setTabs(prevTabs =>
       prevTabs.map(tab => ({ ...tab, isActive: false })).concat([newTab])
     )
   }
@@ -132,10 +132,10 @@ export default function Navbar({ isSidebarExpanded, logoLarge, logoSmall }) {
         <div className="px-4 flex-shrink-0">
           <div className='flex items-center'>
             <div className="text-yellow-300 font-semi-bold">
-              <img 
-                src={isSidebarExpanded ? logoLarge : logoSmall} 
-                className='h-10' 
-                alt="FINCRM" 
+              <img
+                src={isSidebarExpanded ? logoLarge : logoSmall}
+                className='h-12'
+                alt="FINCRM"
               />
             </div>
           </div>
@@ -156,10 +156,10 @@ export default function Navbar({ isSidebarExpanded, logoLarge, logoSmall }) {
                   />
                 ))}
               </div>
-              
+
               {/* Add Tab Button */}
               <div className="flex items-center h-full relative">
-                <button 
+                <button
                   ref={addTabButtonRef}
                   className="cursor-pointer px-[10px] py-[20px] text-gray-400 hover:text-white hover:bg-gray-800 rounded-md transition-colors mx-2 flex items-center justify-center h-8 border border-transparent hover:border-gray-400 "
                   data-test="add-tab-button"
@@ -170,7 +170,7 @@ export default function Navbar({ isSidebarExpanded, logoLarge, logoSmall }) {
                 </button>
 
                 {/* Symbol Search Popup */}
-                <SymbolSearchPopup 
+                <SymbolSearchPopup
                   isOpen={isSymbolSearchOpen}
                   onClose={() => setIsSymbolSearchOpen(false)}
                   onSelectSymbol={handleSelectSymbol}
@@ -185,7 +185,7 @@ export default function Navbar({ isSidebarExpanded, logoLarge, logoSmall }) {
         <div className="flex items-center gap-2 pr-4 flex-shrink-0">
           {/* Account Button */}
           <div className="relative">
-            <button 
+            <button
               className="cursor-pointer flex h-12 gap-0 items-center p-[13px] hover:bg-gray-800 border border-transparent hover:border-gray-400 rounded"
               data-test="account-button-83067517"
               type="button"
@@ -195,14 +195,14 @@ export default function Navbar({ isSidebarExpanded, logoLarge, logoSmall }) {
                 <div>
                   <div className="flex items-center gap-1">
                     <span className="inline-block">
-                      <span 
+                      <span
                         className="px-2 bg-[#1c3931] text-green-300 py-1 rounded text-[12px]"
                         data-test="account-info-trading-mode"
                       >
                         {accountInfo.type}
                       </span>
                     </span>
-                    <span 
+                    <span
                       className="text-gray-400 text-[13px]"
                       data-test="account-info-identifier"
                     >
@@ -215,7 +215,7 @@ export default function Navbar({ isSidebarExpanded, logoLarge, logoSmall }) {
                         <span className="text-white text-[15px] font-semi-bold">{balance}</span>
                       </div>
                       <div>
-                        <span 
+                        <span
                           className="text-gray-300 text-[14px] ml-1"
                           data-test="account-info-currency"
                         >
@@ -230,7 +230,7 @@ export default function Navbar({ isSidebarExpanded, logoLarge, logoSmall }) {
             </button>
 
             {/* Account Dropdown */}
-            <AccountDropdown 
+            <AccountDropdown
               isOpen={isAccountDropdownOpen}
               onClose={() => setIsAccountDropdownOpen(false)}
             />
@@ -238,16 +238,16 @@ export default function Navbar({ isSidebarExpanded, logoLarge, logoSmall }) {
 
           {/* Alert Button */}
           <div data-test="alerts-header-button" className="relative">
-            <button 
+            <button
               className="cursor-pointer p-[13px] text-white border border-transparent hover:border-gray-400 hover:bg-gray-800 rounded-md transition-colors"
               type="button"
               onClick={() => setIsPriceAlertsOpen(!isPriceAlertsOpen)}
             >
               <MdOutlineAccessAlarms size={22} />
             </button>
-            
+
             {/* Price Alerts Dropdown */}
-            <PriceAlertsDropdown 
+            <PriceAlertsDropdown
               isOpen={isPriceAlertsOpen}
               onClose={() => setIsPriceAlertsOpen(false)}
             />
@@ -255,7 +255,7 @@ export default function Navbar({ isSidebarExpanded, logoLarge, logoSmall }) {
 
           {/* Apps Button */}
           <div data-test="apps-header-button" className="relative ">
-            <button 
+            <button
               className="cursor-pointer p-[13px] text-white border border-transparent hover:border-gray-400 hover:bg-gray-800 rounded-md transition-colors"
               type="button"
               onClick={() => setIsAppsDropdownOpen(!isAppsDropdownOpen)}
@@ -264,7 +264,7 @@ export default function Navbar({ isSidebarExpanded, logoLarge, logoSmall }) {
             </button>
 
             {/* Applications Dropdown */}
-            <ApplicationsDropdown 
+            <ApplicationsDropdown
               isOpen={isAppsDropdownOpen}
               onClose={() => setIsAppsDropdownOpen(false)}
             />
@@ -272,7 +272,7 @@ export default function Navbar({ isSidebarExpanded, logoLarge, logoSmall }) {
 
           {/* User Button */}
           <div data-test="apps-menu-button" className="relative">
-            <button 
+            <button
               className="cursor-pointer p-[13px] text-white border border-transparent hover:border-gray-400 hover:bg-gray-800 rounded-md transition-colors"
               type="button"
               onClick={() => setIsProfileDropdownOpen(!isProfileDropdownOpen)}
@@ -281,7 +281,7 @@ export default function Navbar({ isSidebarExpanded, logoLarge, logoSmall }) {
             </button>
 
             {/* Profile Dropdown */}
-            <ProfileDropdown 
+            <ProfileDropdown
               isOpen={isProfileDropdownOpen}
               onClose={() => setIsProfileDropdownOpen(false)}
             />
@@ -289,7 +289,7 @@ export default function Navbar({ isSidebarExpanded, logoLarge, logoSmall }) {
 
           {/* Deposit Button */}
           <div>
-            <button 
+            <button
               className="cursor-pointer flex items-center gap-2 px-17 py-2 text-white border border-transparent hover:border-gray-400 bg-[#222d35] rounded transition-colors"
               data-test="deposit-button"
               type="button"
@@ -300,7 +300,7 @@ export default function Navbar({ isSidebarExpanded, logoLarge, logoSmall }) {
             </button>
 
             {/* Deposit Popup */}
-            <DepositPopup 
+            <DepositPopup
               isOpen={isDepositPopupOpen}
               onClose={() => setIsDepositPopupOpen(false)}
             />
