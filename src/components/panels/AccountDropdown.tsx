@@ -47,7 +47,8 @@ export default function AccountDropdown({ isOpen, onClose }) {
         setCurrentData(result.data);
       }
     } catch (err) {
-      console.error('[AccountDropdown] Fetch Current Error:', err);
+      // Silently fail - balance fetch errors are not critical
+      // console.error('[AccountDropdown] Fetch Current Error:', err);
     }
   }, [currentAccountId]);
 

@@ -32,7 +32,8 @@ export default function StatusBar({ openPositions = [], onCloseAll }: any) {
         setData(result.data);
       }
     } catch (err) {
-      console.error('[StatusBar] Direct Fetch Error:', err);
+      // Silently fail - balance fetch errors are not critical
+      // console.error('[StatusBar] Direct Fetch Error:', err);
     }
   }, []);
 
