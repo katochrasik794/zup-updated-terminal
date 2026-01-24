@@ -11,11 +11,20 @@ interface Order {
     sl?: string;
 }
 
+interface ModifyModalState {
+    isOpen: boolean;
+    position: any | null;
+}
+
 interface TradingContextType {
     lastOrder: Order | null;
     placeOrder: (order: Order) => void;
     symbol: string;
     setSymbol: (symbol: string) => void;
+    modifyModalState: ModifyModalState;
+    setModifyModalState: (state: ModifyModalState) => void;
+    lastModification: any | null;
+    requestModifyPosition: (modification: any) => void;
 }
 
 const TradingContext = createContext<TradingContextType | undefined>(undefined);
@@ -23,14 +32,30 @@ const TradingContext = createContext<TradingContextType | undefined>(undefined);
 export function TradingProvider({ children }) {
     const [lastOrder, setLastOrder] = useState<Order | null>(null);
     const [symbol, setSymbol] = useState<string>('AAPL');
+    const [modifyModalState, setModifyModalState] = useState<ModifyModalState>({ isOpen: false, position: null });
+    const [lastModification, setLastModification] = useState<any | null>(null);
 
     const placeOrder = (order: Order) => {
         console.log("Placing order globally:", order);
         setLastOrder(order);
     };
 
+    const requestModifyPosition = (modification: any) => {
+        console.log("Requesting position modification:", modification);
+        setLastModification(modification);
+    };
+
     return (
-        <TradingContext.Provider value={{ lastOrder, placeOrder, symbol, setSymbol }}>
+        <TradingContext.Provider value={{
+            lastOrder,
+            placeOrder,
+            symbol,
+            setSymbol,
+            modifyModalState,
+            setModifyModalState,
+            lastModification,
+            requestModifyPosition
+        }}>
             {children}
         </TradingContext.Provider>
     );

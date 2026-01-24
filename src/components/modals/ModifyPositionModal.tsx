@@ -4,15 +4,24 @@ import ReactDOM from 'react-dom';
 import FlagIcon from '../ui/FlagIcon';
 import Tooltip from '../ui/Tooltip';
 
-const ModifyPositionModal = ({ isOpen, onClose, position }) => {
+import { useTrading } from '../../context/TradingContext';
+
+const ModifyPositionModal = () => {
+  const { modifyModalState, setModifyModalState, requestModifyPosition } = useTrading();
+  const { isOpen, position } = modifyModalState;
+
   const [activeTab, setActiveTab] = useState('modify');
   const [tpValue, setTpValue] = useState('');
   const [slValue, setSlValue] = useState('');
   const [partialVolume, setPartialVolume] = useState('');
 
+  const onClose = () => {
+    setModifyModalState({ ...modifyModalState, isOpen: false });
+  };
+
   // Reset state when position changes or modal opens
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && position) {
       setTpValue(position?.tp === 'Add' ? '' : position?.tp || '');
       setSlValue(position?.sl === 'Add' ? '' : position?.sl || '');
       setPartialVolume(position?.volume || '');
@@ -31,6 +40,18 @@ const ModifyPositionModal = ({ isOpen, onClose, position }) => {
     const baseVal = parseFloat(currentValue) || 0;
     const newVal = (baseVal + delta).toFixed(decimals);
     setter(newVal);
+  };
+
+  const handleAction = () => {
+    if (activeTab === 'modify') {
+      requestModifyPosition({
+        id: position.id || position.ticket,
+        tp: tpValue,
+        sl: slValue
+      });
+    }
+    // Add logic for partial close / close by if needed
+    onClose();
   };
 
   return ReactDOM.createPortal(
@@ -53,22 +74,22 @@ const ModifyPositionModal = ({ isOpen, onClose, position }) => {
               </div>
             </div>
             <div className="flex gap-1 pl-9 text-[13px]">
-              <span className={`font-medium ${position.type === 'Buy' ? 'text-[#0099ff]' : 'text-[#f6465d]'}`}>
-                {position.type}
+              <span className={`font-medium ${position.type === 'Buy' || position.side === 1 ? 'text-[#0099ff]' : 'text-[#f6465d]'}`}>
+                {position.type || (position.side === 1 ? 'Buy' : 'Sell')}
               </span>
-              <span className="text-[#8b9096]">at {position.openPrice}</span>
+              <span className="text-[#8b9096]">at {position.openPrice || position.price}</span>
             </div>
           </div>
 
           {/* Right Column: P/L, Price, Close */}
           <div className="flex items-start gap-4">
             <div className="text-right">
-              <div className={`flex items-baseline justify-end gap-1 ${position.plColor}`}>
-                <span className="text-[15px] font-medium">{position.pl}</span>
+              <div className={`flex items-baseline justify-end gap-1 ${parseFloat(position.pl) >= 0 ? 'text-[#00ffaa]' : 'text-[#ff444f]'}`}>
+                <span className="text-[15px] font-medium">{position.pl || '0.00'}</span>
                 <span className="text-[11px] text-[#8b9096]">USD</span>
               </div>
               <div className="text-[#e1e1e1] font-medium text-[13px]">
-                {position.currentPrice || position.openPrice}
+                {position.currentPrice || position.price}
               </div>
             </div>
             <button
@@ -258,7 +279,7 @@ const ModifyPositionModal = ({ isOpen, onClose, position }) => {
 
           {/* Action Button */}
           <button
-            onClick={onClose}
+            onClick={handleAction}
             className="w-full h-[40px] bg-[#8b5cf6] hover:bg-[#8b5cf6] text-black text-[14px] font-medium rounded transition-colors mt-2"
           >
             {activeTab === 'modify' ? 'Modify position' : 'Close position'}

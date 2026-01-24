@@ -15,6 +15,8 @@ import { ImperativePanelHandle } from 'react-resizable-panels'
 
 import { TradingProvider } from '../context/TradingContext'
 
+import ModifyPositionModal from '../components/modals/ModifyPositionModal'
+
 export default function TradingTerminal() {
   const { isSidebarExpanded, setIsSidebarExpanded } = useSidebar();
   const leftPanelRef = useRef<ImperativePanelHandle>(null)
@@ -296,6 +298,7 @@ export default function TradingTerminal() {
           />
         </ResizablePanel>
       </ResizablePanelGroup>
+      <ModifyPositionModal />
     </TradingProvider>
   )
 }
