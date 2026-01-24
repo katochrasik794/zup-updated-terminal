@@ -12,6 +12,9 @@ import StatusBar from '../components/layout/StatusBar'
 import { useSidebar } from '../context/SidebarContext'
 
 import { ImperativePanelHandle } from 'react-resizable-panels'
+import ModifyPositionModal from '../components/modals/ModifyPositionModal'
+
+import { TradingProvider } from '../context/TradingContext'
 
 export default function TradingTerminal() {
   const { isSidebarExpanded, setIsSidebarExpanded } = useSidebar();
@@ -192,106 +195,105 @@ export default function TradingTerminal() {
   }, [isSidebarExpanded])
 
   return (
-    <ResizablePanelGroup direction="horizontal" className="flex-1 overflow-hidden min-h-0">
-      {/* Left sidebar with panels */}
-      <ResizablePanel
-        ref={leftPanelRef}
-        defaultSize={20}
-        minSize={8}
-        maxSize={40}
-        className={`min-h-0 h-full ${!isSidebarExpanded ? "!min-w-[48px] !max-w-[48px] !flex-none" : ""}`}
-        collapsedSize={0}
-        collapsible={true}
-        onCollapse={() => setIsSidebarExpanded(false)}
-        onExpand={() => setIsSidebarExpanded(true)}
-      >
-        <LeftSidebar
-          onPanelStateChange={setIsSidebarExpanded}
-          isExpanded={isSidebarExpanded}
-        />
-      </ResizablePanel>
+    <TradingProvider>
+      <ResizablePanelGroup direction="horizontal" className="flex-1 overflow-hidden min-h-0">
+        {/* Left sidebar with panels */}
+        <ResizablePanel
+          ref={leftPanelRef}
+          defaultSize={20}
+          minSize={8}
+          maxSize={40}
+          className={`min-h-0 h-full ${!isSidebarExpanded ? "!min-w-[48px] !max-w-[48px] !flex-none" : ""}`}
+          collapsedSize={0}
+          collapsible={true}
+          onCollapse={() => setIsSidebarExpanded(false)}
+          onExpand={() => setIsSidebarExpanded(true)}
+        >
+          <LeftSidebar
+            onPanelStateChange={setIsSidebarExpanded}
+            isExpanded={isSidebarExpanded}
+          />
+        </ResizablePanel>
 
-      {/* Horizontal resize handle */}
-      <ResizableHandle withHandle={false} disabled={!isSidebarExpanded} className={!isSidebarExpanded ? "pointer-events-none w-0" : ""} />
+        {/* Horizontal resize handle */}
+        <ResizableHandle withHandle={false} disabled={!isSidebarExpanded} className={!isSidebarExpanded ? "pointer-events-none w-0" : ""} />
 
-      {/* Main content area with status bar */}
-      <ResizablePanel defaultSize={97} className="flex flex-col h-full gap-1">
-        {/* Top content area */}
-        <div className="relative flex flex-1 overflow-hidden gap-1">
-          <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
-            <ResizablePanelGroup direction="vertical" className="flex-1">
-              {/* Chart section */}
-              <ResizablePanel defaultSize={70} minSize={40} maxSize={85} className="min-h-0 overflow-hidden">
-                <ChartSection />
-              </ResizablePanel>
+        {/* Main content area with status bar */}
+        <ResizablePanel defaultSize={97} className="flex flex-col h-full gap-1">
+          {/* Top content area */}
+          <div className="relative flex flex-1 overflow-hidden gap-1">
+            <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
+              <ResizablePanelGroup direction="vertical" className="flex-1">
+                {/* Chart section */}
+                <ResizablePanel defaultSize={70} minSize={40} maxSize={85} className="min-h-0 overflow-hidden">
+                  <ChartSection />
+                </ResizablePanel>
 
-              {isBottomPanelVisible && (
-                <>
-                  {/* Vertical resize handle */}
-                  <ResizableHandle withHandle={false} className="" />
+                {isBottomPanelVisible && (
+                  <>
+                    {/* Vertical resize handle */}
+                    <ResizableHandle withHandle={false} className="" />
 
-                  {/* Bottom panel */}
-                  <ResizablePanel defaultSize={30} minSize={15} maxSize={60} className="min-h-0 overflow-hidden">
-                    <BottomPanel
-                      openPositions={openPositions}
-                      onClosePosition={handleClosePosition}
-                      onCloseGroup={handleCloseGroup}
-                      closedToast={closedToast}
-                      setClosedToast={setClosedToast}
-                      onCloseAll={handleCloseAll}
-                      onHide={() => setIsBottomPanelVisible(false)}
-                    />
-                  </ResizablePanel>
-                </>
+                    {/* Bottom panel */}
+                    <ResizablePanel defaultSize={30} minSize={15} maxSize={60} className="min-h-0 overflow-hidden">
+                      <BottomPanel
+                        openPositions={openPositions}
+                        onClosePosition={handleClosePosition}
+                        onCloseGroup={handleCloseGroup}
+                        closedToast={closedToast}
+                        setClosedToast={setClosedToast}
+                        onCloseAll={handleCloseAll}
+                        onHide={() => setIsBottomPanelVisible(false)}
+                      />
+                    </ResizablePanel>
+                  </>
+                )}
+              </ResizablePanelGroup>
+
+              {/* Minimized Bottom Panel */}
+              {!isBottomPanelVisible && (
+                <div className="flex-none h-[40px] border-t border-gray-800 bg-black">
+                  <BottomPanel
+                    openPositions={openPositions}
+                    onClosePosition={handleClosePosition}
+                    onCloseGroup={handleCloseGroup}
+                    closedToast={closedToast}
+                    setClosedToast={setClosedToast}
+                    onCloseAll={handleCloseAll}
+                    isMinimized={true}
+                    onHide={() => setIsBottomPanelVisible(true)}
+                  />
+                </div>
               )}
-            </ResizablePanelGroup>
+            </div>
 
-            {/* Minimized Bottom Panel */}
-            {!isBottomPanelVisible && (
-              <div className="flex-none h-[40px] border-t border-gray-800 bg-black">
-                <BottomPanel
-                  openPositions={openPositions}
-                  onClosePosition={handleClosePosition}
-                  onCloseGroup={handleCloseGroup}
-                  closedToast={closedToast}
-                  setClosedToast={setClosedToast}
-                  onCloseAll={handleCloseAll}
-                  isMinimized={true}
-                  onHide={() => setIsBottomPanelVisible(true)}
-                />
+            {/* Right sidebar - Order Panel with full height */}
+            {isRightSidebarOpen && (
+              <div className="w-[260px] h-full flex-shrink-0 overflow-hidden">
+                <OrderPanel onClose={() => setIsRightSidebarOpen(false)} />
               </div>
+            )}
+
+            {/* Floating Open Button */}
+            {!isRightSidebarOpen && (
+              <button
+                onClick={() => setIsRightSidebarOpen(true)}
+                className="absolute right-0 top-2 z-50 bg-background border border-[#2a2f36] border-r-0 text-gray-400 hover:text-white transition-colors p-1.5 rounded-l-md shadow-lg cursor-pointer"
+                title="Open Order Panel"
+              >
+                <ChevronLeft size={20} />
+              </button>
             )}
           </div>
 
-
-
-          {/* Right sidebar - Order Panel with full height */}
-          {isRightSidebarOpen && (
-            <div className="w-[260px] h-full flex-shrink-0 overflow-hidden">
-              <OrderPanel onClose={() => setIsRightSidebarOpen(false)} />
-            </div>
-          )}
-
-          {/* Floating Open Button */}
-          {!isRightSidebarOpen && (
-            <button
-              onClick={() => setIsRightSidebarOpen(true)}
-              className="absolute right-0 top-2 z-50 bg-background border border-[#2a2f36] border-r-0 text-gray-400 hover:text-white transition-colors p-1.5 rounded-l-md shadow-lg cursor-pointer"
-              title="Open Order Panel"
-            >
-              <ChevronLeft size={20} />
-            </button>
-          )}
-        </div>
-
-
-
-        {/* Status bar only for center and right areas */}
-        <StatusBar
-          openPositions={openPositions}
-          onCloseAll={handleCloseAll}
-        />
-      </ResizablePanel>
-    </ResizablePanelGroup>
+          {/* Status bar only for center and right areas */}
+          <StatusBar
+            openPositions={openPositions}
+            onCloseAll={handleCloseAll}
+          />
+          <ModifyPositionModal />
+        </ResizablePanel>
+      </ResizablePanelGroup>
+    </TradingProvider>
   )
 }

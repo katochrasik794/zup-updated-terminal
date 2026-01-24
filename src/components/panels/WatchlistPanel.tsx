@@ -206,27 +206,7 @@ export default function WatchlistPanel({ onClose }) {
 
         {/* Actions: Settings + Close */}
         <div className="flex items-center gap-1">
-          <div className="relative">
-            <button
-              onClick={() => setShowSettings(!showSettings)}
-              className="p-1.5 text-gray-400 hover:text-white hover:bg-gray-800 rounded transition-colors"
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="1" />
-                <circle cx="12" cy="5" r="1" />
-                <circle cx="12" cy="19" r="1" />
-              </svg>
-            </button>
-            {showSettings && (
-              <WatchlistSettingsPopup
-                columns={columns}
-                onToggleColumn={toggleColumn}
-                showPriceHighlight={showPriceHighlight}
-                onTogglePriceHighlight={() => setShowPriceHighlight(!showPriceHighlight)}
-                onClose={() => setShowSettings(false)}
-              />
-            )}
-          </div>
+
 
           <button
             onClick={onClose}

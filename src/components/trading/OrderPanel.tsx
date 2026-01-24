@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { ChevronDown, X, Minus, Plus, HelpCircle } from 'lucide-react'
 import FlagIcon from '../ui/FlagIcon'
 import OrderModeModal from '../modals/OrderModeModal'
+import { useTrading } from '../../context/TradingContext'
 
 export default function OrderPanel({ onClose }) {
   const [isPending, setIsPending] = useState(false)
@@ -13,6 +14,30 @@ export default function OrderPanel({ onClose }) {
   const [isDetailsExpanded, setIsDetailsExpanded] = useState(false)
   const [showModeModal, setShowModeModal] = useState(false)
   const [pendingMode, setPendingMode] = useState(null)
+  const [openPrice, setOpenPrice] = useState('0.00')
+  const [takeProfit, setTakeProfit] = useState('')
+  const [stopLoss, setStopLoss] = useState('')
+
+  const { placeOrder, activeSymbol, showOrderDialog } = useTrading();
+
+  const handlePlaceOrder = async () => {
+    try {
+      const order = {
+        symbol: activeSymbol,
+        side: orderSide === 'sell' ? -1 : 1,
+        qty: parseFloat(volume) || 1,
+        type: isPending ? 1 : 2, // 1=Limit, 2=Market (Corrected mapping)
+        limitPrice: isPending ? parseFloat(openPrice) : undefined,
+        takeProfit: takeProfit ? parseFloat(takeProfit) : undefined,
+        stopLoss: stopLoss ? parseFloat(stopLoss) : undefined,
+      };
+
+      // Place all orders directly as requested (no more dialogs)
+      await placeOrder(order);
+    } catch (e) {
+      console.error("Order failed:", e);
+    }
+  };
 
   const handleModeSelect = (mode) => {
     setIsModeDropdownOpen(false)
@@ -40,9 +65,9 @@ export default function OrderPanel({ onClose }) {
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-1 text-gray-200 font-medium text-[14px]">
               <div className="w-4 h-4 rounded-full overflow-hidden">
-                <FlagIcon type="xauusd" />
+                <FlagIcon type={activeSymbol.toLowerCase().includes('xau') ? 'xauusd' : 'aapl'} />
               </div>
-              XAU/USD
+              {activeSymbol}
             </div>
           </div>
           <button
@@ -173,7 +198,8 @@ export default function OrderPanel({ onClose }) {
                 <div className="relative flex-1 h-full">
                   <input
                     type="text"
-                    defaultValue="4068.515"
+                    value={openPrice}
+                    onChange={(e) => setOpenPrice(e.target.value)}
                     className="w-full h-full bg-transparent border-none px-3 text-white text-[14px] focus:outline-none font-medium"
                   />
                   <div className="absolute right-0 top-0 h-full flex items-center pr-2 gap-1">
@@ -234,6 +260,8 @@ export default function OrderPanel({ onClose }) {
                 <input
                   type="text"
                   placeholder="Not set"
+                  value={takeProfit}
+                  onChange={(e) => setTakeProfit(e.target.value)}
                   className="w-full h-full bg-transparent border-none px-3 text-white text-[14px] focus:outline-none placeholder-gray-500"
                 />
               </div>
@@ -262,6 +290,8 @@ export default function OrderPanel({ onClose }) {
                 <input
                   type="text"
                   placeholder="Not set"
+                  value={stopLoss}
+                  onChange={(e) => setStopLoss(e.target.value)}
                   className="w-full h-full bg-transparent border-none px-3 text-white text-[14px] focus:outline-none placeholder-gray-500"
                 />
               </div>
@@ -290,7 +320,8 @@ export default function OrderPanel({ onClose }) {
                   ? 'bg-[#ff444f] hover:bg-[#eb3b46] shadow-red-900/20'
                   : 'bg-[#007bff] hover:bg-[#0069d9] shadow-blue-900/20'
                   }`}
-                type="submit"
+                type="button"
+                onClick={handlePlaceOrder}
               >
                 Confirm {orderSide === 'sell' ? 'Sell' : 'Buy'} {volume} lots
               </button>

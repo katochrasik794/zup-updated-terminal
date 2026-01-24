@@ -1,0 +1,1 @@
+(self.webpackChunktradingview=self.webpackChunktradingview||[]).push([[3234],{760724:e=>{e.exports={en:["Hide data"],ko:["데이터숨김"]}},698334:e=>{e.exports={en:["Show"],ko:["보기"]}},198337:e=>{e.exports={en:["Show data"],ko:["데이터 보기"]}},201924:e=>{e.exports={en:["change visibility"],ko:["보임 바꾸기"]}},351382:e=>{e.exports={en:["show {title}"],ko:["{title} 보이기"]}}}]);

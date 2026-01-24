@@ -3,35 +3,143 @@ import React, { useState, useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import FlagIcon from '../ui/FlagIcon';
 import Tooltip from '../ui/Tooltip';
+import { useTrading } from '../../context/TradingContext';
 
-const ModifyPositionModal = ({ isOpen, onClose, position }) => {
+interface ModifyPositionModalProps {
+  isOpen?: boolean;
+  onClose?: () => void;
+  position?: any;
+}
+
+const ModifyPositionModal = ({ isOpen: propsIsOpen, onClose: propsOnClose, position: propsPosition }: ModifyPositionModalProps) => {
+  const context = useTrading();
+
+  const isOpen = propsIsOpen !== undefined ? propsIsOpen : context.isModifyModalOpen;
+  const position = propsPosition || context.selectedPosition;
+  const brackets = context.selectedBrackets;
+  const broker = context.broker;
+
   const [activeTab, setActiveTab] = useState('modify');
   const [tpValue, setTpValue] = useState('');
   const [slValue, setSlValue] = useState('');
   const [partialVolume, setPartialVolume] = useState('');
 
-  // Reset state when position changes or modal opens
-  useEffect(() => {
-    if (isOpen) {
-      setTpValue(position?.tp === 'Add' ? '' : position?.tp || '');
-      setSlValue(position?.sl === 'Add' ? '' : position?.sl || '');
-      setPartialVolume(position?.volume || '');
+  const onInternalClose = () => {
+    // If we're using context, resolve the library promise
+    if (propsIsOpen === undefined) {
+      context.resolveModify();
     }
-  }, [isOpen, position]);
 
-  if (!isOpen || !position) return null;
-
-  const handleBackdropClick = (e) => {
-    if (e.target === e.currentTarget) {
-      onClose();
+    if (propsOnClose) {
+      propsOnClose();
+    } else {
+      context.setIsModifyModalOpen(false);
     }
   };
 
-  const adjustValue = (setter, currentValue, delta, decimals = 2) => {
+  // Reset state when position changes or modal opens
+  useEffect(() => {
+    if (isOpen && position) {
+      // Prioritize brackets values (from dragging or library dialog state)
+      let currentTp = '';
+      if (brackets?.takeProfit !== undefined && brackets?.takeProfit !== null) {
+        currentTp = brackets.takeProfit.toString();
+      } else if (position.takeProfit !== undefined && position.takeProfit !== null) {
+        currentTp = position.takeProfit.toString();
+      } else if (position.tp && position.tp !== 'Add') {
+        currentTp = typeof position.tp === 'string' ? position.tp.replace(/,/g, '') : position.tp.toString();
+      }
+
+      let currentSl = '';
+      if (brackets?.stopLoss !== undefined && brackets?.stopLoss !== null) {
+        currentSl = brackets.stopLoss.toString();
+      } else if (position.stopLoss !== undefined && position.stopLoss !== null) {
+        currentSl = position.stopLoss.toString();
+      } else if (position.sl && position.sl !== 'Add') {
+        currentSl = typeof position.sl === 'string' ? position.sl.replace(/,/g, '') : position.sl.toString();
+      }
+
+      setTpValue(currentTp || '');
+      setSlValue(currentSl || '');
+
+      const vol = position.qty || position.volume;
+      setPartialVolume(vol?.toString().replace(/,/g, '') || '');
+    }
+  }, [isOpen, position, brackets]);
+
+  if (!isOpen || !position) return null;
+
+  const handleBackdropClick = (e: React.MouseEvent) => {
+    if (e.target === e.currentTarget) {
+      onInternalClose();
+    }
+  };
+
+  const adjustValue = (setter: (v: string) => void, currentValue: string, delta: number, decimals = 2) => {
     const baseVal = parseFloat(currentValue) || 0;
     const newVal = (baseVal + delta).toFixed(decimals);
     setter(newVal);
   };
+
+  const handleModify = async () => {
+    if (!broker) {
+      console.warn("Broker not available for modification");
+      onInternalClose();
+      return;
+    }
+
+    try {
+      const modifiedBrackets = {
+        takeProfit: tpValue ? parseFloat(tpValue) : undefined,
+        stopLoss: slValue ? parseFloat(slValue) : undefined,
+      };
+
+      const id = position.id || position.ticket;
+      await broker.editPositionBrackets(id, modifiedBrackets);
+
+      // Notify library modification is done
+      if (propsIsOpen === undefined) {
+        context.resolveModify({ takeProfit: modifiedBrackets.takeProfit, stopLoss: modifiedBrackets.stopLoss });
+      }
+
+      if (propsOnClose) propsOnClose();
+      else context.setIsModifyModalOpen(false);
+    } catch (e) {
+      console.error("Failed to modify position:", e);
+    }
+  };
+
+  const handleClose = async () => {
+    if (!broker) {
+      console.warn("Broker not available for closing");
+      onInternalClose();
+      return;
+    }
+    try {
+      const id = position.id || position.ticket;
+      if (activeTab === 'partialclose') {
+        const qty = parseFloat(partialVolume);
+        await broker.closePosition(id, qty);
+      } else {
+        await broker.closePosition(id);
+      }
+
+      if (propsIsOpen === undefined) {
+        context.resolveModify();
+      }
+
+      if (propsOnClose) propsOnClose();
+      else context.setIsModifyModalOpen(false);
+    } catch (e) {
+      console.error("Failed to close position:", e);
+    }
+  };
+
+  const displayProfit = position.profit !== undefined ? position.profit : parseFloat(position.pl?.toString().replace('+', '') || '0');
+  const displayPrice = position.currentPrice || position.avgPrice || position.openPrice;
+  const isProfitPositive = parseFloat(displayProfit?.toString() || '0') >= 0;
+  const displaySide = position.side === 1 ? 'Buy' : position.side === -1 ? 'Sell' : (typeof position.type === 'string' ? position.type : 'Trade');
+  const displayQty = position.qty !== undefined && position.qty !== null ? position.qty : position.volume;
 
   return ReactDOM.createPortal(
     <div
@@ -41,38 +149,36 @@ const ModifyPositionModal = ({ isOpen, onClose, position }) => {
       <div className="bg-[#0b0f14] border border-gray-800 rounded-lg w-[400px] shadow-2xl overflow-hidden font-sans text-gray-200">
         {/* Header */}
         <div className="px-4 pt-4 pb-2 flex justify-between items-start">
-          {/* Left Column: Symbol info */}
           <div>
             <div className="flex items-center gap-3 mb-0.5">
               <div className="w-6 h-6 relative">
-                <FlagIcon type={position.flag || 'xauusd'} />
+                <FlagIcon type={position.flag || (position.symbol?.toLowerCase().includes('aurum') || position.symbol?.toLowerCase().includes('gold') || position.symbol?.toLowerCase().includes('xau') ? 'xauusd' : 'aapl')} />
               </div>
               <div className="flex items-baseline gap-2">
                 <span className="text-[16px] font-bold text-gray-100 tracking-wide">{position.symbol}</span>
-                <span className="text-[13px] text-[#8b9096] font-normal">{position.volume} lots</span>
+                <span className="text-[13px] text-[#8b9096] font-normal">{displayQty} lots</span>
               </div>
             </div>
             <div className="flex gap-1 pl-9 text-[13px]">
-              <span className={`font-medium ${position.type === 'Buy' ? 'text-[#0099ff]' : 'text-[#f6465d]'}`}>
-                {position.type}
+              <span className={`font-medium ${displaySide.toLowerCase() === 'buy' ? 'text-[#0099ff]' : 'text-[#f6465d]'}`}>
+                {displaySide}
               </span>
-              <span className="text-[#8b9096]">at {position.openPrice}</span>
+              <span className="text-[#8b9096]">at {position.avgPrice || position.openPrice}</span>
             </div>
           </div>
 
-          {/* Right Column: P/L, Price, Close */}
           <div className="flex items-start gap-4">
             <div className="text-right">
-              <div className={`flex items-baseline justify-end gap-1 ${position.plColor}`}>
-                <span className="text-[15px] font-medium">{position.pl}</span>
+              <div className={`flex items-baseline justify-end gap-1 ${isProfitPositive ? 'text-[#00ffaa]' : 'text-[#f6465d]'}`}>
+                <span className="text-[15px] font-medium">{displayProfit !== undefined ? (isProfitPositive ? '+' : '') + parseFloat(displayProfit.toString()).toFixed(2) : '0.00'}</span>
                 <span className="text-[11px] text-[#8b9096]">USD</span>
               </div>
               <div className="text-[#e1e1e1] font-medium text-[13px]">
-                {position.currentPrice || position.openPrice}
+                {displayPrice}
               </div>
             </div>
             <button
-              onClick={onClose}
+              onClick={onInternalClose}
               className="text-[#8b9096] hover:text-white transition-colors cursor-pointer mt-1"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -246,7 +352,7 @@ const ModifyPositionModal = ({ isOpen, onClose, position }) => {
                   </div>
                 </div>
                 <div className="mt-1 text-[12px] text-[#8b9096]">
-                  0.01 - {position.volume}
+                  0.01 - {position.qty || position.volume}
                 </div>
               </div>
             </>
@@ -258,15 +364,15 @@ const ModifyPositionModal = ({ isOpen, onClose, position }) => {
 
           {/* Action Button */}
           <button
-            onClick={onClose}
-            className="w-full h-[40px] bg-[#8b5cf6] hover:bg-[#8b5cf6] text-black text-[14px] font-medium rounded transition-colors mt-2"
+            onClick={activeTab === 'modify' ? handleModify : handleClose}
+            className="w-full h-[40px] bg-[#8b5cf6] hover:bg-[#8b5cf6] text-black text-[14px] font-medium rounded transition-colors mt-2 cursor-pointer"
           >
             {activeTab === 'modify' ? 'Modify position' : 'Close position'}
           </button>
 
           {activeTab === 'partialclose' && (
             <div className="text-center text-[13px] text-[#8b9096]">
-              Estimated profit: <span className={position.plColor}>{position.pl} USD</span>
+              Estimated profit: <span className={isProfitPositive ? 'text-[#00ffaa]' : 'text-[#f6465d]'}>{displayProfit !== undefined ? (isProfitPositive ? '+' : '') + parseFloat(displayProfit.toString()).toFixed(2) : '0.00'} USD</span>
             </div>
           )}
         </div>

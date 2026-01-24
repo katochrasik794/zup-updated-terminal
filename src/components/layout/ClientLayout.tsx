@@ -3,9 +3,16 @@
 import React from 'react';
 import Navbar from './Navbar';
 import { SidebarProvider, useSidebar } from '../../context/SidebarContext';
+import { usePathname } from 'next/navigation';
 
 function LayoutContent({ children }: { children: React.ReactNode }) {
     const { isSidebarExpanded } = useSidebar();
+    const pathname = usePathname();
+    const isLoginPage = pathname === '/login';
+
+    if (isLoginPage) {
+        return <div className="h-screen w-full bg-[#02040d] overflow-auto">{children}</div>;
+    }
 
     return (
         <div className="h-screen flex flex-col bg-background overflow-hidden gap-1">
