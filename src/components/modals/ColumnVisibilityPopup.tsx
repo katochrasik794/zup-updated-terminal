@@ -80,7 +80,7 @@ const ColumnVisibilityPopup = ({
         onClick={onClose}
       />
       <div
-        className="fixed z-[9999] bg-[#0b0f14] border border-gray-800 rounded-lg shadow-2xl w-[280px] overflow-hidden text-[#e1e1e1] font-sans text-[14px]"
+        className="fixed z-[9999] bg-[#02040d] border border-gray-800 rounded-lg shadow-2xl w-[280px] overflow-hidden text-[#e1e1e1] font-sans text-[14px]"
         style={style}
       >
         <div className="px-4 py-3 border-b border-[#2a3038] flex justify-between items-center">

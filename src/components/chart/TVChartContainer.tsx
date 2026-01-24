@@ -17,8 +17,32 @@ import { useTrading } from '../../context/TradingContext';
 export const TVChartContainer = () => {
     const containerRef = useRef<HTMLDivElement>(null);
     const brokerRef = useRef<any>(null);
-    const { lastOrder, setSymbol } = useTrading();
+    const { lastOrder, setSymbol, setModifyModalState, lastModification } = useTrading();
 
+    useEffect(() => {
+        if (lastModification && brokerRef.current) {
+            console.log("TVChartContainer received modification request:", lastModification);
+
+            // Broker compatibility check:
+            // Standard JS API: modifyPosition(positionId, stopLoss, takeProfit)
+            // Some samples/UDF: editPositionSLTP(positionId, stopLoss, takeProfit)
+            const modifier = brokerRef.current.modifyPosition || brokerRef.current.editPositionSLTP;
+
+            if (modifier) {
+                const sl = parseFloat(lastModification.sl) || 0;
+                const tp = parseFloat(lastModification.tp) || 0;
+
+                console.log(`Calling broker modification: ID=${lastModification.id}, SL=${sl}, TP=${tp}`);
+
+                modifier.call(brokerRef.current, lastModification.id, sl, tp)
+                    .then(() => console.log("Position modification sent to broker"))
+                    .catch((err: any) => console.error("Failed to modify position", err));
+            } else {
+                console.error("Broker does not support position modification. Available methods:", Object.keys(brokerRef.current));
+                // Fallback attempt: maybe modifyOrder? (Unlikely for positions, but logged for debug)
+            }
+        }
+    }, [lastModification]);
 
     useEffect(() => {
         if (lastOrder && brokerRef.current) {
@@ -142,6 +166,11 @@ export const TVChartContainer = () => {
                 charts_storage_api_version: '1.1',
                 client_id: 'trading_platform_demo',
                 user_id: 'public_user',
+                overrides: {
+                    "paneProperties.background": "#02040d",
+                    "paneProperties.backgroundType": "solid",
+                    "paneProperties.vertGridProperties.color": "#02040d",
+                },
 
                 broker_factory: (host: any) => {
                     const broker = new window.Brokers.BrokerDemo(host, datafeed);
@@ -189,7 +218,36 @@ export const TVChartContainer = () => {
                             window.CustomDialogs.showOrderDialog(customOrderDialog, order);
                             return Promise.resolve(true);
                         },
-
+                        showPositionDialog: (position: any, brackets: any, focus: any) => {
+                            console.log("CustomUI showPositionDialog triggered", position, brackets);
+                            // Map BrokerDemo position fields to ModifyPositionModal fields
+                            const mappedPosition = {
+                                ...position,
+                                openPrice: position.avg_price || position.avgPrice || position.price,
+                                currentPrice: position.currentPrice || position.price, // Might need to fetch current quote if missing
+                                tp: brackets?.takeProfit || position.takeProfit || position.tp,
+                                sl: brackets?.stopLoss || position.stopLoss || position.sl,
+                                pl: position.profit || position.pl || '0.00',
+                                volume: position.qty || position.volume,
+                                flag: (position.symbol || '').toLowerCase().replace(/[^a-z0-9]/g, ''),
+                            };
+                            setModifyModalState({ isOpen: true, position: mappedPosition });
+                            return Promise.resolve(true);
+                        },
+                        showPositionBracketsDialog: (position: any, brackets: any, focus: any) => {
+                            console.log("CustomUI showPositionBracketsDialog triggered", position, brackets);
+                            const mappedPosition = {
+                                ...position,
+                                openPrice: position.avg_price || position.avgPrice || position.price,
+                                tp: brackets?.takeProfit || position.takeProfit || position.tp,
+                                sl: brackets?.stopLoss || position.stopLoss || position.sl,
+                                pl: position.profit || position.pl || '0.00',
+                                volume: position.qty || position.volume,
+                                flag: (position.symbol || '').toLowerCase().replace(/[^a-z0-9]/g, ''),
+                            };
+                            setModifyModalState({ isOpen: true, position: mappedPosition });
+                            return Promise.resolve(true);
+                        },
                         showCancelOrderDialog: (order: any) => {
                             if (!createCancelOrderButtonListener) return Promise.resolve(false);
                             const listener = createCancelOrderButtonListener(order, () => {

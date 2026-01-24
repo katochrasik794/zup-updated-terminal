@@ -59,7 +59,7 @@ const ModifyPositionModal = () => {
       className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-[2px]"
       onClick={handleBackdropClick}
     >
-      <div className="bg-[#0b0f14] border border-gray-800 rounded-lg w-[400px] shadow-2xl overflow-hidden font-sans text-gray-200">
+      <div className="bg-[#02040d] border border-gray-800 rounded-lg w-[400px] shadow-2xl overflow-hidden font-sans text-gray-200">
         {/* Header */}
         <div className="px-4 pt-4 pb-2 flex justify-between items-start">
           {/* Left Column: Symbol info */}
@@ -105,7 +105,7 @@ const ModifyPositionModal = () => {
 
         {/* Tabs */}
         <div className="px-4 py-3">
-          <div className="flex bg-[#0b0f14] p-[3px] rounded border border-[#2a3038]">
+          <div className="flex bg-[#02040d] p-[3px] rounded border border-[#2a3038]">
             {['Modify', 'Partial close', 'Close by'].map((tab) => {
               const id = tab.toLowerCase().replace(' ', '');
               const isActive = activeTab === id;

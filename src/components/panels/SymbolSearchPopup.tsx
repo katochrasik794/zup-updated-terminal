@@ -68,7 +68,7 @@ export default function SymbolSearchPopup({ isOpen, onClose, onSelectSymbol, tri
       <div className="fixed inset-0 z-40" onClick={onClose} />
 
       <div
-        className={`${triggerRef ? 'fixed' : 'absolute top-full left-0 mt-2'} w-[400px] bg-[#0b0f14] border border-gray-700 rounded-lg shadow-2xl z-50 flex flex-col`}
+        className={`${triggerRef ? 'fixed' : 'absolute top-full left-0 mt-2'} w-[400px] bg-[#02040d] border border-gray-700 rounded-lg shadow-2xl z-50 flex flex-col`}
         style={triggerRef ? { top: position.top, left: position.left } : {}}
       >
         {/* Search Bar */}

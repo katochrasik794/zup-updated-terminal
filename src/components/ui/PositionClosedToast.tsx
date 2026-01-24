@@ -14,7 +14,7 @@ export default function PositionClosedToast({ position, onClose }) {
   if (!position) return null
 
   return ReactDOM.createPortal(
-    <div className="fixed bottom-4 left-4 z-[99999] bg-[#0b0f14] text-[#b2b5be] rounded-md shadow-lg border border-gray-800 w-[320px] overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-300">
+    <div className="fixed bottom-4 left-4 z-[99999] bg-[#02040d] text-[#b2b5be] rounded-md shadow-lg border border-gray-800 w-[320px] overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-300">
       <div className="p-4 relative">
         <button
           onClick={onClose}

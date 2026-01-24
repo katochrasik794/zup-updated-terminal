@@ -22,7 +22,7 @@ export default function GroupClosePopup({ isOpen, onClose, onConfirm, position, 
   return (
     <div
       ref={popupRef}
-      className="fixed z-[100] bg-[#0b0f14] border border-gray-800 rounded-lg shadow-xl p-4 flex flex-col gap-4 w-[320px]"
+      className="fixed z-[100] bg-[#02040d] border border-gray-800 rounded-lg shadow-xl p-4 flex flex-col gap-4 w-[320px]"
       style={{
         top: position.top,
         left: position.left,
