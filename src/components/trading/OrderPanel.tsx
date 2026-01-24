@@ -1,18 +1,23 @@
 "use client";
-import { useState } from 'react'
+import React, { useState } from 'react'
 import { ChevronDown, X, Minus, Plus, HelpCircle } from 'lucide-react'
 import FlagIcon from '../ui/FlagIcon'
 import OrderModeModal from '../modals/OrderModeModal'
+import { useTrading } from '../../context/TradingContext';
 
 export default function OrderPanel({ onClose }) {
+  const { placeOrder, symbol } = useTrading();
   const [isPending, setIsPending] = useState(false)
-  const [orderSide, setOrderSide] = useState(null)
+  const [orderSide, setOrderSide] = useState<'buy' | 'sell' | null>(null)
   const [volume, setVolume] = useState('0.01')
+  const [pendingPrice, setPendingPrice] = useState('')
+  const [takeProfit, setTakeProfit] = useState('')
+  const [stopLoss, setStopLoss] = useState('')
   const [isModeDropdownOpen, setIsModeDropdownOpen] = useState(false)
   const [selectedMode, setSelectedMode] = useState('Regular form')
   const [isDetailsExpanded, setIsDetailsExpanded] = useState(false)
   const [showModeModal, setShowModeModal] = useState(false)
-  const [pendingMode, setPendingMode] = useState(null)
+  const [pendingMode, setPendingMode] = useState<string | null>(null)
 
   const handleModeSelect = (mode) => {
     setIsModeDropdownOpen(false)
@@ -25,15 +30,32 @@ export default function OrderPanel({ onClose }) {
   }
 
   const handleModeConfirm = (dontShowAgain) => {
-    setSelectedMode(pendingMode)
+    if (pendingMode) setSelectedMode(pendingMode)
     setShowModeModal(false)
     setPendingMode(null)
     // Here you could save dontShowAgain preference to local storage
   }
 
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (orderSide) {
+      placeOrder({
+        symbol: symbol || 'XAU/USD',
+        side: orderSide,
+        volume: volume,
+        type: isPending ? 'limit' : 'market',
+        price: isPending ? pendingPrice : undefined,
+        tp: takeProfit || undefined,
+        sl: stopLoss || undefined
+      });
+      // Optional: Reset state or give feedback
+      setOrderSide(null);
+    }
+  };
+
   return (
     <div className="bg-background flex flex-col h-full w-full overflow-hidden text-[#c0c0c0] font-sans border border-gray-800 rounded-l-md">
-      <form className="flex flex-col h-full overflow-y-auto overflow-x-hidden custom-scrollbar" onSubmit={(e) => e.preventDefault()}>
+      <form className="flex flex-col h-full overflow-y-auto overflow-x-hidden custom-scrollbar" onSubmit={handleSubmit}>
 
         {/* Header */}
         <div className="px-2 py-4 flex-shrink-0 flex items-center justify-between">
@@ -42,7 +64,7 @@ export default function OrderPanel({ onClose }) {
               <div className="w-4 h-4 rounded-full overflow-hidden">
                 <FlagIcon type="xauusd" />
               </div>
-              XAU/USD
+              <span>{symbol || 'XAU/USD'}</span>
             </div>
           </div>
           <button
@@ -173,7 +195,9 @@ export default function OrderPanel({ onClose }) {
                 <div className="relative flex-1 h-full">
                   <input
                     type="text"
-                    defaultValue="4068.515"
+                    value={pendingPrice}
+                    onChange={(e) => setPendingPrice(e.target.value)}
+                    placeholder="0.00"
                     className="w-full h-full bg-transparent border-none px-3 text-white text-[14px] focus:outline-none font-medium"
                   />
                   <div className="absolute right-0 top-0 h-full flex items-center pr-2 gap-1">
@@ -233,6 +257,8 @@ export default function OrderPanel({ onClose }) {
               <div className="relative flex-1 h-full">
                 <input
                   type="text"
+                  value={takeProfit}
+                  onChange={(e) => setTakeProfit(e.target.value)}
                   placeholder="Not set"
                   className="w-full h-full bg-transparent border-none px-3 text-white text-[14px] focus:outline-none placeholder-gray-500"
                 />
@@ -261,6 +287,8 @@ export default function OrderPanel({ onClose }) {
               <div className="relative flex-1 h-full">
                 <input
                   type="text"
+                  value={stopLoss}
+                  onChange={(e) => setStopLoss(e.target.value)}
                   placeholder="Not set"
                   className="w-full h-full bg-transparent border-none px-3 text-white text-[14px] focus:outline-none placeholder-gray-500"
                 />
@@ -282,86 +310,88 @@ export default function OrderPanel({ onClose }) {
         </div>
 
         {/* Confirmation Button & Footer (Only when orderSide is selected) */}
-        {orderSide && (
-          <>
-            <div className="px-2 mt-2 flex-shrink-0">
-              <button
-                className={`w-full text-white font-medium py-2.5 rounded text-[14px] transition-colors shadow-lg cursor-pointer ${orderSide === 'sell'
-                  ? 'bg-[#ff444f] hover:bg-[#eb3b46] shadow-red-900/20'
-                  : 'bg-[#007bff] hover:bg-[#0069d9] shadow-blue-900/20'
-                  }`}
-                type="submit"
-              >
-                Confirm {orderSide === 'sell' ? 'Sell' : 'Buy'} {volume} lots
-              </button>
+        {
+          orderSide && (
+            <>
+              <div className="px-2 mt-2 flex-shrink-0">
+                <button
+                  className={`w-full text-white font-medium py-2.5 rounded text-[14px] transition-colors shadow-lg cursor-pointer ${orderSide === 'sell'
+                    ? 'bg-[#ff444f] hover:bg-[#eb3b46] shadow-red-900/20'
+                    : 'bg-[#007bff] hover:bg-[#0069d9] shadow-blue-900/20'
+                    }`}
+                  type="submit"
+                >
+                  Confirm {orderSide === 'sell' ? 'Sell' : 'Buy'} {volume} lots
+                </button>
 
-              <button
-                className="w-full mt-2 py-2 bg-gray-800 text-white text-[13px] transition-colors border border-transparent hover:border-gray-400 rounded cursor-pointer"
-                type="button"
-                onClick={() => setOrderSide(null)}
-              >
-                Cancel
-              </button>
-            </div>
+                <button
+                  className="w-full mt-2 py-2 bg-gray-800 text-white text-[13px] transition-colors border border-transparent hover:border-gray-400 rounded cursor-pointer"
+                  type="button"
+                  onClick={() => setOrderSide(null)}
+                >
+                  Cancel
+                </button>
+              </div>
 
-            {/* Footer Details */}
-            <div className="px-2 py-2 flex-shrink-0 space-y-1">
-              <div className="flex items-center justify-between text-[12px] font-medium">
-                <span className="text-gray-400">Fees:</span>
-                <div className="flex items-center gap-1">
-                  <span className="text-gray-300">≈ 0.11 USD</span>
-                  <HelpCircle size={12} className="text-gray-500" />
+              {/* Footer Details */}
+              <div className="px-2 py-2 flex-shrink-0 space-y-1">
+                <div className="flex items-center justify-between text-[12px] font-medium">
+                  <span className="text-gray-400">Fees:</span>
+                  <div className="flex items-center gap-1">
+                    <span className="text-gray-300">≈ 0.11 USD</span>
+                    <HelpCircle size={12} className="text-gray-500" />
+                  </div>
                 </div>
-              </div>
-              <div className="flex items-center justify-between text-[12px] font-medium">
-                <span className="text-gray-400">Leverage:</span>
-                <div className="flex items-center gap-1">
-                  <span className="text-gray-300">1:2000</span>
-                  <HelpCircle size={12} className="text-gray-500" />
+                <div className="flex items-center justify-between text-[12px] font-medium">
+                  <span className="text-gray-400">Leverage:</span>
+                  <div className="flex items-center gap-1">
+                    <span className="text-gray-300">1:2000</span>
+                    <HelpCircle size={12} className="text-gray-500" />
+                  </div>
                 </div>
-              </div>
-              <div className="flex items-center justify-between text-[12px] font-medium">
-                <span className="text-gray-400">Margin:</span>
-                <span className="text-gray-300">2.10 USD</span>
-              </div>
+                <div className="flex items-center justify-between text-[12px] font-medium">
+                  <span className="text-gray-400">Margin:</span>
+                  <span className="text-gray-300">2.10 USD</span>
+                </div>
 
-              {isDetailsExpanded && (
-                <>
-                  <div className="flex items-center justify-between text-[12px] font-medium">
-                    <span className="text-gray-400">Swap:</span>
-                    <div className="flex items-center gap-1">
-                      <span className="text-gray-300">0.00 USD</span>
-                      <HelpCircle size={12} className="text-gray-500" />
+                {isDetailsExpanded && (
+                  <>
+                    <div className="flex items-center justify-between text-[12px] font-medium">
+                      <span className="text-gray-400">Swap:</span>
+                      <div className="flex items-center gap-1">
+                        <span className="text-gray-300">0.00 USD</span>
+                        <HelpCircle size={12} className="text-gray-500" />
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex items-center justify-between text-[12px] font-medium">
-                    <span className="text-gray-400">Pip Value:</span>
-                    <span className="text-gray-300">0.01 USD</span>
-                  </div>
-                  <div className="flex items-center justify-between text-[12px] font-medium">
-                    <span className="text-gray-400">Volume in units:</span>
-                    <span className="text-gray-300">1.00 Troy oz.</span>
-                  </div>
-                  <div className="flex items-center justify-between text-[12px] font-medium">
-                    <span className="text-gray-400">Volume in USD:</span>
-                    <span className="text-gray-300">4,203.70 USD</span>
-                  </div>
-                </>
-              )}
+                    <div className="flex items-center justify-between text-[12px] font-medium">
+                      <span className="text-gray-400">Pip Value:</span>
+                      <span className="text-gray-300">0.01 USD</span>
+                    </div>
+                    <div className="flex items-center justify-between text-[12px] font-medium">
+                      <span className="text-gray-400">Volume in units:</span>
+                      <span className="text-gray-300">1.00 Troy oz.</span>
+                    </div>
+                    <div className="flex items-center justify-between text-[12px] font-medium">
+                      <span className="text-gray-400">Volume in USD:</span>
+                      <span className="text-gray-300">4,203.70 USD</span>
+                    </div>
+                  </>
+                )}
 
-              <button
-                className="text-gray-400 hover:text-white text-[12px] cursor-pointer flex items-center gap-1 mt-1 underline decoration-gray-500 hover:decoration-white underline-offset-2 transition-colors"
-                type="button"
-                onClick={() => setIsDetailsExpanded(!isDetailsExpanded)}
-              >
-                {isDetailsExpanded ? 'Less' : 'More'}
-                <ChevronDown size={12} className={`transition-transform duration-200 ${isDetailsExpanded ? 'rotate-180' : ''}`} />
-              </button>
-            </div>
-          </>
-        )}
+                <button
+                  className="text-gray-400 hover:text-white text-[12px] cursor-pointer flex items-center gap-1 mt-1 underline decoration-gray-500 hover:decoration-white underline-offset-2 transition-colors"
+                  type="button"
+                  onClick={() => setIsDetailsExpanded(!isDetailsExpanded)}
+                >
+                  {isDetailsExpanded ? 'Less' : 'More'}
+                  <ChevronDown size={12} className={`transition-transform duration-200 ${isDetailsExpanded ? 'rotate-180' : ''}`} />
+                </button>
+              </div>
+            </>
+          )
+        }
 
-      </form>
+      </form >
 
       <OrderModeModal
         isOpen={showModeModal}
@@ -372,6 +402,6 @@ export default function OrderPanel({ onClose }) {
         onConfirm={handleModeConfirm}
         mode={pendingMode}
       />
-    </div>
+    </div >
   )
 }

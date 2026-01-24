@@ -12,8 +12,58 @@ declare global {
     }
 }
 
+import { useTrading } from '../../context/TradingContext';
+
 export const TVChartContainer = () => {
     const containerRef = useRef<HTMLDivElement>(null);
+    const brokerRef = useRef<any>(null);
+    const { lastOrder, setSymbol } = useTrading();
+
+    useEffect(() => {
+        if (lastOrder && brokerRef.current) {
+            console.log("TVChartContainer received order:", lastOrder);
+            // Append silent flag to userData or similar if supported, or rely on handling in broker factory
+            // For now, passing order as is.
+            // Map context Order to TradingView Broker PreOrder
+            // Assuming BrokerDemo expects standard fields
+            const preOrder = {
+                symbol: lastOrder.symbol,
+                qty: parseFloat(lastOrder.volume),
+                side: lastOrder.side === 'buy' ? 1 : -1,
+                type: lastOrder.type === 'market' ? 2 : 1, // 1=limit, 2=market (Standard TV: OrderType.Limit=1, OrderType.Market=2, OrderType.Stop=3, OrderType.StopLimit=4)
+                // Actually BrokerDemo might expect string 'market' or 'limit'. Let's try matching standard TV behavior first or guess from sample.
+                // Reverting to string if BrokerDemo is simple, but standard API uses numbers often. 
+                // Wait, if I look at broker-sample, it likely uses strings if it's based on JS API.
+                // Let's safe bet: pass everything and let broker filter.
+                // But definitely need qty and numeric side.
+                // And explicitly 'limitPrice' / 'stopPrice'
+                ...(lastOrder.type !== 'market' ? { limitPrice: parseFloat(lastOrder.price || '0') } : {}),
+                ...(lastOrder.tp ? { takeProfit: parseFloat(lastOrder.tp) } : {}),
+                ...(lastOrder.sl ? { stopLoss: parseFloat(lastOrder.sl) } : {}),
+                userData: { silent: true }
+            };
+
+            // Correction: TV JS API usually uses order type constants. 
+            // 1: Limit, 2: Market, 3: Stop, 4: StopLimit
+            // However, verify if BrokerDemo expects numbers or strings. 
+            // Most JS adapters convert internal strings to numbers.
+            // Let's assume standard behavior:
+            // side: 1 (buy), -1 (sell)
+            // type: 1 (limit), 2 (market), 3 (stop)
+
+            if (lastOrder.type === 'market') preOrder.type = 2;
+            else if (lastOrder.type === 'limit') preOrder.type = 1;
+            else if (lastOrder.type === 'stop') preOrder.type = 3;
+
+            console.log("Placing mapped order:", preOrder);
+
+            brokerRef.current.placeOrder(preOrder)
+                .then(() => console.log("Order placed on chart"))
+                .catch((err: any) => console.error("Failed to place order on chart", err));
+        }
+    }, [lastOrder]);
+
+    const widgetRef = useRef<any>(null); // To store the widget instance if needed
 
     useEffect(() => {
         const scripts = [
@@ -101,6 +151,8 @@ export const TVChartContainer = () => {
 
                 broker_factory: (host: any) => {
                     const broker = new window.Brokers.BrokerDemo(host, datafeed);
+                    brokerRef.current = broker; // Expose broker instance
+
                     customOrderDialog = window.CustomDialogs.createOrderDialog(broker, onOrderResultCallback);
                     customPositionDialog = window.CustomDialogs.createPositionDialog(broker, onPositionResultCallback);
                     createCancelOrderButtonListener = window.CustomDialogs.createCancelOrderButtonListenerFactory(broker);
@@ -137,8 +189,11 @@ export const TVChartContainer = () => {
                     durations: [{ name: 'DAY', value: 'DAY' }, { name: 'GTT', value: 'GTT' }],
                     customUI: {
                         showOrderDialog: (order: any, focus: any) => {
+                            if (order && order.userData && order.userData.silent) {
+                                return Promise.resolve(true);
+                            }
                             window.CustomDialogs.showOrderDialog(customOrderDialog, order);
-                            return Promise.resolve(true); // Placeholder promise handling
+                            return Promise.resolve(true);
                         },
                         showPositionDialog: (position: any, brackets: any, focus: any) => {
                             window.CustomDialogs.showPositionDialog(customPositionDialog, position, brackets);
@@ -177,6 +232,11 @@ export const TVChartContainer = () => {
 
             tvWidget.onChartReady(() => {
                 console.log('Chart is ready');
+
+                tvWidget.activeChart().onSymbolChanged().subscribe(null, (symbolData: any) => {
+                    console.log("Symbol changed:", symbolData);
+                    setSymbol(tvWidget.activeChart().symbol());
+                });
 
                 // onPriceUpdate() -> redraw chart
                 tvWidget.subscribe('onPriceUpdate', (price: any) => {
