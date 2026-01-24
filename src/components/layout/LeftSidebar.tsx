@@ -13,7 +13,7 @@ interface LeftSidebarProps {
 }
 
 export default function LeftSidebar({ onPanelStateChange, isExpanded }: LeftSidebarProps) {
-  const [activePanel, setActivePanel] = useState<string | null>(null)
+  const [activePanel, setActivePanel] = useState<string | null>('instruments')
 
   const togglePanel = (panel: string) => {
     setActivePanel(activePanel === panel ? null : panel)

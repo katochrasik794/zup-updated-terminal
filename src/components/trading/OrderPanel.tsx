@@ -1,12 +1,15 @@
 "use client";
-import React, { useState } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { ChevronDown, X, Minus, Plus, HelpCircle } from 'lucide-react'
 import FlagIcon from '../ui/FlagIcon'
 import OrderModeModal from '../modals/OrderModeModal'
 import { useTrading } from '../../context/TradingContext';
+import { useWebSocket } from '../../context/WebSocketContext';
 
 export default function OrderPanel({ onClose }) {
   const { placeOrder, symbol } = useTrading();
+  const { subscribe, unsubscribe, lastQuotes, normalizeSymbol } = useWebSocket();
+
   const [isPending, setIsPending] = useState(false)
   const [orderSide, setOrderSide] = useState<'buy' | 'sell' | null>(null)
   const [volume, setVolume] = useState('0.01')
@@ -18,6 +21,48 @@ export default function OrderPanel({ onClose }) {
   const [isDetailsExpanded, setIsDetailsExpanded] = useState(false)
   const [showModeModal, setShowModeModal] = useState(false)
   const [pendingMode, setPendingMode] = useState<string | null>(null)
+
+  // Manage Subscription for current symbol
+  useEffect(() => {
+    if (symbol) {
+      subscribe([symbol]);
+      return () => unsubscribe([symbol]);
+    }
+  }, [symbol, subscribe, unsubscribe]);
+
+  // Derived Real-Time Data
+  const quote = lastQuotes[normalizeSymbol(symbol || '')] || {};
+
+  // Splitting prices for formatting (Small pips)
+  const formatPrice = (price: number | undefined, fallback: string) => {
+    if (price === undefined) return { main: fallback, sub: '0' };
+    const str = price.toFixed(2); // 2 decimals
+    const main = str.slice(0, -1);
+    const sub = str.slice(-1);
+    return { main, sub };
+  };
+
+  // Defaults if no data
+  const bidDisplay = formatPrice(quote.bid, '0.0');
+  const askDisplay = formatPrice(quote.ask, '0.0');
+  const spreadDisplay = quote.spread !== undefined ? quote.spread.toFixed(1) : '0.0';
+
+  // Range Calculation for "Sentiment" Bar
+  const rangeData = useMemo(() => {
+    let pct = 50;
+    if (quote.dayHigh && quote.dayLow && quote.bid) {
+      const total = quote.dayHigh - quote.dayLow;
+      if (total > 0) {
+        pct = ((quote.bid - quote.dayLow) / total) * 100;
+        pct = Math.min(100, Math.max(0, pct)); // Clamp
+      }
+    }
+    return {
+      buyPct: Math.round(pct),
+      sellPct: Math.round(100 - pct)
+    };
+  }, [quote.dayHigh, quote.dayLow, quote.bid]);
+
 
   const handleModeSelect = (mode) => {
     setIsModeDropdownOpen(false)
@@ -62,9 +107,9 @@ export default function OrderPanel({ onClose }) {
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-1 text-gray-200 font-medium text-[14px]">
               <div className="w-4 h-4 rounded-full overflow-hidden">
-                <FlagIcon type="xauusd" />
+                <FlagIcon symbol={symbol || 'XAUusd'} />
               </div>
-              <span>{symbol || 'XAU/USD'}</span>
+              <span>{symbol || 'Select Symbol'}</span>
             </div>
           </div>
           <button
@@ -122,9 +167,9 @@ export default function OrderPanel({ onClose }) {
               >
                 <span className={`${orderSide === 'sell' ? 'text-white' : 'text-[#ff444f]'} text-[12px] mb-0 font-normal opacity-60`}>Sell</span>
                 <div className={`flex items-baseline ${orderSide === 'sell' ? 'text-white' : 'text-[#ff444f]'}`}>
-                  <span className="text-[16px]">4,186.</span>
-                  <span className="text-[24px] font-bold">36</span>
-                  <span className="text-[14px] align-top ml-0.5 -mt-1">5</span>
+                  <span className="text-[16px]">{bidDisplay.main}</span>
+                  {/* <span className="text-[24px] font-bold">36</span> */}
+                  <span className="text-[14px] align-top ml-0.5 -mt-1">{bidDisplay.sub}</span>
                 </div>
               </button>
 
@@ -139,28 +184,27 @@ export default function OrderPanel({ onClose }) {
               >
                 <span className={`${orderSide === 'buy' ? 'text-white' : 'text-[#007bff]'} text-[12px] mb-0 font-normal opacity-60`}>Buy</span>
                 <div className={`flex items-baseline ${orderSide === 'buy' ? 'text-white' : 'text-[#007bff]'}`}>
-                  <span className="text-[16px]">4,186.</span>
-                  <span className="text-[24px] font-bold">36</span>
-                  <span className="text-[14px] align-top ml-0.5 -mt-1">5</span>
+                  <span className="text-[16px]">{askDisplay.main}</span>
+                  <span className="text-[14px] align-top ml-0.5 -mt-1">{askDisplay.sub}</span>
                 </div>
               </button>
 
               {/* Spread Badge */}
               <div className="absolute left-1/2 bottom-0 -translate-x-1/2 translate-y-1/2 z-10">
                 <div className="bg-background text-white text-[11px] px-1.5 py-0.5 rounded border border-gray-800 shadow-sm">
-                  0.00 USD
+                  {spreadDisplay}
                 </div>
               </div>
             </div>
 
-            {/* Sentiment Bar */}
+            {/* Sentiment Bar (Day Range) */}
             <div className="mb-1 mt-2 flex items-center gap-2">
-              <span className="text-[#ff444f] text-[12px] font-medium">27%</span>
+              <span className="text-[#ff444f] text-[12px] font-medium">{rangeData.sellPct}%</span>
               <div className="h-[4px] flex-1 bg-[#2a2f36] rounded-full overflow-hidden flex">
-                <div className="h-full bg-[#ff444f] w-[27%]"></div>
-                <div className="h-full bg-[#007bff] w-[73%]"></div>
+                <div className="h-full bg-[#ff444f] transition-all duration-300" style={{ width: `${rangeData.sellPct}%` }}></div>
+                <div className="h-full bg-[#007bff] transition-all duration-300" style={{ width: `${rangeData.buyPct}%` }}></div>
               </div>
-              <span className="text-[#007bff] text-[12px] font-medium">73%</span>
+              <span className="text-[#007bff] text-[12px] font-medium">{rangeData.buyPct}%</span>
             </div>
           </div>
 

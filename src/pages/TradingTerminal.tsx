@@ -14,6 +14,7 @@ import { useSidebar } from '../context/SidebarContext'
 import { ImperativePanelHandle } from 'react-resizable-panels'
 
 import { TradingProvider } from '../context/TradingContext'
+import { WebSocketProvider } from '../context/WebSocketContext'
 
 import ModifyPositionModal from '../components/modals/ModifyPositionModal'
 

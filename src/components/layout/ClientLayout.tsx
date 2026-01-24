@@ -28,10 +28,14 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
     );
 }
 
+import { WebSocketProvider } from '../../context/WebSocketContext';
+
 export default function ClientLayout({ children }: { children: React.ReactNode }) {
     return (
         <SidebarProvider>
-            <LayoutContent>{children}</LayoutContent>
+            <WebSocketProvider>
+                <LayoutContent>{children}</LayoutContent>
+            </WebSocketProvider>
         </SidebarProvider>
     );
 }

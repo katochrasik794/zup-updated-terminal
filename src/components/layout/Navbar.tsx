@@ -68,7 +68,7 @@ const InstrumentTab = ({ tab, isActive, onClick, onClose }: InstrumentTabProps) 
       {/* Tab content */}
       <div className="flex items-center justify-center gap-1.5 h-full">
         <div className="w-5 h-5">
-          <FlagIcon type={tab.flagType} />
+          <FlagIcon symbol={tab.symbol} type={tab.flagType} />
         </div>
         <div className="text-sm font-medium" data-test="instrument-tab-symbol">
           {tab.symbol}
@@ -187,7 +187,7 @@ export default function Navbar({ logoLarge, logoSmall }: NavbarProps) {
     const newTab: Tab = {
       id: newId,
       symbol: symbolData.symbol,
-      flagType: symbolData.symbol.toLowerCase().replace('/', ''),
+      flagType: symbolData.symbol, // Use symbol as flagType for new logic
       isActive: true
     }
 

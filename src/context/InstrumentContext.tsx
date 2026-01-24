@@ -39,6 +39,10 @@ export function InstrumentProvider({ children }: { children: React.ReactNode }) 
 
     const accountGroup = currentAccount?.group
 
+    const getFavoritesKey = useCallback((accountId: string) => {
+        return `zup-favorites-${accountId}`
+    }, [])
+
     const fetchInstruments = useCallback(async (groupName: string, accountId?: string) => {
         if (!groupName) {
             setInstruments([])
@@ -47,11 +51,30 @@ export function InstrumentProvider({ children }: { children: React.ReactNode }) 
 
         const cacheKey = `zup-instruments-${groupName}-${accountId || 'global'}`
         const cached = localStorage.getItem(cacheKey)
+
+        let initialData: Instrument[] = []
         if (cached) {
             try {
                 const { data } = JSON.parse(cached)
-                setInstruments(data)
+                initialData = data
             } catch (e) { }
+        }
+
+        // Apply local favorites override immediately if we have data
+        if (initialData.length > 0 && accountId) {
+            const favKey = getFavoritesKey(accountId)
+            const rawFavs = localStorage.getItem(favKey)
+            const favSet = rawFavs ? new Set(JSON.parse(rawFavs)) : new Set()
+
+            initialData = initialData.map(inst => ({
+                ...inst,
+                favorite: favSet.has(inst.id)
+            }))
+        }
+
+        // Initial render with cached data (and merged favorites)
+        if (initialData.length > 0) {
+            setInstruments(initialData)
         }
 
         setIsLoading(true)
@@ -60,9 +83,24 @@ export function InstrumentProvider({ children }: { children: React.ReactNode }) 
         try {
             const endpoint = `/api/instruments?group=${encodeURIComponent(groupName)}${accountId ? `&accountId=${accountId}` : ''}`
             const response = await apiClient.get<Instrument[]>(endpoint)
+
             if (response.success && response.data) {
-                setInstruments(response.data)
-                localStorage.setItem(cacheKey, JSON.stringify({ ts: Date.now(), data: response.data }))
+                let freshData = response.data
+
+                // Merge Client-Side Favorites
+                if (accountId) {
+                    const favKey = getFavoritesKey(accountId)
+                    const rawFavs = localStorage.getItem(favKey)
+                    const favSet = rawFavs ? new Set(JSON.parse(rawFavs)) : new Set()
+
+                    freshData = freshData.map(inst => ({
+                        ...inst,
+                        favorite: favSet.has(inst.id)
+                    }))
+                }
+
+                setInstruments(freshData)
+                localStorage.setItem(cacheKey, JSON.stringify({ ts: Date.now(), data: freshData }))
             } else {
                 setError(response.message || 'Failed to fetch symbols')
             }
@@ -72,7 +110,7 @@ export function InstrumentProvider({ children }: { children: React.ReactNode }) 
         } finally {
             setIsLoading(false)
         }
-    }, [])
+    }, [getFavoritesKey])
 
     useEffect(() => {
         if (accountGroup) {
@@ -89,41 +127,32 @@ export function InstrumentProvider({ children }: { children: React.ReactNode }) 
     }, [instruments])
 
     const toggleFavorite = async (instrumentId: string) => {
-        // Optimistic update
-        setInstruments(prev => prev.map(inst =>
-            inst.id === instrumentId ? { ...inst, favorite: !inst.favorite } : inst
-        ))
+        if (!currentAccountId) return
 
-        try {
-            await apiClient.post('/api/instruments/favorites/toggle', {
-                instrumentId,
-                mt5AccountId: currentAccountId
-            })
-        } catch (err) {
-            console.error('[InstrumentContext] Toggle Favorite Error:', err)
-            // Revert on error
-            setInstruments(prev => prev.map(inst =>
-                inst.id === instrumentId ? { ...inst, favorite: !inst.favorite } : inst
-            ))
+        const favKey = getFavoritesKey(currentAccountId)
+        const rawFavs = localStorage.getItem(favKey)
+        const favSet = rawFavs ? new Set<string>(JSON.parse(rawFavs)) : new Set<string>()
+
+        // Toggle
+        if (favSet.has(instrumentId)) {
+            favSet.delete(instrumentId)
+        } else {
+            favSet.add(instrumentId)
         }
+
+        // Save to Cache
+        localStorage.setItem(favKey, JSON.stringify(Array.from(favSet)))
+
+        // Update State
+        setInstruments(prev => prev.map(inst =>
+            inst.id === instrumentId ? { ...inst, favorite: favSet.has(instrumentId) } : inst
+        ))
     }
 
     const reorderInstruments = async (newOrder: Instrument[]) => {
         setInstruments(newOrder)
-
-        try {
-            const orders = newOrder.map((inst, idx) => ({
-                instrumentId: inst.id,
-                sortOrder: idx
-            }))
-
-            await apiClient.post('/api/instruments/reorder', {
-                orders,
-                mt5AccountId: currentAccountId
-            })
-        } catch (err) {
-            console.error('[InstrumentContext] Reorder Error:', err)
-        }
+        // Note: Reordering persistence removed as per user request to avoid DB usage.
+        // If client-side reordering persistence is needed, we would implement `zup-order-<accountId>` here.
     }
 
     const refreshInstruments = async () => {

@@ -1,4 +1,3 @@
-"use client";
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import FlagIcon from '../ui/FlagIcon'
 import IconButton from '../ui/IconButton'
@@ -7,10 +6,151 @@ import { LuGripVertical } from 'react-icons/lu'
 import { FiStar, FiSearch } from 'react-icons/fi'
 import { useAccount } from '../../context/AccountContext'
 import { useInstruments } from '../../context/InstrumentContext'
+import { useWebSocket } from '../../context/WebSocketContext'
+import { useTrading } from '../../context/TradingContext'
 import { cn } from '../../lib/utils'
+
+// Extract Row for performance/blink logic
+const InstrumentRow = ({ item, isVisible, toggleFavorite, lastQuote, handleDragStart, handleDragEnter, handleDragEnd, idx, onSelect }) => {
+  // Refs for tracking previous values to trigger blinks
+  const prevBidRef = useRef(item.bid);
+  const prevAskRef = useRef(item.ask);
+
+  // Live Data or Static Fallback
+  const quote = lastQuote || {};
+  // "only use upto 2 decimals"
+  const bid = quote.bid !== undefined ? quote.bid.toFixed(2) : (item.bid ? Number(item.bid).toFixed(2) : '0.00');
+  const ask = quote.ask !== undefined ? quote.ask.toFixed(2) : (item.ask ? Number(item.ask).toFixed(2) : '0.00');
+
+  // Spread calculation
+  const spread = quote.spread !== undefined ? quote.spread : (item.spread || 0);
+
+  // Calculate Day Change (as Range %)
+  // "calculate how much is in +ve or -ve inpercentage based on day high/low and current"
+  let dayChangeLabel = '0.00%';
+  let changeColor = 'gray';
+
+  if (quote.dayHigh && quote.dayLow && quote.bid) {
+    const range = quote.dayHigh - quote.dayLow;
+    if (range > 0) {
+      const pct = ((quote.bid - quote.dayLow) / range) * 100;
+      // If closer to High = Green? Closer to Low = Red?
+      // Or usually change is vs Open. Since we don't have Open, I will map Range % to a visual indicator
+      // But the column says "1D Change". Let's show Range % for now as requested.
+      dayChangeLabel = `${pct.toFixed(2)}%`;
+      changeColor = pct > 50 ? 'green' : 'red';
+    }
+  } else if (item.change) {
+    dayChangeLabel = item.change;
+    changeColor = parseFloat(item.change) >= 0 ? 'green' : 'red';
+  }
+
+  // Blink Logic
+  const [bidColor, setBidColor] = useState('');
+  const [askColor, setAskColor] = useState('');
+
+  useEffect(() => {
+    if (quote.bid && prevBidRef.current !== quote.bid) {
+      const color = quote.bid > prevBidRef.current ? 'text-[#2ebd85]' : 'text-[#f6465d]';
+      setBidColor(color);
+      const timer = setTimeout(() => setBidColor(''), 300); // Blink duration
+      prevBidRef.current = quote.bid;
+      return () => clearTimeout(timer);
+    }
+  }, [quote.bid]);
+
+  useEffect(() => {
+    if (quote.ask && prevAskRef.current !== quote.ask) {
+      const color = quote.ask > prevAskRef.current ? 'text-[#2ebd85]' : 'text-[#f6465d]';
+      setAskColor(color);
+      const timer = setTimeout(() => setAskColor(''), 300);
+      prevAskRef.current = quote.ask;
+      return () => clearTimeout(timer);
+    }
+  }, [quote.ask]);
+
+  // Fallback static color logic
+  const staticBidColor = changeColor === 'green' ? 'text-[#2ebd85]' : 'text-[#f6465d]';
+  const staticAskColor = changeColor === 'green' ? 'text-[#2ebd85]' : 'text-[#f6465d]';
+
+  return (
+    <div
+      draggable
+      onDragStart={(e) => handleDragStart(e, idx)}
+      onDragEnter={(e) => handleDragEnter(e, idx)}
+      onDragEnd={handleDragEnd}
+      onClick={() => onSelect(item.symbol)}
+      className="group grid grid-cols-[30px_36px_1fr_auto_auto_auto_30px] gap-0 items-center border-b border-gray-800 hover:bg-[#1c252f] transition-colors h-[40px] cursor-pointer"
+    >
+      {/* Grip Handle */}
+      <div className="flex items-center justify-center text-[#565c66] cursor-grab active:cursor-grabbing bg-[#0b0e14] group-hover:bg-[#1c252f] h-full transition-colors border-r border-gray-800">
+        <LuGripVertical size={14} />
+      </div>
+
+      {/* Flag */}
+      <div className="flex items-center justify-center bg-[#0b0e14] group-hover:bg-[#1c252f] h-full transition-colors border-r border-gray-800 p-1.5">
+        <div className="w-6 h-6 rounded-full overflow-hidden">
+          <FlagIcon symbol={item.symbol} />
+        </div>
+      </div>
+
+      {/* Symbol */}
+      <div className="pl-2 flex flex-col justify-center border-r border-gray-800 bg-[#0b0e14] group-hover:bg-[#1c252f] h-full transition-colors overflow-hidden">
+        <span className="text-[13px] font-bold text-gray-200 truncate">{item.symbol}</span>
+        {isVisible('description') && <span className="text-[10px] text-gray-500 truncate">{item.description || item.name}</span>}
+      </div>
+
+      {/* Bid */}
+      {isVisible('bid') && (
+        <div className="px-1 w-[90px] text-center flex items-center justify-center h-full">
+          <span className={cn(
+            "text-[12px] font-medium px-1.5 py-1 rounded-[4px] w-full block transition-colors bg-[#2ebd85]/10 truncate",
+            bidColor || staticBidColor
+          )}>
+            {bid}
+          </span>
+        </div>
+      )}
+
+      {/* Ask */}
+      {isVisible('ask') && (
+        <div className="px-1 w-[90px] text-center flex items-center justify-center h-full">
+          <span className={cn(
+            "text-[12px] font-medium px-1.5 py-1 rounded-[4px] w-full block transition-colors bg-[#f6465d]/10 truncate",
+            askColor || staticAskColor
+          )}>
+            {ask}
+          </span>
+        </div>
+      )}
+
+      {/* 1D Change */}
+      {isVisible('change') && (
+        <div className={cn(
+          "px-1 w-[70px] text-center text-[11px] font-medium flex items-center justify-center h-full truncate",
+          changeColor === 'green' ? 'text-[#2ebd85]' : 'text-[#f6465d]'
+        )}>
+          {dayChangeLabel}
+        </div>
+      )}
+
+      {/* Star / Favorite */}
+      <div className="flex items-center justify-center h-full">
+        <button
+          onClick={(e) => { e.stopPropagation(); toggleFavorite(item.id); }}
+          className={`text-[14px] transition-colors ${item.favorite ? 'text-[#f59e0b]' : 'text-gray-600 hover:text-gray-400'}`}
+        >
+          {item.favorite ? <FiStar fill="currentColor" /> : <FiStar />}
+        </button>
+      </div>
+
+    </div>
+  )
+}
 
 export default function WatchlistPanel({ onClose }) {
   const { currentAccount } = useAccount()
+  const { setSymbol } = useTrading()
   const {
     instruments,
     categories: dynamicCategories,
@@ -18,6 +158,8 @@ export default function WatchlistPanel({ onClose }) {
     toggleFavorite,
     reorderInstruments
   } = useInstruments()
+  const { subscribe, unsubscribe, lastQuotes, normalizeSymbol } = useWebSocket()
+
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('Favorites')
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false)
@@ -26,6 +168,7 @@ export default function WatchlistPanel({ onClose }) {
 
   // Columns configuration based on "Image 2"
   const [columns, setColumns] = useState([
+    { id: 'flag', label: '', visible: true, draggable: false },
     { id: 'signal', label: 'Signal', visible: false, draggable: true },
     { id: 'description', label: 'Description', visible: true, draggable: true },
     { id: 'bid', label: 'Bid', visible: true, draggable: true },
@@ -103,6 +246,13 @@ export default function WatchlistPanel({ onClose }) {
 
     return filtered;
   }, [items, selectedCategory, searchTerm]);
+
+  // Handle Subscriptions
+  useEffect(() => {
+    const symbols = filteredItems.map(i => i.symbol);
+    subscribe(symbols);
+    return () => unsubscribe(symbols); // Cleanup on unmount/change
+  }, [filteredItems, subscribe, unsubscribe]);
 
 
   return (
@@ -210,13 +360,14 @@ export default function WatchlistPanel({ onClose }) {
       </div>
 
       {/* Table Header */}
-      <div className="grid grid-cols-[30px_1fr_auto_auto_auto_30px] gap-0 border-b border-gray-800 bg-background text-[11px] font-medium text-gray-500 uppercase">
+      <div className="grid grid-cols-[30px_36px_1fr_auto_auto_auto_30px] gap-0 border-b border-gray-800 bg-background text-[11px] font-medium text-gray-500 uppercase">
         <div className="py-2 text-center bg-[#0b0e14] border-r border-gray-800"></div> {/* Grip placeholder */}
+        <div className="py-2 text-center bg-[#0b0e14] border-r border-gray-800"></div> {/* Flag placeholder */}
         <div className="py-2 pl-2 text-left bg-[#0b0e14] border-r border-gray-800">Symbol</div>
 
-        {isVisible('bid') && <div className="py-2 px-1 text-center w-[70px]">Bid</div>}
-        {isVisible('ask') && <div className="py-2 px-1 text-center w-[70px]">Ask</div>}
-        {isVisible('change') && <div className="py-2 px-1 text-center w-[60px]">1D</div>}
+        {isVisible('bid') && <div className="py-2 px-1 text-center w-[90px]">Bid</div>}
+        {isVisible('ask') && <div className="py-2 px-1 text-center w-[90px]">Ask</div>}
+        {isVisible('change') && <div className="py-2 px-1 text-center w-[70px]">1D</div>}
 
         <div className="py-2 text-center"></div> {/* Star placeholder */}
       </div>
@@ -230,80 +381,20 @@ export default function WatchlistPanel({ onClose }) {
             {currentAccount?.group && <span className="text-[11px] mt-1 opacity-60">for {currentAccount.group}</span>}
           </div>
         ) : (
-          filteredItems.map((item, idx) => {
-            // Real Price Data Mapping
-            const bid = item.bid || '0.00000'
-            const ask = item.ask || '0.00000'
-            const change = item.change || '0.00%'
-            const changeColor = parseFloat(change) >= 0 ? 'green' : 'red'
-
-            return (
-              <div
-                key={item.id}
-                draggable
-                onDragStart={(e) => handleDragStart(e, idx)}
-                onDragEnter={(e) => handleDragEnter(e, idx)}
-                onDragEnd={handleDragEnd}
-                className="group grid grid-cols-[30px_1fr_auto_auto_auto_30px] gap-0 items-center border-b border-gray-800 hover:bg-[#1c252f] transition-colors h-[40px] cursor-pointer"
-              >
-                {/* Grip Handle */}
-                <div className="flex items-center justify-center text-[#565c66] cursor-grab active:cursor-grabbing bg-[#0b0e14] group-hover:bg-[#1c252f] h-full transition-colors border-r border-gray-800">
-                  <LuGripVertical size={14} />
-                </div>
-
-                {/* Symbol */}
-                <div className="pl-2 flex flex-col justify-center border-r border-gray-800 bg-[#0b0e14] group-hover:bg-[#1c252f] h-full transition-colors overflow-hidden">
-                  <span className="text-[13px] font-bold text-gray-200 truncate">{item.symbol}</span>
-                  {isVisible('description') && <span className="text-[10px] text-gray-500 truncate">{item.description || item.name}</span>}
-                </div>
-
-                {/* Bid */}
-                {isVisible('bid') && (
-                  <div className="px-1 w-[70px] text-center flex items-center justify-center h-full">
-                    <span className={cn(
-                      "text-[12px] font-medium px-1.5 py-1 rounded-[4px] w-full block transition-colors",
-                      changeColor === 'green' ? 'bg-[#2ebd85]/20 text-[#2ebd85]' : 'bg-[#f6465d]/20 text-[#f6465d]'
-                    )}>
-                      {bid}
-                    </span>
-                  </div>
-                )}
-
-                {/* Ask */}
-                {isVisible('ask') && (
-                  <div className="px-1 w-[70px] text-center flex items-center justify-center h-full">
-                    <span className={cn(
-                      "text-[12px] font-medium px-1.5 py-1 rounded-[4px] w-full block transition-colors",
-                      changeColor === 'green' ? 'bg-[#2ebd85]/20 text-[#2ebd85]' : 'bg-[#f6465d]/20 text-[#f6465d]'
-                    )}>
-                      {ask}
-                    </span>
-                  </div>
-                )}
-
-                {/* 1D Change */}
-                {isVisible('change') && (
-                  <div className={cn(
-                    "px-1 w-[60px] text-center text-[11px] font-medium flex items-center justify-center h-full",
-                    changeColor === 'green' ? 'text-[#2ebd85]' : 'text-[#f6465d]'
-                  )}>
-                    {change}
-                  </div>
-                )}
-
-                {/* Star / Favorite */}
-                <div className="flex items-center justify-center h-full">
-                  <button
-                    onClick={(e) => { e.stopPropagation(); toggleFavorite(item.id); }}
-                    className={`text-[14px] transition-colors ${item.favorite ? 'text-[#f59e0b]' : 'text-gray-600 hover:text-gray-400'}`}
-                  >
-                    {item.favorite ? <FiStar fill="currentColor" /> : <FiStar />}
-                  </button>
-                </div>
-
-              </div>
-            )
-          })
+          filteredItems.map((item, idx) => (
+            <InstrumentRow
+              key={item.id}
+              item={item}
+              idx={idx}
+              isVisible={isVisible}
+              toggleFavorite={toggleFavorite}
+              lastQuote={lastQuotes[normalizeSymbol(item.symbol)]}
+              handleDragStart={handleDragStart}
+              handleDragEnter={handleDragEnter}
+              handleDragEnd={handleDragEnd}
+              onSelect={setSymbol}
+            />
+          ))
         )}
       </div>
     </div>
