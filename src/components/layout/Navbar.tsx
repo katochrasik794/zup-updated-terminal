@@ -100,16 +100,8 @@ export default function Navbar({ logoLarge, logoSmall }: NavbarProps) {
 
   const { instruments } = useInstruments();
 
-  // Initialize tabs with BTCUSD and XAUUSD based on available instruments
-  const [tabs, setTabs] = useState<Tab[]>(() => {
-    const btcSymbol = instruments.find(i => i.symbol.toUpperCase().startsWith('BTCUSD'))?.symbol || 'BTCUSD';
-    const xauSymbol = instruments.find(i => i.symbol.toUpperCase().startsWith('XAUUSD'))?.symbol || 'XAUUSD';
-
-    return [
-      { id: '1', symbol: btcSymbol, flagType: btcSymbol.toLowerCase(), isActive: true },
-      { id: '2', symbol: xauSymbol, flagType: xauSymbol.toLowerCase(), isActive: false }
-    ];
-  });
+  // Start with empty tabs, will be initialized by useEffect
+  const [tabs, setTabs] = useState<Tab[]>([]);
 
   const [currentData, setCurrentData] = useState<any>(null);
 
@@ -122,12 +114,19 @@ export default function Navbar({ logoLarge, logoSmall }: NavbarProps) {
         cache: 'no-store',
         headers: { 'Authorization': `Bearer ${token}` }
       });
+
+      if (!response.ok) {
+        console.error('[Navbar] Fetch failed with status:', response.status, response.statusText);
+        return;
+      }
+
       const result = await response.json();
       if (result.success && result.data) {
         setCurrentData(result.data);
       }
     } catch (err) {
-      console.error('[Navbar] Fetch Current Error:', err);
+      // Silently fail - these errors are not critical for tab functionality
+      // console.error('[Navbar] Fetch Current Error:', err);
     }
   }, [currentAccountId]);
 
@@ -138,9 +137,9 @@ export default function Navbar({ logoLarge, logoSmall }: NavbarProps) {
     return () => clearInterval(intervalId);
   }, [fetchCurrentBalance]);
 
-  // Update tabs when instruments change (account group change)
+  // Initialize default tabs only once when instruments first load
   useEffect(() => {
-    if (instruments.length > 0) {
+    if (instruments.length > 0 && tabs.length === 0) {
       const btcSymbol = instruments.find(i => i.symbol.toUpperCase().startsWith('BTCUSD'))?.symbol || 'BTCUSD';
       const xauSymbol = instruments.find(i => i.symbol.toUpperCase().startsWith('XAUUSD'))?.symbol || 'XAUUSD';
 
@@ -149,7 +148,7 @@ export default function Navbar({ logoLarge, logoSmall }: NavbarProps) {
         { id: '2', symbol: xauSymbol, flagType: xauSymbol.toLowerCase(), isActive: false }
       ]);
     }
-  }, [instruments, currentAccountId]);
+  }, [instruments]);
 
   // Get current account info
   const currentAccount = mt5Accounts.find(acc => acc.accountId === currentAccountId)
@@ -204,14 +203,25 @@ export default function Navbar({ logoLarge, logoSmall }: NavbarProps) {
     setIsSymbolSearchOpen(true)
   }
 
-  const handleSelectSymbol = (symbolData: { symbol: string }) => {
-    const existingTab = tabs.find(tab => tab.symbol === symbolData.symbol)
+  const handleSelectSymbol = useCallback((symbolData: { symbol: string }) => {
+    // Normalize symbol for comparison (trim and uppercase)
+    const normalizedSymbol = symbolData.symbol.trim().toUpperCase();
+
+    console.log('[Navbar] handleSelectSymbol called with:', symbolData.symbol);
+    console.log('[Navbar] Current tabs:', tabs.map(t => t.symbol));
+    console.log('[Navbar] Looking for normalized:', normalizedSymbol);
+
+    const existingTab = tabs.find(tab => tab.symbol.trim().toUpperCase() === normalizedSymbol)
 
     if (existingTab) {
+      // Tab already exists, just make it active
+      console.log('[Navbar] Tab exists, making active:', existingTab.id);
       handleTabClick(existingTab.id)
       return
     }
 
+    // Create new tab only if it doesn't exist
+    console.log('[Navbar] Creating new tab for:', symbolData.symbol);
     const newId = Date.now().toString()
     const newTab: Tab = {
       id: newId,
@@ -226,14 +236,20 @@ export default function Navbar({ logoLarge, logoSmall }: NavbarProps) {
     setTabs(prevTabs =>
       prevTabs.map(tab => ({ ...tab, isActive: false })).concat([newTab])
     )
-  }
+  }, [tabs, setSymbol]);
 
-  // Register handleSelectSymbol with TradingContext so Watchlist can add tabs
+  // Register handleSelectSymbol with TradingContext - use ref to avoid infinite loop
+  const handleSelectSymbolRef = useRef(handleSelectSymbol);
+
+  useEffect(() => {
+    handleSelectSymbolRef.current = handleSelectSymbol;
+  }, [handleSelectSymbol]);
+
   useEffect(() => {
     setAddNavbarTab(() => (symbol: string) => {
-      handleSelectSymbol({ symbol });
+      handleSelectSymbolRef.current({ symbol });
     });
-  }, [setAddNavbarTab]);
+  }, []); // Empty deps - only run once
 
   return (
     <nav className="bg-background flex-shrink-0 border border-gray-800">
