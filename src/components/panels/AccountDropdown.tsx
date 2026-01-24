@@ -95,9 +95,31 @@ export default function AccountDropdown({ isOpen, onClose }) {
     return () => clearInterval(intervalId);
   }, [fetchListBalances]);
 
-  const handleAccountSelect = (accountId: string) => {
-    setCurrentAccountId(accountId)
-    window.location.reload()
+  const handleAccountSelect = async (accountId: string) => {
+    setCurrentAccountId(accountId);
+    
+    // Authenticate with MetaAPI to get access token
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`http://localhost:5000/api/accounts/${accountId}/metaapi-login`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success && result.data?.accessToken) {
+          // Store token in localStorage for this account
+          localStorage.setItem(`metaapi_token_${accountId}`, result.data.accessToken);
+          console.log(`[AccountDropdown] MetaAPI token obtained for account ${accountId}`);
+        }
+      }
+    } catch (err) {
+      console.error(`[AccountDropdown] Failed to get MetaAPI token:`, err);
+    }
   }
 
   const handleManageAccounts = () => {

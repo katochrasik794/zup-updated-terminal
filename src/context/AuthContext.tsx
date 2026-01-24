@@ -42,19 +42,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const token = apiClient.getToken();
       if (!token) {
+        console.log('[AuthContext] No token found, user is not authenticated');
         setIsLoading(false);
         return;
       }
 
+      console.log('[AuthContext] Checking authentication with token...');
       const response = await authApi.getCurrentUser();
       if (response.success && response.user) {
+        console.log('[AuthContext] Authentication successful, user:', response.user.email);
         setUser(response.user);
+      } else {
+        console.warn('[AuthContext] Authentication failed, clearing token');
+        apiClient.clearToken();
+      }
+    } catch (error: any) {
+      console.error('[AuthContext] Auth check failed:', error);
+      // Don't clear token on network errors - might just be backend not running
+      if (error.message && error.message.includes('Backend server is not reachable')) {
+        console.warn('[AuthContext] Backend server not reachable - this is expected if server is not running');
       } else {
         apiClient.clearToken();
       }
-    } catch (error) {
-      console.error('Auth check failed:', error);
-      apiClient.clearToken();
     } finally {
       setIsLoading(false);
     }

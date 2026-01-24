@@ -29,6 +29,8 @@ interface AccountContextType {
   currentBalance: any | null
   currentAccount: MT5Account | null
   refreshBalance: (accountId: string) => void
+  metaApiTokens: Record<string, string> // accountId -> accessToken
+  getMetaApiToken: (accountId: string) => Promise<string | null>
 }
 
 const AccountContext = createContext<AccountContextType | undefined>(undefined)
@@ -42,6 +44,7 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true)
   const [isAccountSwitching, setIsAccountSwitching] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [metaApiTokens, setMetaApiTokens] = useState<Record<string, string>>({})
 
   // Get account IDs for balance polling
   const accountIds = useMemo(() => mt5Accounts.map(account => account.accountId), [mt5Accounts])
@@ -146,6 +149,28 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
     await fetchAccounts()
   }, [fetchAccounts])
 
+  // Get MetaAPI access token for an account
+  const getMetaApiToken = useCallback(async (accountId: string): Promise<string | null> => {
+    // Check cache first
+    if (metaApiTokens[accountId]) {
+      return metaApiTokens[accountId];
+    }
+
+    try {
+      const response = await apiClient.post(`/api/accounts/${accountId}/metaapi-login`);
+      
+      if (response.success && response.data?.accessToken) {
+        const token = response.data.accessToken;
+        setMetaApiTokens(prev => ({ ...prev, [accountId]: token }));
+        return token;
+      }
+    } catch (err) {
+      console.error(`[AccountContext] Failed to get MetaAPI token for ${accountId}:`, err);
+    }
+
+    return null;
+  }, [metaApiTokens])
+
   return (
     <AccountContext.Provider
       value={{
@@ -163,6 +188,8 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
         currentBalance,
         currentAccount,
         refreshBalance,
+        metaApiTokens,
+        getMetaApiToken,
       }}
     >
       {children}

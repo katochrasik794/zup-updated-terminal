@@ -8,7 +8,7 @@ import ColumnVisibilityPopup from '../modals/ColumnVisibilityPopup'
 import PositionClosedToast from '../ui/PositionClosedToast'
 import GroupClosePopup from './GroupClosePopup'
 
-export default function BottomPanel({ openPositions, onClosePosition, onCloseGroup, closedToast, setClosedToast, onCloseAll, onHide, isMinimized = false }: any) {
+export default function BottomPanel({ openPositions = [], pendingPositions = [], closedPositions = [], onClosePosition, onCloseGroup, closedToast, setClosedToast, onCloseAll, onHide, isMinimized = false }: any) {
   const [activeTab, setActiveTab] = useState('Open')
   const [isGrouped, setIsGrouped] = useState(true)
   const [expandedGroups, setExpandedGroups] = useState({})
@@ -99,120 +99,7 @@ export default function BottomPanel({ openPositions, onClosePosition, onCloseGro
 
 
 
-  const closedPositions = [
-    {
-      symbol: 'EUR/USD',
-      type: 'Sell',
-      volume: '1.00',
-      openPrice: '1.05200',
-      closePrice: '1.05100',
-      tp: '1.05000',
-      sl: '1.05500',
-      ticket: '87654321',
-      time: 'Nov 25, 10:00:00 AM',
-      swap: '0',
-      commission: '-5.00',
-      pl: '+100.00',
-      plColor: 'text-[#00ffaa]',
-      flag: 'eurusd'
-    },
-    {
-      symbol: 'GBP/USD',
-      type: 'Buy',
-      volume: '0.50',
-      openPrice: '1.26000',
-      closePrice: '1.26200',
-      tp: '1.26500',
-      sl: '1.25500',
-      ticket: '87654322',
-      time: 'Nov 25, 11:30:00 AM',
-      swap: '-1.20',
-      commission: '-2.50',
-      pl: '+100.00',
-      plColor: 'text-[#00ffaa]',
-      flag: 'gbpusd'
-    },
-    {
-      symbol: 'USD/JPY',
-      type: 'Sell',
-      volume: '2.00',
-      openPrice: '153.500',
-      closePrice: '153.200',
-      tp: '153.000',
-      sl: '154.000',
-      ticket: '87654323',
-      time: 'Nov 25, 02:15:00 PM',
-      swap: '2.50',
-      commission: '-10.00',
-      pl: '+600.00',
-      plColor: 'text-[#00ffaa]',
-      flag: 'usdjpy'
-    },
-    {
-      symbol: 'XAU/USD',
-      type: 'Buy',
-      volume: '0.10',
-      openPrice: '2000.00',
-      closePrice: '1995.00',
-      tp: '2010.00',
-      sl: '1990.00',
-      ticket: '87654324',
-      time: 'Nov 24, 09:45:00 AM',
-      swap: '-0.80',
-      commission: '-1.00',
-      pl: '-50.00',
-      plColor: 'text-[#f6465d]',
-      flag: 'xauusd'
-    },
-    {
-      symbol: 'BTC',
-      type: 'Sell',
-      volume: '0.05',
-      openPrice: '37500.00',
-      closePrice: '37600.00',
-      tp: '37000.00',
-      sl: '38000.00',
-      ticket: '87654325',
-      time: 'Nov 24, 03:20:00 PM',
-      swap: '-2.00',
-      commission: '-0.50',
-      pl: '-500.00',
-      plColor: 'text-[#f6465d]',
-      flag: 'btc'
-    },
-    {
-      symbol: 'USOIL',
-      type: 'Buy',
-      volume: '10.00',
-      openPrice: '75.00',
-      closePrice: '76.50',
-      tp: '78.00',
-      sl: '74.00',
-      ticket: '87654326',
-      time: 'Nov 23, 01:00:00 PM',
-      swap: '0',
-      commission: '-5.00',
-      pl: '+1500.00',
-      plColor: 'text-[#00ffaa]',
-      flag: 'usoil'
-    },
-    {
-      symbol: 'AAPL',
-      type: 'Buy',
-      volume: '50',
-      openPrice: '185.00',
-      closePrice: '190.00',
-      tp: '200.00',
-      sl: '180.00',
-      ticket: '87654327',
-      time: 'Nov 23, 10:00:00 AM',
-      swap: '0',
-      commission: '-2.00',
-      pl: '+250.00',
-      plColor: 'text-[#00ffaa]',
-      flag: 'aapl'
-    }
-  ]
+  // Use props for closed positions (no dummy data)
 
   // Column Definitions
   const columnDefs = {

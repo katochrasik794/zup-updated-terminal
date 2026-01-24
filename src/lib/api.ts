@@ -1,8 +1,39 @@
 /**
  * API Client for Backend Communication
+ * 
+ * NOTE: This should point to the LOCAL backend server (localhost:5000)
+ * NOT to the external MetaAPI (metaapi.zuperior.com)
+ * The MetaAPI is only accessed by the backend server, not the frontend.
  */
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+// Use a specific env var for the backend API, or default to localhost:5000
+// Priority: NEXT_PUBLIC_BACKEND_API_URL > NEXT_PUBLIC_API_BASE_URL (if it's localhost) > default
+const getBackendUrl = () => {
+  // First check for explicit backend URL
+  if (process.env.NEXT_PUBLIC_BACKEND_API_URL) {
+    return process.env.NEXT_PUBLIC_BACKEND_API_URL;
+  }
+  
+  // Check if NEXT_PUBLIC_API_BASE_URL is set and is localhost (not metaapi)
+  const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
+  if (apiBaseUrl && (apiBaseUrl.includes('localhost') || apiBaseUrl.includes('127.0.0.1'))) {
+    return apiBaseUrl;
+  }
+  
+  // Default to localhost:5000
+  return 'http://localhost:5000';
+};
+
+const API_BASE_URL = getBackendUrl();
+
+// Log the base URL for debugging
+if (typeof window !== 'undefined') {
+  console.log('[API Client] Initialized with base URL:', API_BASE_URL);
+  if (API_BASE_URL.includes('metaapi')) {
+    console.warn('[API Client] WARNING: API base URL points to MetaAPI instead of local backend!');
+    console.warn('[API Client] Set NEXT_PUBLIC_BACKEND_API_URL=http://localhost:5000 in .env.local');
+  }
+}
 
 export interface ApiResponse<T = any> {
   success: boolean;
@@ -69,21 +100,38 @@ class ApiClient {
     }
 
     try {
-      const response = await fetch(`${this.baseURL}${endpoint}`, {
+      const url = `${this.baseURL}${endpoint}`;
+      console.log(`[API Client] Making request to: ${url}`);
+      
+      const response = await fetch(url, {
         ...options,
         headers,
         credentials: 'include', // Include cookies for httpOnly cookies from backend
       });
 
-      const data = await response.json();
-
+      // Check if response is ok before trying to parse JSON
       if (!response.ok) {
-        throw new Error(data.message || 'Request failed');
+        let errorMessage = `Request failed with status ${response.status}`;
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.message || errorMessage;
+        } catch {
+          // If JSON parsing fails, use status text
+          errorMessage = response.statusText || errorMessage;
+        }
+        throw new Error(errorMessage);
       }
 
+      const data = await response.json();
       return data;
-    } catch (error) {
-      console.error('API Request Error:', error);
+    } catch (error: any) {
+      // Handle network errors (backend not running, CORS, etc.)
+      if (error.name === 'TypeError' && error.message === 'Failed to fetch') {
+        console.error(`[API Client] Network error - Backend server may not be running at ${this.baseURL}`);
+        console.error('[API Client] Please ensure the backend server is running on port 5000');
+        throw new Error('Backend server is not reachable. Please ensure the server is running.');
+      }
+      console.error('[API Request Error]:', error);
       throw error;
     }
   }

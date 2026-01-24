@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useEffect, useState } from 'react'
+import { useRef, useEffect, useState, useMemo } from 'react'
 import { ChevronLeft } from 'lucide-react'
 import LeftSidebar from '../components/layout/LeftSidebar'
 import ChartSection from '../components/layout/ChartSection'
@@ -10,6 +10,8 @@ import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '../compone
 import StatusBar from '../components/layout/StatusBar'
 
 import { useSidebar } from '../context/SidebarContext'
+import { useAccount } from '../context/AccountContext'
+import { usePositions, Position } from '../hooks/usePositions'
 
 import { ImperativePanelHandle } from 'react-resizable-panels'
 
@@ -17,56 +19,87 @@ import ModifyPositionModal from '../components/modals/ModifyPositionModal'
 
 export default function TradingTerminal() {
   const { isSidebarExpanded, setIsSidebarExpanded } = useSidebar();
+  const { currentAccountId } = useAccount();
   const leftPanelRef = useRef<ImperativePanelHandle>(null)
   const [closedToast, setClosedToast] = useState(null)
   const [isRightSidebarOpen, setIsRightSidebarOpen] = useState(true)
   const [isBottomPanelVisible, setIsBottomPanelVisible] = useState(true)
 
-  const [openPositions, setOpenPositions] = useState([
-    // 4 Buy positions for XAU/USD
-    {
-      symbol: 'XAU/USD',
-      type: 'Buy',
-      volume: '1.00',
-      openPrice: '4,174.936',
-      currentPrice: '4,174.225',
-      tp: 'Add',
-      sl: 'Add',
-      ticket: '70439011',
-      openTime: 'Nov 28, 1:38:30 PM',
-      swap: '0',
-      commission: '-0.33',
-      pl: '+34.65',
-      plColor: 'text-[#00ffaa]',
-      flag: 'xauusd'
-    },
+  // Fetch positions using REST API hook
+  const { positions: rawPositions, isLoading: isPositionsLoading, error: positionsError } = usePositions({
+    accountId: currentAccountId,
+    enabled: !!currentAccountId,
+  });
 
-  ])
+  // Debug logging
+  useEffect(() => {
+    if (currentAccountId) {
+      console.log('[TradingTerminal] Positions state:', {
+        accountId: currentAccountId,
+        positionsCount: rawPositions.length,
+        isLoading: isPositionsLoading,
+        error: positionsError,
+      });
+    }
+  }, [currentAccountId, rawPositions, isPositionsLoading, positionsError]);
 
-  const handleClosePosition = (position) => {
+  // Format positions for BottomPanel display
+  const openPositions = useMemo(() => {
+    if (!rawPositions || rawPositions.length === 0) return [];
+    
+    return rawPositions.map((pos: Position) => {
+      const profit = pos.profit || 0;
+      const plFormatted = profit >= 0 ? `+${profit.toFixed(2)}` : profit.toFixed(2);
+      const plColor = profit >= 0 ? 'text-[#00ffaa]' : 'text-[#f6465d]';
+      const symbol = pos.symbol || '';
+      const flag = symbol.toLowerCase().replace('/', '');
+      
+      return {
+        symbol,
+        type: pos.type,
+        volume: (pos.volume / 10000).toFixed(2), // Divide by 1000 and format to 2 decimal places
+        openPrice: pos.openPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 }),
+        currentPrice: pos.currentPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 }),
+        tp: pos.takeProfit ? pos.takeProfit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 }) : 'Add',
+        sl: pos.stopLoss ? pos.stopLoss.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 }) : 'Add',
+        ticket: pos.ticket.toString(),
+        openTime: new Date(pos.openTime).toLocaleString('en-US', { 
+          month: 'short', 
+          day: 'numeric', 
+          hour: 'numeric', 
+          minute: '2-digit',
+          hour12: true 
+        }),
+        swap: pos.swap.toFixed(2),
+        commission: pos.commission.toFixed(2),
+        pl: plFormatted,
+        plColor,
+        flag,
+        id: pos.id, // Keep original ID for closing
+      };
+    });
+  }, [rawPositions]);
+
+  // Empty arrays for pending and closed (to be implemented later)
+  const pendingPositions: any[] = [];
+  const closedPositions: any[] = [];
+
+  const handleClosePosition = (position: any) => {
     setClosedToast(position)
-    setOpenPositions(prev => prev.filter(p => p.ticket !== position.ticket))
+    // Position closing will be handled by the API/backend
+    // The positions will be updated automatically via polling
   }
 
-  const handleCloseGroup = (symbol) => {
-    setOpenPositions(prev => prev.filter(p => p.symbol !== symbol))
+  const handleCloseGroup = (symbol: string) => {
+    // Group closing will be handled by the API/backend
+    // The positions will be updated automatically via polling
   }
 
-  const handleCloseAll = (option) => {
-    setOpenPositions(prev => {
-      return prev.filter(pos => {
-        const pl = parseFloat(pos.pl.replace('+', ''))
-
-        switch (option) {
-          case 'all': return false
-          case 'profitable': return pl <= 0
-          case 'losing': return pl >= 0
-          case 'buy': return pos.type !== 'Buy'
-          case 'sell': return pos.type !== 'Sell'
-          default: return true
-        }
-      })
-    })
+  const handleCloseAll = (option: string) => {
+    // Position closing will be handled by the API/backend
+    // The positions will be updated automatically via polling
+    // This is a placeholder for future implementation
+    console.log('[TradingTerminal] Close all positions:', option);
   }
 
   // Resize the left panel when it expands or collapses
@@ -124,6 +157,8 @@ export default function TradingTerminal() {
                     <ResizablePanel defaultSize={30} minSize={15} maxSize={60} className="min-h-0 overflow-hidden">
                       <BottomPanel
                         openPositions={openPositions}
+                        pendingPositions={pendingPositions}
+                        closedPositions={closedPositions}
                         onClosePosition={handleClosePosition}
                         onCloseGroup={handleCloseGroup}
                         closedToast={closedToast}
@@ -140,6 +175,8 @@ export default function TradingTerminal() {
                   <div className="flex-none h-[40px] border-t border-gray-800 bg-black">
                     <BottomPanel
                       openPositions={openPositions}
+                      pendingPositions={pendingPositions}
+                      closedPositions={closedPositions}
                       onClosePosition={handleClosePosition}
                       onCloseGroup={handleCloseGroup}
                       closedToast={closedToast}

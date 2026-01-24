@@ -110,13 +110,30 @@ export default function Navbar({ logoLarge, logoSmall }: NavbarProps) {
     if (!currentAccountId) return;
     try {
       const token = localStorage.getItem('token');
+      
+      if (!token) {
+        console.warn('[Navbar] No token found in localStorage');
+        return;
+      }
+
       const response = await fetch(`http://localhost:5000/api/accounts/${currentAccountId}/profile`, {
         cache: 'no-store',
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include', // Include cookies
       });
 
       if (!response.ok) {
-        console.error('[Navbar] Fetch failed with status:', response.status, response.statusText);
+        if (response.status === 401) {
+          console.error('[Navbar] Unauthorized - token may be invalid or expired');
+          // Optionally clear token and redirect to login
+          // localStorage.removeItem('token');
+          // window.location.href = '/login';
+        } else {
+          console.error('[Navbar] Fetch failed with status:', response.status, response.statusText);
+        }
         return;
       }
 
@@ -125,8 +142,7 @@ export default function Navbar({ logoLarge, logoSmall }: NavbarProps) {
         setCurrentData(result.data);
       }
     } catch (err) {
-      // Silently fail - these errors are not critical for tab functionality
-      // console.error('[Navbar] Fetch Current Error:', err);
+      console.error('[Navbar] Fetch Current Error:', err);
     }
   }, [currentAccountId]);
 
