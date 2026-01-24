@@ -17,27 +17,8 @@ import { useTrading } from '../../context/TradingContext';
 export const TVChartContainer = () => {
     const containerRef = useRef<HTMLDivElement>(null);
     const brokerRef = useRef<any>(null);
-    const { lastOrder, setSymbol, setModifyModalState, lastModification } = useTrading();
+    const { lastOrder, setSymbol } = useTrading();
 
-    useEffect(() => {
-        if (lastModification && brokerRef.current) {
-            console.log("TVChartContainer received modification request:", lastModification);
-
-            // Broker compatibility check:
-            // Standard JS API: modifyPosition(positionId, stopLoss, takeProfit)
-            // Some samples/UDF: editPositionSLTP(positionId, stopLoss, takeProfit)
-            const modifier = brokerRef.current.modifyPosition || brokerRef.current.editPositionSLTP;
-
-            if (modifier) {
-                modifier.call(brokerRef.current, lastModification.id, lastModification.sl, lastModification.tp)
-                    .then(() => console.log("Position modification sent to broker"))
-                    .catch((err: any) => console.error("Failed to modify position", err));
-            } else {
-                console.error("Broker does not support position modification. Available methods:", Object.keys(brokerRef.current));
-                // Fallback attempt: maybe modifyOrder? (Unlikely for positions, but logged for debug)
-            }
-        }
-    }, [lastModification]);
 
     useEffect(() => {
         if (lastOrder && brokerRef.current) {
@@ -208,30 +189,7 @@ export const TVChartContainer = () => {
                             window.CustomDialogs.showOrderDialog(customOrderDialog, order);
                             return Promise.resolve(true);
                         },
-                        showPositionDialog: (position: any, brackets: any, focus: any) => {
-                            console.log("CustomUI showPositionDialog triggered", position);
-                            // Map BrokerDemo position fields to ModifyPositionModal fields
-                            const mappedPosition = {
-                                ...position,
-                                openPrice: position.avg_price || position.avgPrice || position.price,
-                                currentPrice: position.currentPrice || position.price, // Might need to fetch current quote if missing
-                                tp: position.takeProfit || position.tp,
-                                sl: position.stopLoss || position.sl,
-                            };
-                            setModifyModalState({ isOpen: true, position: mappedPosition });
-                            return Promise.resolve(true);
-                        },
-                        showPositionBracketsDialog: (position: any, brackets: any, focus: any) => {
-                            console.log("CustomUI showPositionBracketsDialog triggered", position);
-                            const mappedPosition = {
-                                ...position,
-                                openPrice: position.avg_price || position.avgPrice || position.price,
-                                tp: position.takeProfit || position.tp,
-                                sl: position.stopLoss || position.sl,
-                            };
-                            setModifyModalState({ isOpen: true, position: mappedPosition });
-                            return Promise.resolve(true);
-                        },
+
                         showCancelOrderDialog: (order: any) => {
                             if (!createCancelOrderButtonListener) return Promise.resolve(false);
                             const listener = createCancelOrderButtonListener(order, () => {
