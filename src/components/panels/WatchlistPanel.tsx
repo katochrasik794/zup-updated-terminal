@@ -86,7 +86,7 @@ const InstrumentRow = ({ item, isVisible, toggleFavorite, lastQuote, handleDragS
           addNavbarTab(item.symbol);
         }
       }}
-      className="group grid grid-cols-[30px_36px_1fr_auto_auto_auto_30px] gap-0 items-center border-b border-gray-800 hover:bg-[#1c252f] transition-colors h-[40px] cursor-pointer"
+      className="group grid grid-cols-[30px_36px_minmax(100px,1fr)_auto_auto_auto_30px] gap-0 items-center border-b border-gray-800 hover:bg-[#1c252f] transition-colors h-[40px] cursor-pointer min-w-0"
     >
       {/* Grip Handle */}
       <div className="flex items-center justify-center text-[#565c66] cursor-grab active:cursor-grabbing bg-[#0b0e14] group-hover:bg-[#1c252f] h-full transition-colors border-r border-gray-800">
@@ -101,14 +101,14 @@ const InstrumentRow = ({ item, isVisible, toggleFavorite, lastQuote, handleDragS
       </div>
 
       {/* Symbol */}
-      <div className="pl-2 flex flex-col justify-center border-r border-gray-800 bg-[#0b0e14] group-hover:bg-[#1c252f] h-full transition-colors overflow-hidden">
+      <div className="pl-2 flex flex-col justify-center border-r border-gray-800 bg-[#0b0e14] group-hover:bg-[#1c252f] h-full transition-colors overflow-hidden min-w-[100px] flex-shrink-0">
         <span className="text-[13px] font-bold text-gray-200 truncate">{item.symbol}</span>
         {isVisible('description') && <span className="text-[10px] text-gray-500 truncate">{item.description || item.name}</span>}
       </div>
 
       {/* Bid */}
       {isVisible('bid') && (
-        <div className="px-1 w-[90px] text-center flex items-center justify-center h-full">
+        <div className="px-1 w-[90px] min-w-[90px] text-center flex items-center justify-center h-full flex-shrink-0">
           <span className={cn(
             "text-[12px] font-medium px-1.5 py-1 rounded-[4px] w-full block transition-colors bg-[#2ebd85]/10 truncate",
             bidColor || staticBidColor
@@ -120,7 +120,7 @@ const InstrumentRow = ({ item, isVisible, toggleFavorite, lastQuote, handleDragS
 
       {/* Ask */}
       {isVisible('ask') && (
-        <div className="px-1 w-[90px] text-center flex items-center justify-center h-full">
+        <div className="px-1 w-[90px] min-w-[90px] text-center flex items-center justify-center h-full flex-shrink-0">
           <span className={cn(
             "text-[12px] font-medium px-1.5 py-1 rounded-[4px] w-full block transition-colors bg-[#f6465d]/10 truncate",
             askColor || staticAskColor
@@ -133,7 +133,7 @@ const InstrumentRow = ({ item, isVisible, toggleFavorite, lastQuote, handleDragS
       {/* 1D Change */}
       {isVisible('change') && (
         <div className={cn(
-          "px-1 w-[70px] text-center text-[11px] font-medium flex items-center justify-center h-full truncate",
+          "px-1 w-[70px] min-w-[70px] text-center text-[11px] font-medium flex items-center justify-center h-full truncate flex-shrink-0",
           changeColor === 'green' ? 'text-[#2ebd85]' : 'text-[#f6465d]'
         )}>
           {dayChangeLabel}
@@ -366,20 +366,20 @@ export default function WatchlistPanel({ onClose }) {
       </div>
 
       {/* Table Header */}
-      <div className="grid grid-cols-[30px_36px_1fr_auto_auto_auto_30px] gap-0 border-b border-gray-800 bg-background text-[11px] font-medium text-gray-500 uppercase">
+      <div className="grid grid-cols-[30px_36px_minmax(100px,1fr)_auto_auto_auto_30px] gap-0 border-b border-gray-800 bg-background text-[11px] font-medium text-gray-500 uppercase min-w-0">
         <div className="py-2 text-center bg-[#0b0e14] border-r border-gray-800"></div> {/* Grip placeholder */}
         <div className="py-2 text-center bg-[#0b0e14] border-r border-gray-800"></div> {/* Flag placeholder */}
-        <div className="py-2 pl-2 text-left bg-[#0b0e14] border-r border-gray-800">Symbol</div>
+        <div className="py-2 pl-2 text-left bg-[#0b0e14] border-r border-gray-800 min-w-[100px] flex-shrink-0">Symbol</div>
 
-        {isVisible('bid') && <div className="py-2 px-1 text-center w-[90px]">Bid</div>}
-        {isVisible('ask') && <div className="py-2 px-1 text-center w-[90px]">Ask</div>}
-        {isVisible('change') && <div className="py-2 px-1 text-center w-[70px]">1D</div>}
+        {isVisible('bid') && <div className="py-2 px-1 text-center w-[90px] min-w-[90px] flex-shrink-0">Bid</div>}
+        {isVisible('ask') && <div className="py-2 px-1 text-center w-[90px] min-w-[90px] flex-shrink-0">Ask</div>}
+        {isVisible('change') && <div className="py-2 px-1 text-center w-[70px] min-w-[70px] flex-shrink-0">1D</div>}
 
         <div className="py-2 text-center"></div> {/* Star placeholder */}
       </div>
 
       {/* Table Content */}
-      <div className="flex-1 overflow-y-auto custom-scrollbar">
+      <div className="flex-1 overflow-y-auto overflow-x-auto custom-scrollbar">
         {filteredItems.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-gray-600 grayscale opacity-40 py-10">
             <FiSearch size={48} className="mb-4" />
@@ -387,21 +387,23 @@ export default function WatchlistPanel({ onClose }) {
             {currentAccount?.group && <span className="text-[11px] mt-1 opacity-60">for {currentAccount.group}</span>}
           </div>
         ) : (
-          filteredItems.map((item, idx) => (
-            <InstrumentRow
-              key={item.id}
-              item={item}
-              idx={idx}
-              isVisible={isVisible}
-              toggleFavorite={toggleFavorite}
-              lastQuote={lastQuotes[normalizeSymbol(item.symbol)]}
-              handleDragStart={handleDragStart}
-              handleDragEnter={handleDragEnter}
-              handleDragEnd={handleDragEnd}
-              onSelect={setSymbol}
-              addNavbarTab={addNavbarTab}
-            />
-          ))
+          <div className="min-w-max">
+            {filteredItems.map((item, idx) => (
+              <InstrumentRow
+                key={item.id}
+                item={item}
+                idx={idx}
+                isVisible={isVisible}
+                toggleFavorite={toggleFavorite}
+                lastQuote={lastQuotes[normalizeSymbol(item.symbol)]}
+                handleDragStart={handleDragStart}
+                handleDragEnter={handleDragEnter}
+                handleDragEnd={handleDragEnd}
+                onSelect={setSymbol}
+                addNavbarTab={addNavbarTab}
+              />
+            ))}
+          </div>
         )}
       </div>
     </div>
