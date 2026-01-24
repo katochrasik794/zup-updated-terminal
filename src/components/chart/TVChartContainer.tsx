@@ -23,23 +23,27 @@ export const TVChartContainer = () => {
         if (lastModification && brokerRef.current) {
             console.log("TVChartContainer received modification request:", lastModification);
 
-            // Broker compatibility check:
-            // Standard JS API: modifyPosition(positionId, stopLoss, takeProfit)
-            // Some samples/UDF: editPositionSLTP(positionId, stopLoss, takeProfit)
-            const modifier = brokerRef.current.modifyPosition || brokerRef.current.editPositionSLTP;
+            // Parse TP/SL values
+            const sl = lastModification.sl ? parseFloat(lastModification.sl) : null;
+            const tp = lastModification.tp ? parseFloat(lastModification.tp) : null;
 
-            if (modifier) {
-                const sl = parseFloat(lastModification.sl) || 0;
-                const tp = parseFloat(lastModification.tp) || 0;
+            console.log(`Calling modifyOrder: ID=${lastModification.id}, SL=${sl}, TP=${tp}`);
 
-                console.log(`Calling broker modification: ID=${lastModification.id}, SL=${sl}, TP=${tp}`);
+            // Use modifyOrder which is available in BrokerDemo
+            if (brokerRef.current.modifyOrder) {
+                const modificationPayload = {
+                    id: lastModification.id,
+                    stopLoss: sl,
+                    takeProfit: tp
+                };
 
-                modifier.call(brokerRef.current, lastModification.id, sl, tp)
-                    .then(() => console.log("Position modification sent to broker"))
+                console.log("Sending modification payload:", modificationPayload);
+
+                brokerRef.current.modifyOrder(modificationPayload)
+                    .then(() => console.log("Position modification sent successfully"))
                     .catch((err: any) => console.error("Failed to modify position", err));
             } else {
-                console.error("Broker does not support position modification. Available methods:", Object.keys(brokerRef.current));
-                // Fallback attempt: maybe modifyOrder? (Unlikely for positions, but logged for debug)
+                console.error("modifyOrder not available. Available methods:", Object.keys(brokerRef.current));
             }
         }
     }, [lastModification]);

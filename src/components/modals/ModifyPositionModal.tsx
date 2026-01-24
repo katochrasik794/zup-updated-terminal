@@ -14,6 +14,7 @@ const ModifyPositionModal = () => {
   const [tpValue, setTpValue] = useState('');
   const [slValue, setSlValue] = useState('');
   const [partialVolume, setPartialVolume] = useState('');
+  const [estimatedPL, setEstimatedPL] = useState<number | null>(null);
 
   const onClose = () => {
     setModifyModalState({ ...modifyModalState, isOpen: false });
@@ -27,6 +28,41 @@ const ModifyPositionModal = () => {
       setPartialVolume(position?.volume || '');
     }
   }, [isOpen, position]);
+
+  // Calculate estimated P/L when TP/SL changes
+  useEffect(() => {
+    if (!position) return;
+
+    const currentPrice = parseFloat(position.currentPrice || position.price || 0);
+    const openPrice = parseFloat(position.openPrice || position.avg_price || position.price || 0);
+    const volume = parseFloat(position.volume || position.qty || 0);
+    const isBuy = position.type === 'Buy' || position.side === 1;
+
+    // Calculate current P/L
+    let priceDiff = isBuy ? (currentPrice - openPrice) : (openPrice - currentPrice);
+    let currentPL = priceDiff * volume * 100; // Assuming 1 lot = 100 units
+
+    // If TP is set and would be hit, calculate P/L at TP
+    const tp = parseFloat(tpValue);
+    if (tp && !isNaN(tp)) {
+      const tpDiff = isBuy ? (tp - openPrice) : (openPrice - tp);
+      const tpPL = tpDiff * volume * 100;
+      setEstimatedPL(tpPL);
+      return;
+    }
+
+    // If SL is set and would be hit, calculate P/L at SL
+    const sl = parseFloat(slValue);
+    if (sl && !isNaN(sl)) {
+      const slDiff = isBuy ? (sl - openPrice) : (openPrice - sl);
+      const slPL = slDiff * volume * 100;
+      setEstimatedPL(slPL);
+      return;
+    }
+
+    // Otherwise show current P/L
+    setEstimatedPL(currentPL);
+  }, [tpValue, slValue, position]);
 
   if (!isOpen || !position) return null;
 
@@ -274,6 +310,15 @@ const ModifyPositionModal = () => {
           ) : (
             <div className="flex items-center justify-center h-[160px] text-[#8b9096] text-[14px]">
               Close by functionality
+            </div>
+          )}
+
+          {/* Estimated P/L Display */}
+          {activeTab === 'modify' && estimatedPL !== null && (
+            <div className="text-center text-[13px] text-[#8b9096] mb-2">
+              Estimated P/L: <span className={estimatedPL >= 0 ? 'text-[#00ffaa]' : 'text-[#ff444f]'}>
+                {estimatedPL >= 0 ? '+' : ''}{estimatedPL.toFixed(2)} USD
+              </span>
             </div>
           )}
 
