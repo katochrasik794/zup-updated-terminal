@@ -23,27 +23,24 @@ export const TVChartContainer = () => {
         if (lastModification && brokerRef.current) {
             console.log("TVChartContainer received modification request:", lastModification);
 
-            // Parse TP/SL values
-            const sl = lastModification.sl ? parseFloat(lastModification.sl) : null;
-            const tp = lastModification.tp ? parseFloat(lastModification.tp) : null;
+            // BrokerDemo uses editPositionBrackets(positionId, modifiedBrackets)
+            // where modifiedBrackets is { stopLoss?: number, takeProfit?: number }
+            if (brokerRef.current.editPositionBrackets) {
+                const sl = lastModification.sl ? parseFloat(lastModification.sl) : undefined;
+                const tp = lastModification.tp ? parseFloat(lastModification.tp) : undefined;
 
-            console.log(`Calling modifyOrder: ID=${lastModification.id}, SL=${sl}, TP=${tp}`);
-
-            // Use modifyOrder which is available in BrokerDemo
-            if (brokerRef.current.modifyOrder) {
-                const modificationPayload = {
-                    id: lastModification.id,
-                    stopLoss: sl,
-                    takeProfit: tp
+                const modifiedBrackets = {
+                    ...(sl !== undefined && !isNaN(sl) ? { stopLoss: sl } : {}),
+                    ...(tp !== undefined && !isNaN(tp) ? { takeProfit: tp } : {}),
                 };
 
-                console.log("Sending modification payload:", modificationPayload);
+                console.log(`Calling broker modification: ID=${lastModification.id}, Brackets=`, modifiedBrackets);
 
-                brokerRef.current.modifyOrder(modificationPayload)
-                    .then(() => console.log("Position modification sent successfully"))
+                brokerRef.current.editPositionBrackets(lastModification.id, modifiedBrackets)
+                    .then(() => console.log("Position modification sent to broker"))
                     .catch((err: any) => console.error("Failed to modify position", err));
             } else {
-                console.error("modifyOrder not available. Available methods:", Object.keys(brokerRef.current));
+                console.error("Broker does not support position modification. Available methods:", Object.keys(brokerRef.current));
             }
         }
     }, [lastModification]);
@@ -303,7 +300,9 @@ export const TVChartContainer = () => {
                 const script = document.createElement('script');
                 script.src = src;
                 script.onload = resolve;
-                script.onerror = reject;
+                script.onerror = (event) => {
+                    reject(new Error(`Failed to load script: ${src}`));
+                };
                 document.head.appendChild(script);
             });
         };
@@ -322,7 +321,14 @@ export const TVChartContainer = () => {
             .then(() => {
                 initWidget();
             })
-            .catch(err => console.error('Error loading scripts:', err));
+            .catch(err => {
+                console.error('Error loading scripts:', err);
+                if (err instanceof Error) {
+                    console.error('Error details:', err.message);
+                } else {
+                    console.error('Error object:', JSON.stringify(err, null, 2));
+                }
+            });
 
         return () => {
             if (window.tvWidget) {

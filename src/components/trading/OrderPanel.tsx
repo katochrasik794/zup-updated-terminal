@@ -77,7 +77,7 @@ export default function OrderPanel({ onClose }) {
         </div>
 
         {/* Mode Select */}
-        <div className="px-2 pb-4 flex-shrink-0 relative z-50">
+        <div className="px-2 pb-4 flex-shrink-0 relative z-10">
           <div className="relative">
             <button
               type="button"
@@ -89,7 +89,7 @@ export default function OrderPanel({ onClose }) {
             </button>
 
             {isModeDropdownOpen && (
-              <div className="absolute top-full left-0 w-full mt-1 bg-[#2a2f36] border border-[#3b4148] rounded-md shadow-xl overflow-hidden py-1 z-50">
+              <div className="absolute top-full left-0 w-full mt-1 bg-[#2a2f36] border border-[#3b4148] rounded-md shadow-xl overflow-hidden py-1 z-20">
                 {['Regular form', 'One-click form', 'Risk calculator form'].map((mode) => (
                   <button
                     key={mode}
