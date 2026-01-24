@@ -4,6 +4,16 @@
 @theme {
   --font-sans: 'Manrope', sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
+  
+  /* Zuperior Brand Colors */
+  --color-primary: #8B5CF6;
+  --color-primary-foreground: #FFFFFF;
+  --color-success: #16A34A;
+  --color-danger: #EF4444;
+  --color-warning: #F59E0B;
+  --color-info: #3B82F6;
+  --color-background: #01040D;
+  --color-foreground: #FAFAFA;
 }
 
 /* Global font-family configuration */

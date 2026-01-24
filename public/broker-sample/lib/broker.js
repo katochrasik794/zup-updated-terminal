@@ -114,7 +114,7 @@ export class BrokerDemo extends AbstractBrokerMinimal {
             console.log('Durations are not implemented in this sample.');
         }
         // Open the Account Manager
-        // this._host.setAccountManagerVisibilityMode(BottomWidgetBarMode.Normal);
+        this._host.setAccountManagerVisibilityMode("normal" /* BottomWidgetBarMode.Normal */);
         if ((preOrder.type === OrderType.Market || preOrder.type === undefined)
             && this._getBrackets(preOrder.symbol).length > 0) {
             this._updateOrder(this._createOrder(preOrder));
