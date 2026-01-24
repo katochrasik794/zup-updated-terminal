@@ -1,1 +1,0 @@
-(self.webpackChunktradingview=self.webpackChunktradingview||[]).push([[8535],{232519:e=>{e.exports={en:["Got it!"],de:["Ok!"]}},899511:e=>{e.exports={en:["OK"]}},327947:e=>{e.exports={en:["Press and hold to see detailed chart values"],de:["Drücken & halten für eine detaillierte Anzeige der Chartwerte"]}}}]);

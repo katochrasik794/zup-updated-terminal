@@ -1,1 +1,0 @@
-(self.webpackChunktradingview=self.webpackChunktradingview||[]).push([[1095,4109],{47742:e=>{e.exports={en:["Close menu"],pt:["Fechar menu"]}},869207:e=>{e.exports={en:["Add to favorites"],pt:["Adicionar aos favoritos"]}},508573:e=>{e.exports={en:["Search"],pt:["Pesquisar"]}},685106:e=>{e.exports={en:["Remove from favorites"],pt:["Remover dos favoritos"]}}}]);
