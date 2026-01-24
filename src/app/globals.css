@@ -206,3 +206,30 @@ body,
 .resize-handle:active::after {
   opacity: 1;
 }
+
+/* Wavy / Shimmer Loader for Financial Data */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.animate-shimmer {
+  background: linear-gradient(
+    90deg, 
+    rgba(255, 255, 255, 0) 25%, 
+    rgba(255, 255, 255, 0.08) 50%, 
+    rgba(255, 255, 255, 0) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite linear;
+}
+
+@keyframes wavyText {
+  0%, 100% { transform: translateY(0); opacity: 0.5; }
+  50% { transform: translateY(-3px); opacity: 0.8; }
+}
+
+.animate-wavy {
+  display: inline-block;
+  animation: wavyText 1s ease-in-out infinite;
+}

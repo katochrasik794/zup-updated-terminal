@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useEffect, useCallback } from 'react'
 import {
   FiX,
   FiPlus,
@@ -89,13 +89,13 @@ export default function Navbar({ logoLarge, logoSmall }: NavbarProps) {
   const { isSidebarExpanded } = useSidebar();
   const { hideBalance } = usePrivacy();
   const { user } = useAuth();
-  const { 
-    currentAccountId, 
-    mt5Accounts, 
-    balances, 
-    isBalanceLoading 
+  const {
+    currentAccountId,
+    mt5Accounts,
+    balances,
+    isBalanceLoading
   } = useAccount();
-  
+
   const [tabs, setTabs] = useState<Tab[]>([
     { id: '1', symbol: 'XAU/USD', flagType: 'xauusd', isActive: true },
     { id: '2', symbol: 'US500', flagType: 'us500', isActive: false },
@@ -103,15 +103,41 @@ export default function Navbar({ logoLarge, logoSmall }: NavbarProps) {
     { id: '4', symbol: 'USD/JPY', flagType: 'usdjpy', isActive: false }
   ])
 
+  const [currentData, setCurrentData] = useState<any>(null);
+
+  // Direct fetch for selected account
+  const fetchCurrentBalance = useCallback(async () => {
+    if (!currentAccountId) return;
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`http://localhost:5000/api/accounts/${currentAccountId}/profile`, {
+        cache: 'no-store',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const result = await response.json();
+      if (result.success && result.data) {
+        setCurrentData(result.data);
+      }
+    } catch (err) {
+      console.error('[Navbar] Fetch Current Error:', err);
+    }
+  }, [currentAccountId]);
+
+  // Combined Polling Effect
+  useEffect(() => {
+    fetchCurrentBalance();
+    const intervalId = setInterval(fetchCurrentBalance, 200);
+    return () => clearInterval(intervalId);
+  }, [fetchCurrentBalance]);
+
   // Get current account info
   const currentAccount = mt5Accounts.find(acc => acc.accountId === currentAccountId)
-  const currentBalanceData = currentAccountId ? balances[currentAccountId] : null
   const accountInfo = {
     type: (currentAccount?.accountType || 'Live') as 'Live' | 'Demo',
     identifier: currentAccount?.displayAccountId || 'Zero',
     currency: 'USD'
   }
-  const balance = currentBalanceData?.equity || 0
+  const balance = currentData?.Equity ?? 0
   const [positionsConnected] = useState(true) // TODO: Connect to actual WebSocket status
 
   const [isSymbolSearchOpen, setIsSymbolSearchOpen] = useState(false)
@@ -268,7 +294,11 @@ export default function Navbar({ logoLarge, logoSmall }: NavbarProps) {
 
           {/* Bell Icon */}
           <div className="relative">
-            <IconButton onClick={() => setIsPriceAlertsOpen(!isPriceAlertsOpen)} className="p-1.5">
+            <IconButton
+              onClick={() => setIsPriceAlertsOpen(!isPriceAlertsOpen)}
+              className="p-1.5"
+              tooltip="Price Alerts"
+            >
               <Bell className="h-3.5 w-3.5" />
             </IconButton>
             <PriceAlertsDropdown
@@ -279,7 +309,11 @@ export default function Navbar({ logoLarge, logoSmall }: NavbarProps) {
 
           {/* User Icon */}
           <div className="relative">
-            <IconButton onClick={() => setIsProfileDropdownOpen(!isProfileDropdownOpen)} className="p-1.5">
+            <IconButton
+              onClick={() => setIsProfileDropdownOpen(!isProfileDropdownOpen)}
+              className="p-1.5"
+              tooltip="Account Profile"
+            >
               <User className="h-3.5 w-3.5" />
             </IconButton>
             <ProfileDropdown

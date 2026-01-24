@@ -1,6 +1,6 @@
 "use client"
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react'
 import { apiClient } from '@/lib/api'
 import { useAuth } from './AuthContext'
 import { useMultiAccountBalancePolling } from '@/hooks/useAccountBalances'
@@ -10,6 +10,7 @@ export interface MT5Account {
   accountId: string
   displayAccountId: string
   accountType: 'Live' | 'Demo'
+  group: string
   linkedAt: string
 }
 
@@ -23,6 +24,10 @@ interface AccountContextType {
   refreshAccounts: () => Promise<void>
   balances: Record<string, any>
   isBalanceLoading: Record<string, boolean>
+  balanceErrors: Record<string, string | null>
+  currentBalance: any | null
+  currentAccount: MT5Account | null
+  refreshBalance: (accountId: string) => void
 }
 
 const AccountContext = createContext<AccountContextType | undefined>(undefined)
@@ -37,18 +42,17 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
   const [error, setError] = useState<string | null>(null)
 
   // Get account IDs for balance polling
-  const accountIds = mt5Accounts.map(account => account.accountId)
-  const { balances, isLoading: isBalanceLoading, errors: balanceErrors } = useMultiAccountBalancePolling(accountIds)
+  const accountIds = useMemo(() => mt5Accounts.map(account => account.accountId), [mt5Accounts])
+  const {
+    balances,
+    isLoading: isBalanceLoading,
+    errors: balanceErrors,
+    refreshBalance
+  } = useMultiAccountBalancePolling(accountIds)
 
-  // Debug logging
-  useEffect(() => {
-    if (accountIds.length > 0) {
-      console.log('[AccountContext] Account IDs for balance polling:', accountIds)
-      console.log('[AccountContext] Current balances:', balances)
-      console.log('[AccountContext] Balance loading states:', isBalanceLoading)
-      console.log('[AccountContext] Balance errors:', balanceErrors)
-    }
-  }, [accountIds, balances, isBalanceLoading, balanceErrors])
+  // Current balance data for easy access
+  const currentBalance = useMemo(() => (currentAccountId ? balances[currentAccountId] || null : null), [currentAccountId, balances])
+  const currentAccount = useMemo(() => (currentAccountId ? mt5Accounts.find(acc => acc.accountId === currentAccountId) || null : null), [currentAccountId, mt5Accounts])
 
   // Load current account from localStorage on mount
   useEffect(() => {
@@ -74,7 +78,7 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
       setError(null)
 
       const response = await apiClient.get('/api/accounts')
-      
+
       if (response.success && response.data) {
         const accounts = response.data.accounts || []
         const defaultId = response.data.defaultAccountId || null
@@ -84,7 +88,7 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
 
         // Set current account if not already set
         if (!currentAccountId) {
-          const savedAccountId = typeof window !== 'undefined' 
+          const savedAccountId = typeof window !== 'undefined'
             ? (localStorage.getItem('defaultMt5Account') || localStorage.getItem('accountId'))
             : null
 
@@ -144,6 +148,10 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
         refreshAccounts,
         balances,
         isBalanceLoading,
+        balanceErrors,
+        currentBalance,
+        currentAccount,
+        refreshBalance,
       }}
     >
       {children}

@@ -1,12 +1,23 @@
 "use client";
-import { useState, useRef, useEffect, useMemo } from 'react'
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import FlagIcon from '../ui/FlagIcon'
 import IconButton from '../ui/IconButton'
 import WatchlistSettingsPopup from './WatchlistSettingsPopup'
 import { LuGripVertical } from 'react-icons/lu'
-import { FiStar } from 'react-icons/fi'
+import { FiStar, FiSearch } from 'react-icons/fi'
+import { useAccount } from '../../context/AccountContext'
+import { useInstruments } from '../../context/InstrumentContext'
+import { cn } from '../../lib/utils'
 
 export default function WatchlistPanel({ onClose }) {
+  const { currentAccount } = useAccount()
+  const {
+    instruments,
+    categories: dynamicCategories,
+    isLoading,
+    toggleFavorite,
+    reorderInstruments
+  } = useInstruments()
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('Favorites')
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false)
@@ -16,7 +27,7 @@ export default function WatchlistPanel({ onClose }) {
   // Columns configuration based on "Image 2"
   const [columns, setColumns] = useState([
     { id: 'signal', label: 'Signal', visible: false, draggable: true },
-    { id: 'description', label: 'Description', visible: false, draggable: true },
+    { id: 'description', label: 'Description', visible: true, draggable: true },
     { id: 'bid', label: 'Bid', visible: true, draggable: true },
     { id: 'spread', label: 'Spread', visible: false, draggable: true },
     { id: 'ask', label: 'Ask', visible: true, draggable: true },
@@ -25,68 +36,48 @@ export default function WatchlistPanel({ onClose }) {
     { id: 'pl', label: 'P/L', visible: false, draggable: true },
   ])
 
-  const isVisible = (id) => columns.find(c => c.id === id)?.visible
+  // Drag and drop logic
+  const dragItem = useRef<number | null>(null)
+  const dragOverItem = useRef<number | null>(null)
 
-  const toggleColumn = (id) => {
+  const handleDragStart = (e: React.DragEvent, position: number) => {
+    dragItem.current = position
+    e.dataTransfer.effectAllowed = 'move'
+  }
+
+  const handleDragEnter = (e: React.DragEvent, position: number) => {
+    dragOverItem.current = position
+    e.preventDefault()
+  }
+
+  const handleDragEnd = async () => {
+    if (dragItem.current !== null && dragOverItem.current !== null && dragItem.current !== dragOverItem.current) {
+      const newList = [...instruments]
+
+      // Map filtered indices back to original indices
+      const itemToMove = filteredItems[dragItem.current]
+      const targetItem = filteredItems[dragOverItem.current]
+
+      const fromIdx = newList.findIndex(i => i.id === itemToMove.id)
+      const toIdx = newList.findIndex(i => i.id === targetItem.id)
+
+      if (fromIdx !== -1 && toIdx !== -1) {
+        newList.splice(fromIdx, 1)
+        newList.splice(toIdx, 0, itemToMove)
+        await reorderInstruments(newList)
+      }
+    }
+    dragItem.current = null
+    dragOverItem.current = null
+  }
+
+  const items = instruments
+
+  const isVisible = (id: string) => columns.find(c => c.id === id)?.visible
+
+  const toggleColumn = (id: string) => {
     setColumns(columns.map(col =>
       col.id === id ? { ...col, visible: !col.visible } : col
-    ))
-  }
-
-  // Categories list based on "Image 3"
-  const categories = [
-    'Favorites',
-    'All instruments',
-    'Crypto',
-    'Energies',
-    'Forex',
-    'Indices',
-    'Metals',
-    'Other',
-    'Stocks'
-  ]
-
-  // Mock Data Generators
-  const generateData = () => {
-    const common = {
-      signal: 'up',
-      pl: '-',
-      chartData: [10, 12, 11, 14, 13, 15]
-    }
-
-    return [
-      // Crypto
-      { id: 'btc', symbol: 'BTCUSD', name: 'Bitcoin', bid: '89,926.15', ask: '89,942.53', change: '+0.44%', changeColor: 'green', category: 'Crypto', favorite: true, ...common },
-      { id: 'doge', symbol: 'DOGUSD', name: 'Dogecoin', bid: '0.12785', ask: '0.12805', change: '+0.68%', changeColor: 'green', category: 'Crypto', favorite: true, ...common },
-      { id: 'eth', symbol: 'ETHUSD', name: 'Ethereum', bid: '2,956.11', ask: '2,957.40', change: '-0.70%', changeColor: 'red', category: 'Crypto', favorite: true, signal: 'down', ...common },
-      { id: 'xrp', symbol: 'XRPUSD', name: 'Ripple', bid: '1.9571', ask: '1.9795', change: '+0.74%', changeColor: 'green', category: 'Crypto', favorite: true, ...common },
-
-      // Forex
-      { id: 'audcad', symbol: 'AUDCAD', name: 'AUD/CAD', bid: '0.94348', ask: '0.94369', change: '+0.08%', changeColor: 'green', category: 'Forex', favorite: true, ...common },
-      { id: 'audchf', symbol: 'AUDCHF', name: 'AUD/CHF', bid: '0.54025', ask: '0.54034', change: '-1.13%', changeColor: 'red', category: 'Forex', favorite: true, signal: 'down', ...common },
-      { id: 'audjpy', symbol: 'AUDJPY', name: 'AUD/JPY', bid: '107.473', ask: '107.49', change: '-1.02%', changeColor: 'red', category: 'Forex', favorite: true, signal: 'down', ...common },
-      { id: 'cadchf', symbol: 'CADCHF', name: 'CAD/CHF', bid: '0.5726', ask: '0.57268', change: '-0.55%', changeColor: 'red', category: 'Forex', favorite: true, signal: 'down', ...common },
-      { id: 'cadjpy', symbol: 'CADJPY', name: 'CAD/JPY', bid: '113.896', ask: '113.931', change: '+1.33%', changeColor: 'green', category: 'Forex', favorite: true, ...common },
-
-      // Energies
-      { id: 'usoil', symbol: 'USOIL', name: 'Crude Oil', bid: '58.964', ask: '58.964', change: '+0.13%', changeColor: 'green', category: 'Energies', favorite: false, ...common },
-
-      // Indices
-      { id: 'ustec', symbol: 'USTEC', name: 'US Tech 100', bid: '25,319.41', ask: '25,319.41', change: '+0.07%', changeColor: 'green', category: 'Indices', favorite: false, ...common },
-
-      // Metals
-      { id: 'xauusd', symbol: 'XAUUSD', name: 'Gold', bid: '2,642.50', ask: '2,643.10', change: '+0.25%', changeColor: 'green', category: 'Metals', favorite: false, ...common },
-
-      // Stocks
-      { id: 'aapl', symbol: 'AAPL', name: 'Apple Inc', bid: '235.40', ask: '235.55', change: '-0.10%', changeColor: 'gray', category: 'Stocks', favorite: false, ...common },
-    ]
-  }
-
-  const [items, setItems] = useState(generateData())
-
-  const toggleFavorite = (id) => {
-    setItems(items.map(item =>
-      item.id === id ? { ...item, favorite: !item.favorite } : item
     ))
   }
 
@@ -105,55 +96,14 @@ export default function WatchlistPanel({ onClose }) {
       const lowerTerm = searchTerm.toLowerCase();
       filtered = filtered.filter(item =>
         item.symbol.toLowerCase().includes(lowerTerm) ||
-        item.name.toLowerCase().includes(lowerTerm)
+        (item.name && item.name.toLowerCase().includes(lowerTerm)) ||
+        (item.description && item.description.toLowerCase().includes(lowerTerm))
       );
     }
 
     return filtered;
   }, [items, selectedCategory, searchTerm]);
 
-  // Drag and drop logic
-  const dragItem = useRef(null)
-  const dragOverItem = useRef(null)
-
-  const handleDragStart = (e, position) => {
-    dragItem.current = position
-    e.dataTransfer.effectAllowed = 'move'
-    // e.target.classList.add('opacity-50') 
-  }
-
-  const handleDragEnter = (e, position) => {
-    dragOverItem.current = position
-    e.preventDefault()
-  }
-
-  const handleDragEnd = (e) => {
-    // e.target.classList.remove('opacity-50')
-    if (dragItem.current !== null && dragOverItem.current !== null) {
-      const copyListItems = [...items]
-      // We need to find the actual items in the main list based on the filtered list indices
-      // This simple index swapping only works if we are dragging within the filtered view AND reordering the main list accordingly.
-      // For simplicity in this demo, we'll just reorder the visible list if it matches the main list, 
-      // or we'd need more complex logic. 
-      // To strictly follow "keep scrollable with i can pick and change its numbering", 
-      // we will apply the reorder to the `items` state but we need to map the filtered indices back to `items` indices.
-
-      const itemToMove = filteredItems[dragItem.current];
-      const targetItem = filteredItems[dragOverItem.current];
-
-      const originalFromIndex = items.findIndex(i => i.id === itemToMove.id);
-      const originalToIndex = items.findIndex(i => i.id === targetItem.id);
-
-      if (originalFromIndex !== -1 && originalToIndex !== -1) {
-        const newItems = [...items];
-        newItems.splice(originalFromIndex, 1);
-        newItems.splice(originalToIndex, 0, itemToMove);
-        setItems(newItems);
-      }
-    }
-    dragItem.current = null
-    dragOverItem.current = null
-  }
 
   return (
     <div className="flex flex-col h-full overflow-hidden bg-background text-[#b2b5be] font-sans border border-gray-800 rounded-md">
@@ -178,7 +128,7 @@ export default function WatchlistPanel({ onClose }) {
             <>
               <div className="fixed inset-0 z-40" onClick={() => setShowCategoryDropdown(false)}></div>
               <div className="absolute top-full left-0 mt-2 w-[220px] bg-[#1a1e25] border border-gray-700 rounded-lg shadow-xl z-50 py-1 max-h-[400px] overflow-y-auto">
-                {categories.map(cat => (
+                {dynamicCategories.map(cat => (
                   <div
                     key={cat}
                     onClick={() => {
@@ -273,69 +223,88 @@ export default function WatchlistPanel({ onClose }) {
 
       {/* Table Content */}
       <div className="flex-1 overflow-y-auto custom-scrollbar">
-        {filteredItems.map((item, idx) => (
-          <div
-            key={item.id}
-            draggable
-            onDragStart={(e) => handleDragStart(e, idx)}
-            onDragEnter={(e) => handleDragEnter(e, idx)}
-            onDragEnd={handleDragEnd}
-            className="group grid grid-cols-[30px_1fr_auto_auto_auto_30px] gap-0 items-center border-b border-gray-800 hover:bg-[#1c252f] transition-colors h-[40px] cursor-pointer"
-          >
-            {/* Grip Handle */}
-            <div className="flex items-center justify-center text-[#565c66] cursor-grab active:cursor-grabbing bg-[#0b0e14] group-hover:bg-[#1c252f] h-full transition-colors border-r border-gray-800">
-              <LuGripVertical size={14} />
-            </div>
-
-            {/* Symbol */}
-            <div className="pl-2 flex flex-col justify-center border-r border-gray-800 bg-[#0b0e14] group-hover:bg-[#1c252f] h-full transition-colors">
-              <span className="text-[13px] font-bold text-gray-200">{item.symbol}</span>
-              {isVisible('description') && <span className="text-[10px] text-gray-500">{item.name}</span>}
-            </div>
-
-            {/* Bid */}
-            {isVisible('bid') && (
-              <div className="px-1 w-[70px] text-center flex items-center justify-center h-full">
-                <span className={`text-[12px] font-medium px-1.5 py-1 rounded-[4px] w-full block ${showPriceHighlight
-                  ? (item.changeColor === 'green' ? 'bg-[#2ebd85] text-white' : item.changeColor === 'red' ? 'bg-[#f6465d] text-white' : 'bg-[#2a303c] text-white')
-                  : (item.changeColor === 'green' ? 'bg-[#2ebd85] text-white' : item.changeColor === 'red' ? 'bg-[#f6465d] text-white' : 'bg-[#2a303c] text-white')
-                  }`}>
-                  {item.bid}
-                </span>
-              </div>
-            )}
-
-            {/* Ask */}
-            {isVisible('ask') && (
-              <div className="px-1 w-[70px] text-center flex items-center justify-center h-full">
-                <span className={`text-[12px] font-medium px-1.5 py-1 rounded-[4px] w-full block ${showPriceHighlight
-                  ? (item.changeColor === 'green' ? 'bg-[#2ebd85] text-white' : item.changeColor === 'red' ? 'bg-[#f6465d] text-white' : 'bg-[#2a303c] text-white')
-                  : (item.changeColor === 'green' ? 'bg-[#2ebd85] text-white' : item.changeColor === 'red' ? 'bg-[#f6465d] text-white' : 'bg-[#2a303c] text-white')
-                  }`}>
-                  {item.ask}
-                </span>
-              </div>
-            )}
-
-            {/* 1D Change */}
-            {isVisible('change') && (
-              <div className={`px-1 w-[60px] text-center text-[11px] font-medium flex items-center justify-center h-full ${item.changeColor === 'green' ? 'text-[#2ebd85]' : item.changeColor === 'red' ? 'text-[#f6465d]' : 'text-gray-400'}`}>
-                {item.change}
-              </div>
-            )}
-
-            {/* Star / Favorite */}
-            <div className="flex items-center justify-center h-full">
-              <button
-                onClick={(e) => { e.stopPropagation(); toggleFavorite(item.id); }}
-                className={`text-[14px] transition-colors ${item.favorite ? 'text-[#f59e0b]' : 'text-gray-600 hover:text-gray-400'}`}
-              >
-                {item.favorite ? <FiStar fill="currentColor" /> : <FiStar />}
-              </button>
-            </div>
-
+        {filteredItems.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-full text-gray-600 grayscale opacity-40 py-10">
+            <FiSearch size={48} className="mb-4" />
+            <span className="text-[14px] font-medium">No symbols found</span>
+            {currentAccount?.group && <span className="text-[11px] mt-1 opacity-60">for {currentAccount.group}</span>}
           </div>
-        ))}
+        ) : (
+          filteredItems.map((item, idx) => {
+            // Real Price Data Mapping
+            const bid = item.bid || '0.00000'
+            const ask = item.ask || '0.00000'
+            const change = item.change || '0.00%'
+            const changeColor = parseFloat(change) >= 0 ? 'green' : 'red'
+
+            return (
+              <div
+                key={item.id}
+                draggable
+                onDragStart={(e) => handleDragStart(e, idx)}
+                onDragEnter={(e) => handleDragEnter(e, idx)}
+                onDragEnd={handleDragEnd}
+                className="group grid grid-cols-[30px_1fr_auto_auto_auto_30px] gap-0 items-center border-b border-gray-800 hover:bg-[#1c252f] transition-colors h-[40px] cursor-pointer"
+              >
+                {/* Grip Handle */}
+                <div className="flex items-center justify-center text-[#565c66] cursor-grab active:cursor-grabbing bg-[#0b0e14] group-hover:bg-[#1c252f] h-full transition-colors border-r border-gray-800">
+                  <LuGripVertical size={14} />
+                </div>
+
+                {/* Symbol */}
+                <div className="pl-2 flex flex-col justify-center border-r border-gray-800 bg-[#0b0e14] group-hover:bg-[#1c252f] h-full transition-colors overflow-hidden">
+                  <span className="text-[13px] font-bold text-gray-200 truncate">{item.symbol}</span>
+                  {isVisible('description') && <span className="text-[10px] text-gray-500 truncate">{item.description || item.name}</span>}
+                </div>
+
+                {/* Bid */}
+                {isVisible('bid') && (
+                  <div className="px-1 w-[70px] text-center flex items-center justify-center h-full">
+                    <span className={cn(
+                      "text-[12px] font-medium px-1.5 py-1 rounded-[4px] w-full block transition-colors",
+                      changeColor === 'green' ? 'bg-[#2ebd85]/20 text-[#2ebd85]' : 'bg-[#f6465d]/20 text-[#f6465d]'
+                    )}>
+                      {bid}
+                    </span>
+                  </div>
+                )}
+
+                {/* Ask */}
+                {isVisible('ask') && (
+                  <div className="px-1 w-[70px] text-center flex items-center justify-center h-full">
+                    <span className={cn(
+                      "text-[12px] font-medium px-1.5 py-1 rounded-[4px] w-full block transition-colors",
+                      changeColor === 'green' ? 'bg-[#2ebd85]/20 text-[#2ebd85]' : 'bg-[#f6465d]/20 text-[#f6465d]'
+                    )}>
+                      {ask}
+                    </span>
+                  </div>
+                )}
+
+                {/* 1D Change */}
+                {isVisible('change') && (
+                  <div className={cn(
+                    "px-1 w-[60px] text-center text-[11px] font-medium flex items-center justify-center h-full",
+                    changeColor === 'green' ? 'text-[#2ebd85]' : 'text-[#f6465d]'
+                  )}>
+                    {change}
+                  </div>
+                )}
+
+                {/* Star / Favorite */}
+                <div className="flex items-center justify-center h-full">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); toggleFavorite(item.id); }}
+                    className={`text-[14px] transition-colors ${item.favorite ? 'text-[#f59e0b]' : 'text-gray-600 hover:text-gray-400'}`}
+                  >
+                    {item.favorite ? <FiStar fill="currentColor" /> : <FiStar />}
+                  </button>
+                </div>
+
+              </div>
+            )
+          })
+        )}
       </div>
     </div>
   )

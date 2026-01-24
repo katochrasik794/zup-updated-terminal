@@ -1,24 +1,72 @@
 "use client";
-import { useState, useRef } from 'react'
+
+import { useEffect, useState, useRef, useCallback } from 'react'
 import { GiNetworkBars } from "react-icons/gi";
 import CloseAllPositionsDropdown from "../modals/CloseAllPositionsDropdown";
 import { usePrivacy } from '../../context/PrivacyContext';
+import { formatCurrency } from '../../lib/utils';
 
 export default function StatusBar({ openPositions = [], onCloseAll }: any) {
   const { hideBalance } = usePrivacy();
-  const totalPL = openPositions.reduce((sum, pos) => sum + parseFloat(pos.pl.replace('+', '')), 0)
+  const [data, setData] = useState<any>(null);
   const [showDropdown, setShowDropdown] = useState(false)
   const buttonRef = useRef(null)
+
+  const fetchBalance = useCallback(async () => {
+    try {
+      // Get account ID directly from localStorage to be independent
+      const accountId = localStorage.getItem('defaultMt5Account') || localStorage.getItem('accountId');
+      const token = localStorage.getItem('token');
+      if (!accountId) return;
+
+      const API_URL = 'http://localhost:5000';
+      const response = await fetch(`${API_URL}/api/accounts/${accountId}/profile`, {
+        cache: 'no-store',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      const result = await response.json();
+
+      if (result.success && result.data) {
+        setData(result.data);
+      }
+    } catch (err) {
+      console.error('[StatusBar] Direct Fetch Error:', err);
+    }
+  }, []);
+
+  // Standalone polling loop
+  useEffect(() => {
+    fetchBalance(); // Initial fetch
+    const interval = setInterval(fetchBalance, 200); // 200ms poll
+    return () => clearInterval(interval);
+  }, [fetchBalance]);
+
+  // Map values
+  const equity = data?.Equity ?? 0;
+  const balance = data?.Balance ?? 0;
+  const margin = data?.Margin ?? 0;
+  const freeMargin = data?.MarginFree ?? 0;
+  const marginLevel = data?.MarginLevel ?? 0;
+  const totalPL = data?.Profit ?? 0;
+
+  const renderValue = (value: number, suffix: string = 'USD') => {
+    if (hideBalance) return '****';
+    return `${formatCurrency(value, 2)} ${suffix}`;
+  };
 
   return (
     <div className="bg-background flex items-center justify-between px-4 py-2 text-xs text-gray-400 font-medium rounded-tl-md relative border-t border-gray-800">
       {/* Left section - Account info */}
       <div className="flex items-center gap-6">
-        <span>Equity: <span className="text-gray-200 font-mono">{hideBalance ? '****' : '1,290.14 USD'}</span></span>
-        <span>Free Margin: <span className="text-gray-200 font-mono">{hideBalance ? '****' : '1,273.73 USD'}</span></span>
-        <span>Balance: <span className="text-gray-200 font-mono">{hideBalance ? '****' : '978.14 USD'}</span></span>
-        <span>Margin: <span className="text-gray-200 font-mono">{hideBalance ? '****' : '10.41 USD'}</span></span>
-        <span>Margin level: <span className="text-gray-200 font-mono">{hideBalance ? '****' : '12,335.64%'}</span></span>
+        <span>Equity: <span className="text-gray-200 font-mono">{renderValue(equity)}</span></span>
+        <span>Free Margin: <span className="text-gray-200 font-mono">{renderValue(freeMargin)}</span></span>
+        <span>Balance: <span className="text-gray-200 font-mono">{renderValue(balance)}</span></span>
+        <span>Margin: <span className="text-gray-200 font-mono">{renderValue(margin)}</span></span>
+        <span>Margin level: <span className="text-gray-200 font-mono">
+          {hideBalance ? '****' : `${marginLevel.toFixed(2)}%`}
+        </span></span>
       </div>
 
       {/* Right section - P/L, Close all, Connection */}

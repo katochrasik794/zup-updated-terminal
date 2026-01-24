@@ -1,9 +1,10 @@
-"use client";
 import { useState, useEffect } from 'react'
 import { FiSearch } from 'react-icons/fi'
+import { useInstruments } from '../../context/InstrumentContext'
 import FlagIcon from '../ui/FlagIcon'
 
 export default function SymbolSearchPopup({ isOpen, onClose, onSelectSymbol, triggerRef }) {
+  const { instruments, categories: dynamicCategories, isLoading, toggleFavorite } = useInstruments()
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('Favorites')
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false)
@@ -19,38 +20,13 @@ export default function SymbolSearchPopup({ isOpen, onClose, onSelectSymbol, tri
     }
   }, [isOpen, triggerRef])
 
-  // Categories same as Watchlist
-  const categories = [
-    'Favorites',
-    'All instruments',
-    'Crypto',
-    'Energies',
-    'Forex',
-    'Indices',
-    'Metals',
-    'Other',
-    'Stocks'
-  ]
-
-  // Enhanced mock data with categories
-  const instruments = [
-    { symbol: 'BTC', name: 'Bitcoin vs US Dollar', flag: 'btc', favorite: true, category: 'Crypto' },
-    { symbol: 'XAU/USD', name: 'Gold vs US Dollar', flag: 'xauusd', favorite: true, category: 'Metals' },
-    { symbol: 'AAPL', name: 'Apple Inc.', flag: 'aapl', favorite: true, marketClosed: true, category: 'Stocks' },
-    { symbol: 'EUR/USD', name: 'Euro vs US Dollar', flag: 'eurusd', favorite: true, category: 'Forex' },
-    { symbol: 'GBP/USD', name: 'Great Britain Pound vs US Dollar', flag: 'gbpusd', favorite: true, category: 'Forex' },
-    { symbol: 'USD/JPY', name: 'US Dollar vs Japanese Yen', flag: 'usdjpy', favorite: true, category: 'Forex' },
-    { symbol: 'USTEC', name: 'US Tech 100 Index', flag: 'ustec', favorite: true, category: 'Indices' },
-    { symbol: 'USOIL', name: 'Crude Oil', flag: 'usoil', favorite: true, category: 'Energies' },
-    { symbol: 'DOGUSD', name: 'Dogecoin', flag: 'btc', favorite: false, category: 'Crypto' }, // Added for non-fav testing
-    { symbol: 'CADCHF', name: 'CAD/CHF', flag: 'cadchf', favorite: false, category: 'Forex' }
-  ]
-
   const filteredInstruments = instruments.filter(item => {
     // 1. Filter by Search Term
     if (searchTerm) {
-      return item.symbol.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.name.toLowerCase().includes(searchTerm.toLowerCase())
+      const lowerSearch = searchTerm.toLowerCase();
+      return item.symbol.toLowerCase().includes(lowerSearch) ||
+        (item.name && item.name.toLowerCase().includes(lowerSearch)) ||
+        (item.description && item.description.toLowerCase().includes(lowerSearch));
     }
 
     // 2. Filter by Category (only if no search term)
@@ -59,7 +35,10 @@ export default function SymbolSearchPopup({ isOpen, onClose, onSelectSymbol, tri
     return item.category === selectedCategory;
   })
 
-  // ... (handleSelectSymbol, etc.)
+  const handleSelectSymbol = (item: any) => {
+    onSelectSymbol(item);
+    onClose();
+  }
 
   if (!isOpen) return null
 
@@ -106,7 +85,7 @@ export default function SymbolSearchPopup({ isOpen, onClose, onSelectSymbol, tri
           {/* Dropdown Menu Overlay */}
           {showCategoryDropdown && (
             <div className="absolute top-full left-2 right-2 mt-1 bg-[#1a1e25] border border-gray-700 rounded-md shadow-xl z-50 py-1 max-h-[250px] overflow-y-auto">
-              {categories.map(cat => (
+              {dynamicCategories.map(cat => (
                 <div
                   key={cat}
                   onClick={() => {
@@ -146,34 +125,38 @@ export default function SymbolSearchPopup({ isOpen, onClose, onSelectSymbol, tri
                   <td className="px-4 py-2.5">
                     <div className="flex items-center gap-3">
                       <div className="w-6 h-6 rounded-full overflow-hidden flex-shrink-0 bg-gray-800 flex items-center justify-center">
-                        {/* Fallback if flag icon missing or use simple circle */}
-                        <FlagIcon type={item.flag} />
+                        <FlagIcon type={item.symbol.toLowerCase()} />
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-white font-bold text-[13px] group-hover:text-blue-400 transition-colors">{item.symbol}</span>
-                        {item.marketClosed && (
-                          <div className="w-1.5 h-1.5 rounded-full bg-red-500" title="Market Closed"></div>
-                        )}
                       </div>
                     </div>
                   </td>
                   <td className="px-4 py-2.5">
-                    <span className="text-gray-400 text-[12px] group-hover:text-gray-300">{item.name}</span>
+                    <span className="text-gray-400 text-[12px] group-hover:text-gray-300">{item.description || item.name}</span>
                   </td>
                   <td className="px-4 py-2.5 text-center">
-                    <svg
-                      width="14"
-                      height="14"
-                      viewBox="0 0 24 24"
-                      fill={item.favorite ? "#f59e0b" : "none"}
-                      stroke={item.favorite ? "#f59e0b" : "#4b5563"}
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      className="transition-colors"
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleFavorite(item.id);
+                      }}
+                      className="focus:outline-none"
                     >
-                      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
-                    </svg>
+                      <svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 24 24"
+                        fill={item.favorite ? "#f59e0b" : "none"}
+                        stroke={item.favorite ? "#f59e0b" : "#4b5563"}
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className="transition-colors hover:stroke-yellow-500"
+                      >
+                        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                      </svg>
+                    </button>
                   </td>
                 </tr>
               ))}

@@ -4,6 +4,7 @@ import ClientLayout from "../components/layout/ClientLayout";
 import { PrivacyProvider } from "../context/PrivacyContext";
 import { AuthProvider } from "../context/AuthContext";
 import { AccountProvider } from "../context/AccountContext";
+import { InstrumentProvider } from "../context/InstrumentContext";
 
 export const metadata = {
     title: "Zuperior Terminal",
@@ -16,11 +17,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <body className="antialiased" suppressHydrationWarning>
                 <AuthProvider>
                     <AccountProvider>
-                        <PrivacyProvider>
-                            <ClientLayout>
-                                {children}
-                            </ClientLayout>
-                        </PrivacyProvider>
+                        <InstrumentProvider>
+                            <PrivacyProvider>
+                                <ClientLayout>
+                                    {children}
+                                </ClientLayout>
+                            </PrivacyProvider>
+                        </InstrumentProvider>
                     </AccountProvider>
                 </AuthProvider>
             </body>

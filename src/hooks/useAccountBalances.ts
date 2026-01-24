@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { apiClient } from "@/lib/api"
 
 export interface BalanceData {
   balance: number
@@ -111,154 +112,43 @@ export function useMultiAccountBalancePolling(accountIds: string[]) {
   // Fetch balance for a specific account using getClientProfile API (NOT getBalance)
   // This endpoint provides comprehensive account data including Balance, Equity, Margin, etc.
   const fetchAccountBalance = React.useCallback(async (accountId: string, _isInitial = false) => {
-    // Validate accountId before making request
-    if (!accountId || accountId.trim() === '') {
-      console.warn('[useAccountBalances] Skipping fetch - invalid accountId:', accountId);
-      return;
-    }
+    if (!accountId) return
 
-    const API_PATH = `/apis/user/${accountId}/getClientProfile`
     const currentSeq = (requestSeq.current.get(accountId) || 0) + 1
     requestSeq.current.set(accountId, currentSeq)
 
     try {
-      // Cancel any in-flight request for this account to favor the latest call
-      const existing = requestControllers.current.get(accountId)
-      existing?.abort()
+      const response = await apiClient.get<any>(`/api/accounts/${accountId}/profile`)
 
-      const controller = new AbortController()
-      requestControllers.current.set(accountId, controller)
-      const timeoutId = setTimeout(() => controller.abort(), 10000) // 10s timeout
+      if ((requestSeq.current.get(accountId) || 0) !== currentSeq) return
 
-      let response: Response | null = null
-      try {
-        console.log(`[useAccountBalances] Fetching from: ${API_PATH}`)
-        response = await fetch(API_PATH, {
-          cache: "no-store",
-          signal: controller.signal,
-          credentials: 'include', // Include cookies for session
-        })
-        clearTimeout(timeoutId)
-        console.log(`[useAccountBalances] Response status for ${accountId}:`, response.status, response.statusText)
-      } catch (fetchErr: any) {
-        clearTimeout(timeoutId)
-        console.error(`[useAccountBalances] Fetch error for ${accountId}:`, fetchErr)
-        if (fetchErr.name === "AbortError") {
-          throw new Error("Request timeout - server took too long to respond")
-        }
-        throw fetchErr
-      }
-
-      if (!response) return
-
-      if (!response.ok) {
-        // Handle 404 specifically - might indicate route not found or invalid accountId
-        if (response.status === 404) {
-          console.warn(`[useAccountBalances] getClientProfile endpoint not found for accountId: ${accountId}. This might indicate the account doesn't exist or the route is misconfigured.`);
-          return; // Silently skip - don't throw error for 404s
-        }
-        const result = await response.json().catch(() => ({ error: `HTTP status ${response.status}` }))
-        throw new Error(result.error || `HTTP error! status: ${response.status}`)
-      }
-
-      const result = await response.json()
-      console.log(`[useAccountBalances] Response data for ${accountId}:`, result)
-
-      // Ignore stale responses
-      if ((requestSeq.current.get(accountId) || 0) !== currentSeq) {
-        console.log(`[useAccountBalances] Ignoring stale response for ${accountId}`)
-        return
-      }
-
-      const responseData = result.data || result.Data || result
-      console.log(`[useAccountBalances] Processed responseData for ${accountId}:`, responseData)
-
-      if (result.success && responseData) {
-        const apiData = responseData as {
-          Balance?: number
-          balance?: number
-          Equity?: number
-          equity?: number
-          Margin?: number
-          MarginUsed?: number
-          marginUsed?: number
-          margin?: number
-          FreeMargin?: number
-          freeMargin?: number
-          MarginLevel?: number
-          marginLevel?: number
-          profit?: number
-          Profit?: number
-          Leverage?: string
-          leverage?: string
-          Credit?: number
-          credit?: number
-          Name?: string
-          name?: string
-          Group?: string
-          group?: string
-          AccountType?: string
-          accountType?: string
+      if (response.success && response.data) {
+        const d = response.data
+        const formatted: BalanceData = {
+          balance: Number(d.Balance ?? 0),
+          equity: Number(d.Equity ?? 0),
+          margin: Number(d.Margin ?? 0),
+          freeMargin: Number(d.MarginFree ?? 0),
+          marginLevel: Number(d.MarginLevel ?? 0),
+          profit: Number(d.Profit ?? 0),
+          leverage: (d.Leverage || d.MarginLeverage) ? `1:${d.Leverage || d.MarginLeverage}` : '1:200',
+          totalPL: Number(((d.Equity ?? 0) - (d.Balance ?? 0)).toFixed(2)),
+          credit: Number(d.Credit ?? 0),
+          accountType: 'Live',
+          name: d.Name || '',
+          accountGroup: d.Group || 'standard',
+          groupName: '',
         }
 
-        const balance = Number(apiData.Balance ?? apiData.balance ?? 0) || 0
-        const equity = Number(apiData.Equity ?? apiData.equity ?? 0) || 0
-        const margin = Number(apiData.Margin ?? apiData.MarginUsed ?? apiData.marginUsed ?? apiData.margin ?? 0) || 0
-        const freeMargin = Number(apiData.FreeMargin ?? apiData.freeMargin ?? 0) || 0
-        const credit = Number(apiData.Credit ?? apiData.credit ?? 0) || 0
-        const totalPL = equity - balance
-        const profit = Number(apiData.Profit ?? apiData.profit ?? totalPL) || totalPL
-
-        const groupValue = apiData.Group ?? apiData.group ?? ""
-        const accountGroup = groupValue ? groupValue.split("\\").pop()?.toLowerCase() || "standard" : "standard"
-        const groupName = groupValue || "" // Full group name to match group_management.group
-        const groupLower = groupValue.toLowerCase()
-        let finalAccountType: "Demo" | "Live" = "Live"
-
-        if (groupLower.includes("demo")) {
-          finalAccountType = "Demo"
-        } else if (groupLower.includes("live")) {
-          finalAccountType = "Live"
-        } else {
-          const accountTypeFromField =
-            apiData.AccountType === "Live" || apiData.accountType === "Live" ? "Live" : "Demo"
-          finalAccountType = accountTypeFromField
-        }
-
-        const newBalanceData: BalanceData = {
-          balance,
-          equity,
-          margin,
-          freeMargin,
-          marginLevel: apiData.MarginLevel ?? apiData.marginLevel ?? 0,
-          profit,
-          leverage: apiData.Leverage ?? apiData.leverage ?? "1:200",
-          totalPL: parseFloat(totalPL.toFixed(2)),
-          credit,
-          name: apiData.Name ?? apiData.name ?? "Test",
-          accountGroup,
-          groupName, // Full group name for symbol access filtering
-          accountType: finalAccountType,
-        }
-
-        console.log(`[useAccountBalances] Successfully processed balance data for ${accountId}:`, newBalanceData)
-        saveBalanceCache(accountId, newBalanceData)
-        setBalances(prev => {
-          if (!accountIdsRef.current.includes(accountId)) {
-            console.warn(`[useAccountBalances] Account ${accountId} not in current accountIds list, skipping update`)
-            return prev
-          }
-          const updated = { ...prev, [accountId]: { ...newBalanceData } }
-          console.log(`[useAccountBalances] Updated balances state for ${accountId}:`, updated)
-          return updated
-        })
+        setBalances(prev => ({ ...prev, [accountId]: formatted }))
         setErrors(prev => ({ ...prev, [accountId]: null }))
+        saveBalanceCache(accountId, formatted)
       } else {
-        throw new Error(result.error || result.message || "Failed to load account data.")
+        throw new Error(response.message || 'API Error')
       }
-    } catch (e) {
-      const errorMessage = `Failed to fetch balance for ${accountId}: ${e instanceof Error ? e.message : "Unknown error"}`
-      setErrors(prev => ({ ...prev, [accountId]: errorMessage }))
+    } catch (e: any) {
+      console.error(`[useAccountBalances] Error for ${accountId}:`, e)
+      setErrors(prev => ({ ...prev, [accountId]: e.message }))
     } finally {
       setIsLoading(prev => ({ ...prev, [accountId]: false }))
     }
@@ -275,7 +165,7 @@ export function useMultiAccountBalancePolling(accountIds: string[]) {
       }
 
       pendingRequestsRef.current.add(accountId)
-      setIsLoading(prev => ({ ...prev, [accountId]: true }))
+      if (isInitial) setIsLoading(prev => ({ ...prev, [accountId]: true }))
 
       try {
         await fetchAccountBalance(accountId, isInitial)
@@ -288,19 +178,12 @@ export function useMultiAccountBalancePolling(accountIds: string[]) {
 
   // Initial fetch for all accounts
   React.useEffect(() => {
-    if (accountIdsRef.current.length === 0) {
-      console.log('[useAccountBalances] No account IDs to fetch balances for')
-      return
-    }
+    if (accountIdsRef.current.length === 0) return
 
-    console.log('[useAccountBalances] Starting initial fetch for accounts:', accountIdsRef.current)
     accountIdsRef.current.forEach(accountId => {
       const cached = loadBalanceCache(accountId)
       if (cached) {
-        console.log(`[useAccountBalances] Using cached balance for ${accountId}:`, cached)
         setBalances(prev => ({ ...prev, [accountId]: cached }))
-      } else {
-        console.log(`[useAccountBalances] No cache for ${accountId}, fetching from API`)
       }
       throttledFetchAccountBalance(accountId, true)
     })
@@ -314,7 +197,7 @@ export function useMultiAccountBalancePolling(accountIds: string[]) {
       accountIdsRef.current.forEach(accountId => {
         throttledFetchAccountBalance(accountId, false)
       })
-    }, 3000) // Poll every 3 seconds
+    }, 200) // Poll every 200ms
 
     return () => {
       if (intervalRef.current) {
