@@ -20,6 +20,7 @@ interface AccountContextType {
   setCurrentAccountId: (accountId: string | null) => void
   defaultAccountId: string | null
   isLoading: boolean
+  isAccountSwitching: boolean
   error: string | null
   refreshAccounts: () => Promise<void>
   balances: Record<string, any>
@@ -39,6 +40,7 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
   const [currentAccountId, setCurrentAccountIdState] = useState<string | null>(null)
   const [defaultAccountId, setDefaultAccountId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [isAccountSwitching, setIsAccountSwitching] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   // Get account IDs for balance polling
@@ -125,11 +127,19 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
   }, [fetchAccounts, isAuthenticated, isAuthLoading])
 
   const setCurrentAccountId = useCallback((accountId: string | null) => {
+    // Show loading immediately
+    setIsAccountSwitching(true)
+
     setCurrentAccountIdState(accountId)
     if (accountId && typeof window !== 'undefined') {
       localStorage.setItem('defaultMt5Account', accountId)
       localStorage.setItem('accountId', accountId)
     }
+
+    // Hide loading after a short delay to allow UI updates
+    setTimeout(() => {
+      setIsAccountSwitching(false)
+    }, 300)
   }, [])
 
   const refreshAccounts = useCallback(async () => {
@@ -144,6 +154,7 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
         setCurrentAccountId,
         defaultAccountId,
         isLoading,
+        isAccountSwitching,
         error,
         refreshAccounts,
         balances,

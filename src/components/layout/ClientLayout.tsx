@@ -29,12 +29,15 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
 }
 
 import { WebSocketProvider } from '../../context/WebSocketContext';
+import { TradingProvider } from '../../context/TradingContext';
 
 export default function ClientLayout({ children }: { children: React.ReactNode }) {
     return (
         <SidebarProvider>
             <WebSocketProvider>
-                <LayoutContent>{children}</LayoutContent>
+                <TradingProvider>
+                    <LayoutContent>{children}</LayoutContent>
+                </TradingProvider>
             </WebSocketProvider>
         </SidebarProvider>
     );

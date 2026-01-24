@@ -12,7 +12,8 @@ export default function AccountDropdown({ isOpen, onClose }) {
     mt5Accounts,
     currentAccountId,
     setCurrentAccountId,
-    isLoading: isAccountsLoading
+    isLoading: isAccountsLoading,
+    isAccountSwitching
   } = useAccount();
 
   const [currentData, setCurrentData] = useState<any>(null);
@@ -114,6 +115,7 @@ export default function AccountDropdown({ isOpen, onClose }) {
 
   const renderValue = (val: number, isPercent = false) => {
     if (hideBalance) return '***';
+    if (isAccountSwitching) return <span className="animate-pulse text-gray-500">...</span>;
     if (showLoader && !currentData) return <span className="animate-wavy opacity-40">~~~</span>;
     if (isPercent) return `${val.toFixed(2)} %`;
     return `${formatCurrency(val, 2)} USD`;

@@ -11,7 +11,7 @@ import { useTrading } from '../../context/TradingContext'
 import { cn } from '../../lib/utils'
 
 // Extract Row for performance/blink logic
-const InstrumentRow = ({ item, isVisible, toggleFavorite, lastQuote, handleDragStart, handleDragEnter, handleDragEnd, idx, onSelect }) => {
+const InstrumentRow = ({ item, isVisible, toggleFavorite, lastQuote, handleDragStart, handleDragEnter, handleDragEnd, idx, onSelect, addNavbarTab }) => {
   // Refs for tracking previous values to trigger blinks
   const prevBidRef = useRef(item.bid);
   const prevAskRef = useRef(item.ask);
@@ -79,7 +79,13 @@ const InstrumentRow = ({ item, isVisible, toggleFavorite, lastQuote, handleDragS
       onDragStart={(e) => handleDragStart(e, idx)}
       onDragEnter={(e) => handleDragEnter(e, idx)}
       onDragEnd={handleDragEnd}
-      onClick={() => onSelect(item.symbol)}
+      onClick={() => {
+        onSelect(item.symbol);
+        // Also add to Navbar if not already there
+        if (addNavbarTab) {
+          addNavbarTab(item.symbol);
+        }
+      }}
       className="group grid grid-cols-[30px_36px_1fr_auto_auto_auto_30px] gap-0 items-center border-b border-gray-800 hover:bg-[#1c252f] transition-colors h-[40px] cursor-pointer"
     >
       {/* Grip Handle */}
@@ -150,7 +156,7 @@ const InstrumentRow = ({ item, isVisible, toggleFavorite, lastQuote, handleDragS
 
 export default function WatchlistPanel({ onClose }) {
   const { currentAccount } = useAccount()
-  const { setSymbol } = useTrading()
+  const { setSymbol, addNavbarTab } = useTrading()
   const {
     instruments,
     categories: dynamicCategories,
@@ -393,6 +399,7 @@ export default function WatchlistPanel({ onClose }) {
               handleDragEnter={handleDragEnter}
               handleDragEnd={handleDragEnd}
               onSelect={setSymbol}
+              addNavbarTab={addNavbarTab}
             />
           ))
         )}

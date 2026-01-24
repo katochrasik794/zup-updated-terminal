@@ -24,6 +24,8 @@ import { useAuth } from '../../context/AuthContext'
 import { usePrivacy } from '../../context/PrivacyContext'
 import { useAccount } from '../../context/AccountContext'
 import { formatCurrency, cn } from '../../lib/utils'
+import { useInstruments } from '../../context/InstrumentContext'
+import { useTrading } from '../../context/TradingContext'
 
 // InstrumentTab Component
 interface Tab {
@@ -96,12 +98,18 @@ export default function Navbar({ logoLarge, logoSmall }: NavbarProps) {
     isBalanceLoading
   } = useAccount();
 
-  const [tabs, setTabs] = useState<Tab[]>([
-    { id: '1', symbol: 'XAU/USD', flagType: 'xauusd', isActive: true },
-    { id: '2', symbol: 'US500', flagType: 'us500', isActive: false },
-    { id: '3', symbol: 'BTC', flagType: 'btc', isActive: false },
-    { id: '4', symbol: 'USD/JPY', flagType: 'usdjpy', isActive: false }
-  ])
+  const { instruments } = useInstruments();
+
+  // Initialize tabs with BTCUSD and XAUUSD based on available instruments
+  const [tabs, setTabs] = useState<Tab[]>(() => {
+    const btcSymbol = instruments.find(i => i.symbol.toUpperCase().startsWith('BTCUSD'))?.symbol || 'BTCUSD';
+    const xauSymbol = instruments.find(i => i.symbol.toUpperCase().startsWith('XAUUSD'))?.symbol || 'XAUUSD';
+
+    return [
+      { id: '1', symbol: btcSymbol, flagType: btcSymbol.toLowerCase(), isActive: true },
+      { id: '2', symbol: xauSymbol, flagType: xauSymbol.toLowerCase(), isActive: false }
+    ];
+  });
 
   const [currentData, setCurrentData] = useState<any>(null);
 
@@ -130,6 +138,19 @@ export default function Navbar({ logoLarge, logoSmall }: NavbarProps) {
     return () => clearInterval(intervalId);
   }, [fetchCurrentBalance]);
 
+  // Update tabs when instruments change (account group change)
+  useEffect(() => {
+    if (instruments.length > 0) {
+      const btcSymbol = instruments.find(i => i.symbol.toUpperCase().startsWith('BTCUSD'))?.symbol || 'BTCUSD';
+      const xauSymbol = instruments.find(i => i.symbol.toUpperCase().startsWith('XAUUSD'))?.symbol || 'XAUUSD';
+
+      setTabs([
+        { id: '1', symbol: btcSymbol, flagType: btcSymbol.toLowerCase(), isActive: true },
+        { id: '2', symbol: xauSymbol, flagType: xauSymbol.toLowerCase(), isActive: false }
+      ]);
+    }
+  }, [instruments, currentAccountId]);
+
   // Get current account info
   const currentAccount = mt5Accounts.find(acc => acc.accountId === currentAccountId)
   const accountInfo = {
@@ -148,7 +169,15 @@ export default function Navbar({ logoLarge, logoSmall }: NavbarProps) {
   const [isDepositPopupOpen, setIsDepositPopupOpen] = useState(false)
   const addTabButtonRef = useRef<HTMLButtonElement>(null)
 
+  const { setSymbol, setAddNavbarTab } = useTrading();
+
   const handleTabClick = (tabId: string) => {
+    const clickedTab = tabs.find(tab => tab.id === tabId);
+    if (clickedTab) {
+      // Update Order Panel with the clicked symbol
+      setSymbol(clickedTab.symbol);
+    }
+
     setTabs(prevTabs =>
       prevTabs.map(tab => ({
         ...tab,
@@ -191,14 +220,24 @@ export default function Navbar({ logoLarge, logoSmall }: NavbarProps) {
       isActive: true
     }
 
+    // Update Order Panel with the new symbol
+    setSymbol(symbolData.symbol);
+
     setTabs(prevTabs =>
       prevTabs.map(tab => ({ ...tab, isActive: false })).concat([newTab])
     )
   }
 
+  // Register handleSelectSymbol with TradingContext so Watchlist can add tabs
+  useEffect(() => {
+    setAddNavbarTab(() => (symbol: string) => {
+      handleSelectSymbol({ symbol });
+    });
+  }, [setAddNavbarTab]);
+
   return (
     <nav className="bg-background flex-shrink-0 border border-gray-800">
-      <div className="flex items-center h-10 px-2">
+      <div className="flex items-center h-14 px-2">
         {/* Logo */}
         <div className="px-2 flex-shrink-0">
           <div className='flex items-center'>

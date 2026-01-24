@@ -13,9 +13,6 @@ import { useSidebar } from '../context/SidebarContext'
 
 import { ImperativePanelHandle } from 'react-resizable-panels'
 
-import { TradingProvider } from '../context/TradingContext'
-import { WebSocketProvider } from '../context/WebSocketContext'
-
 import ModifyPositionModal from '../components/modals/ModifyPositionModal'
 
 export default function TradingTerminal() {
@@ -197,7 +194,7 @@ export default function TradingTerminal() {
   }, [isSidebarExpanded])
 
   return (
-    <TradingProvider>
+    <>
       <ResizablePanelGroup direction="horizontal" className="flex-1 overflow-hidden min-h-0">
         {/* Left sidebar with panels */}
         <ResizablePanel
@@ -250,30 +247,28 @@ export default function TradingTerminal() {
                     </ResizablePanel>
                   </>
                 )}
-              </ResizablePanelGroup>
 
-              {/* Minimized Bottom Panel */}
-              {!isBottomPanelVisible && (
-                <div className="flex-none h-[40px] border-t border-gray-800 bg-black">
-                  <BottomPanel
-                    openPositions={openPositions}
-                    onClosePosition={handleClosePosition}
-                    onCloseGroup={handleCloseGroup}
-                    closedToast={closedToast}
-                    setClosedToast={setClosedToast}
-                    onCloseAll={handleCloseAll}
-                    isMinimized={true}
-                    onHide={() => setIsBottomPanelVisible(true)}
-                  />
-                </div>
-              )}
+                {/* Minimized Bottom Panel */}
+                {!isBottomPanelVisible && (
+                  <div className="flex-none h-[40px] border-t border-gray-800 bg-black">
+                    <BottomPanel
+                      openPositions={openPositions}
+                      onClosePosition={handleClosePosition}
+                      onCloseGroup={handleCloseGroup}
+                      closedToast={closedToast}
+                      setClosedToast={setClosedToast}
+                      onCloseAll={handleCloseAll}
+                      isMinimized={true}
+                      onHide={() => setIsBottomPanelVisible(true)}
+                    />
+                  </div>
+                )}
+              </ResizablePanelGroup>
             </div>
 
-
-
-            {/* Right sidebar - Order Panel with full height */}
+            {/* Order Panel */}
             {isRightSidebarOpen && (
-              <div className="w-[260px] h-full flex-shrink-0 overflow-hidden">
+              <div className="w-[280px] border-l border-[#2a2f36] bg-background flex-shrink-0">
                 <OrderPanel onClose={() => setIsRightSidebarOpen(false)} />
               </div>
             )}
@@ -290,8 +285,6 @@ export default function TradingTerminal() {
             )}
           </div>
 
-
-
           {/* Status bar only for center and right areas */}
           <StatusBar
             openPositions={openPositions}
@@ -300,6 +293,6 @@ export default function TradingTerminal() {
         </ResizablePanel>
       </ResizablePanelGroup>
       <ModifyPositionModal />
-    </TradingProvider>
+    </>
   )
 }
