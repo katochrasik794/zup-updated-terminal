@@ -23,6 +23,7 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
     volume: true,
     openPrice: true,
     currentPrice: false,
+    closePrice: true, // For closed trades - show by default in Closed tab
     tp: true,
     sl: true,
     ticket: true,
@@ -34,7 +35,7 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
 
   // Initial order matching the default view
   const [columnOrder, setColumnOrder] = useState([
-    'type', 'volume', 'openPrice', 'currentPrice', 'tp', 'sl', 'ticket', 'openTime', 'swap', 'commission', 'marketCloses'
+    'type', 'volume', 'openPrice', 'currentPrice', 'closePrice', 'tp', 'sl', 'ticket', 'openTime', 'swap', 'commission', 'marketCloses'
   ])
 
   const toggleColumn = (id) => {
@@ -105,8 +106,9 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
   const columnDefs = {
     type: { label: 'Type', align: 'left' },
     volume: { label: 'Volume', align: 'right' },
-    openPrice: { label: 'Open Price', align: 'right' },
+    openPrice: { label: 'Open Price', align: 'right' }, // For pending orders, this shows PriceOrder
     currentPrice: { label: 'Current Price', align: 'right' },
+    closePrice: { label: 'Close Price', align: 'right' },
     tp: { label: 'Take Profit', align: 'center' },
     sl: { label: 'Stop Loss', align: 'center' },
     ticket: { label: 'Position', align: 'left' },
@@ -119,9 +121,11 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
   const renderCell = (colId, position, isGroupedView) => {
     switch (colId) {
       case 'type':
-        const isBuy = position.type === 'Buy'
-        const isSell = position.type === 'Sell'
+        const isBuy = position.type === 'Buy' || position.type === 'Buy Limit' || position.type === 'Buy Stop'
+        const isSell = position.type === 'Sell' || position.type === 'Sell Limit' || position.type === 'Sell Stop'
         const isHedged = position.type === 'Hedged'
+        const isLimit = position.type === 'Buy Limit' || position.type === 'Sell Limit'
+        const isStop = position.type === 'Buy Stop' || position.type === 'Sell Stop'
 
         let badgeClass = ''
         if (isBuy) badgeClass = 'bg-[#00ffaa]/10 text-[#00ffaa]'
@@ -129,7 +133,7 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
         else badgeClass = 'bg-white/10 text-white'
 
         return (
-          <span className={`px-2 py-0.5 rounded text-[13px] font-medium inline-flex items-center gap-1.5 w-fit ${badgeClass}`}>
+          <span className={`px-1.5 py-0.5 rounded text-[11px] font-medium inline-flex items-center gap-1 w-fit ${badgeClass}`}>
             {isHedged ? (
               <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <circle cx="6" cy="6" r="6" fill="#f6465d" />
@@ -138,7 +142,7 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
             ) : (
               <span className={`w-2 h-2 rounded-full ${isBuy ? 'bg-[#00ffaa]' : 'bg-[#f6465d]'}`}></span>
             )}
-            {position.type === 'Hedged' ? 'Hedged' : position.type}
+            {position.type}
           </span>
         )
       case 'volume':
@@ -146,11 +150,17 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
       case 'openPrice':
         return <span className="text-white">{position.openPrice}</span>
       case 'currentPrice':
-        return <span className="text-white">{position.currentPrice || (position.closePrice) || '-'}</span>
+        return <span className="text-white">{position.currentPrice || '-'}</span>
+      case 'closePrice':
+        return <span className="text-white">{position.closePrice || position.currentPrice || '-'}</span>
       case 'tp':
         if (isGroupedView) {
           return <span className="text-[#8b9096]">...</span>
         }
+        // Check if TP is set (not 'Add', not 0, not empty, not null, not undefined)
+        const tpValue = position.tp;
+        const hasTP = tpValue && tpValue !== 'Add' && tpValue !== '0' && tpValue !== 0 && Number(tpValue) !== 0;
+        const displayTP = hasTP ? tpValue : 'Not Set';
         return (
           <span
             className="text-[#8b9096] cursor-pointer hover:text-white hover:underline decoration-dashed decoration-1 underline-offset-2"
@@ -159,13 +169,17 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
               setEditingPosition(position)
             }}
           >
-            {position.tp || 'Add'}
+            {displayTP}
           </span>
         )
       case 'sl':
         if (isGroupedView) {
           return <span className="text-[#8b9096]">...</span>
         }
+        // Check if SL is set (not 'Add', not 0, not empty, not null, not undefined)
+        const slValue = position.sl;
+        const hasSL = slValue && slValue !== 'Add' && slValue !== '0' && slValue !== 0 && Number(slValue) !== 0;
+        const displaySL = hasSL ? slValue : 'Not Set';
         return (
           <span
             className="text-[#8b9096] cursor-pointer hover:text-white hover:underline decoration-dashed decoration-1 underline-offset-2"
@@ -174,7 +188,7 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
               setEditingPosition(position)
             }}
           >
-            {position.sl || 'Add'}
+            {displaySL}
           </span>
         )
       case 'ticket':
@@ -224,7 +238,7 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
           {isMinimized ? (
             <div className="px-5 text-[14px] font-medium text-white flex items-center gap-2">
               <span>Open Positions</span>
-              <span className="text-[11px] px-1.5 py-0.5 rounded-[3px] leading-none bg-[#2a3038] text-white">
+              <span className="text-[11px] px-1.5 py-0.5 rounded-[3px] leading-none bg-[#8b5cf6] text-white">
                 {openPositions.length}
               </span>
             </div>
@@ -240,8 +254,13 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
               >
                 {tab}
                 {tab === 'Open' && (
-                  <span className={`text-[11px] px-1.5 py-0.5 rounded-[3px] leading-none ${activeTab === 'Open' ? 'bg-[#2a3038] text-white' : 'bg-[#2a3038] text-[#8b9096]'
-                    }`}>{openPositions.length}</span>
+                  <span className={`text-[11px] px-1.5 py-0.5 rounded-[3px] leading-none bg-[#8b5cf6] text-white`}>{openPositions.length}</span>
+                )}
+                {tab === 'Pending' && (
+                  <span className={`text-[11px] px-1.5 py-0.5 rounded-[3px] leading-none bg-[#8b5cf6] text-white`}>{pendingPositions.length}</span>
+                )}
+                {tab === 'Closed' && (
+                  <span className={`text-[11px] px-1.5 py-0.5 rounded-[3px] leading-none bg-[#8b5cf6] text-white`}>{closedPositions.length}</span>
                 )}
               </button>
             ))
@@ -309,22 +328,41 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
       {!isMinimized && (
         <>
           <div className="flex-1 overflow-auto bg-background min-h-0">
-            <table className="w-full text-[14px] border-collapse min-w-max">
+            <table className="w-full text-[12px] border-collapse min-w-max">
               <thead className="sticky top-0 bg-[#02040d] z-40">
-                <tr className="text-[12px] text-gray-400 border-b border-gray-800">
+                <tr className="text-[11px] text-gray-400 border-b border-gray-800">
                   {/* Symbol is fixed */}
-                  <th className="px-4 py-[4px] text-left font-normal whitespace-nowrap bg-[#02040d] z-50 sticky left-0">Symbol</th>
+                  <th className="px-3 py-[3px] text-left font-normal whitespace-nowrap bg-[#02040d] z-50 sticky left-0">Symbol</th>
 
                   {/* Dynamic Columns */}
-                  {columnOrder.map(colId => visibleColumns[colId] && (
-                    <th key={colId} className={`px-4 py-[4px] font-normal whitespace-nowrap text-${columnDefs[colId].align}`}>
-                      {columnDefs[colId].label}
-                    </th>
-                  ))}
+                  {columnOrder.map(colId => {
+                    // Hide swap, commission, and ticket (Position) columns for Pending tab
+                    if (activeTab === 'Pending' && (colId === 'swap' || colId === 'commission' || colId === 'ticket')) {
+                      return null;
+                    }
+                    // Show closePrice only in Closed tab, hide currentPrice in Closed tab
+                    if (activeTab === 'Closed') {
+                      if (colId === 'currentPrice') return null; // Hide currentPrice in Closed tab
+                      if (colId === 'closePrice' && !visibleColumns[colId]) return null; // Show closePrice if visible
+                    } else {
+                      if (colId === 'closePrice') return null; // Hide closePrice in Open/Pending tabs
+                    }
+                    // For Pending tab, show currentPrice even if it's set to false in visibleColumns
+                    const shouldShow = activeTab === 'Pending' && colId === 'currentPrice' 
+                      ? true 
+                      : visibleColumns[colId];
+                    return shouldShow && (
+                      <th key={colId} className={`px-3 py-[3px] font-normal whitespace-nowrap text-${columnDefs[colId].align}`}>
+                        {activeTab === 'Pending' && colId === 'openPrice' ? 'Order Price' : columnDefs[colId].label}
+                      </th>
+                    );
+                  })}
 
-                  {/* Sticky Columns Header */}
-                  <th className="px-4 text-right font-normal whitespace-nowrap sticky right-[90px] bg-[#02040d] z-50 shadow-[-10px_0_10px_-5px_rgba(0,0,0,0.3)] border-b border-gray-800">P/L</th>
-                  <th className="px-4 text-center font-normal w-[90px] min-w-[90px] sticky right-0 bg-[#02040d] z-50 border-b border-gray-800"></th>
+                  {/* Sticky Columns Header - Hide P/L for Pending tab */}
+                  {activeTab !== 'Pending' && (
+                    <th className="px-3 py-[3px] text-right font-normal whitespace-nowrap sticky right-[90px] bg-[#02040d] z-50 shadow-[-10px_0_10px_-5px_rgba(0,0,0,0.3)] border-b border-gray-800 w-[120px] min-w-[120px]">P/L</th>
+                  )}
+                  <th className="px-3 py-[3px] text-center font-normal w-[90px] min-w-[90px] sticky right-0 bg-[#02040d] z-50 border-b border-gray-800"></th>
                 </tr>
               </thead>
               <tbody>
@@ -334,38 +372,57 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
                       onClick={() => isGrouped && toggleGroup(position.symbol)}
                       className={`border-b border-gray-800 hover:bg-[#1c252f] group ${isGrouped ? 'cursor-pointer' : ''}`}
                     >
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        <div className="flex items-center gap-2">
+                      <td className="px-3 py-1.5 whitespace-nowrap">
+                        <div className="flex items-center gap-1.5">
                           {isGrouped && (
                             <div className={`text-gray-400 transition-transform duration-200 ${expandedGroups[position.symbol] ? '' : '-rotate-90'}`}>
-                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                 <polyline points="6 9 12 15 18 9" />
                               </svg>
                             </div>
                           )}
-                          <div className="w-6 h-6 relative">
+                          <div className="w-5 h-5 relative">
                             <FlagIcon type={position.flag || 'xauusd'} />
                           </div>
                           <span className="text-white font-medium">{position.symbol}</span>
                           {isGrouped && position.count > 1 && (
-                            <span className="ml-1 text-[12px] bg-[#2a3038] text-[#8b9096] px-1.5 rounded">{position.count}</span>
+                            <span className="ml-1 text-[10px] bg-[#8b5cf6] text-white px-1 rounded">{position.count}</span>
                           )}
                         </div>
                       </td>
 
                       {/* Dynamic Columns */}
-                      {columnOrder.map(colId => visibleColumns[colId] && (
-                        <td key={colId} className={`px-4 py-3 whitespace-nowrap text-${columnDefs[colId].align}`}>
-                          {renderCell(colId, position, isGrouped)}
-                        </td>
-                      ))}
+                      {columnOrder.map(colId => {
+                        // Hide swap, commission, and ticket (Position) columns for Pending tab
+                        if (activeTab === 'Pending' && (colId === 'swap' || colId === 'commission' || colId === 'ticket')) {
+                          return null;
+                        }
+                        // Show closePrice only in Closed tab, hide currentPrice in Closed tab
+                        if (activeTab === 'Closed') {
+                          if (colId === 'currentPrice') return null; // Hide currentPrice in Closed tab
+                          if (colId === 'closePrice' && !visibleColumns[colId]) return null; // Show closePrice if visible
+                        } else {
+                          if (colId === 'closePrice') return null; // Hide closePrice in Open/Pending tabs
+                        }
+                        // For Pending tab, show currentPrice even if it's set to false in visibleColumns
+                        const shouldShow = activeTab === 'Pending' && colId === 'currentPrice' 
+                          ? true 
+                          : visibleColumns[colId];
+                        return shouldShow && (
+                          <td key={colId} className={`px-3 py-1.5 whitespace-nowrap text-${columnDefs[colId].align}`}>
+                            {renderCell(colId, position, isGrouped)}
+                          </td>
+                        );
+                      })}
 
-                      {/* Sticky Columns Data */}
-                      <td className="px-4 py-3 text-right whitespace-nowrap sticky right-[90px] bg-[#02040d] group-hover:bg-[#1c252f] z-20 shadow-[-10px_0_10px_-5px_rgba(0,0,0,0.3)] border-b border-gray-800">
-                        <span className={`font-medium ${position.plColor}`}>{position.pl}</span>
-                      </td>
-                      <td className="px-4 py-3 text-center whitespace-nowrap sticky right-0 bg-[#02040d] group-hover:bg-[#1c252f] z-20 border-b border-gray-800">
-                        <div className="flex items-center justify-center gap-1">
+                      {/* Sticky Columns Data - Hide P/L for Pending tab */}
+                      {activeTab !== 'Pending' && (
+                        <td className="px-3 py-1.5 text-right whitespace-nowrap sticky right-[90px] bg-[#02040d] group-hover:bg-[#1c252f] z-20 shadow-[-10px_0_10px_-5px_rgba(0,0,0,0.3)] border-b border-gray-800 w-[120px] min-w-[120px]">
+                          <span className={`font-medium ${position.plColor}`}>{position.pl}</span>
+                        </td>
+                      )}
+                      <td className="px-3 py-1.5 text-center whitespace-nowrap sticky right-0 bg-[#02040d] group-hover:bg-[#1c252f] z-20 border-b border-gray-800">
+                        <div className="flex items-center justify-center gap-0.5">
                           {!isGrouped ? (
                             <>
                               <IconButton
@@ -377,7 +434,7 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
                                   setEditingPosition(position);
                                 }}
                               >
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                                 </svg>
                               </IconButton>
@@ -390,7 +447,7 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
                                   onClosePosition(position)
                                 }}
                               >
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
                                 </svg>
                               </IconButton>
@@ -402,7 +459,7 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
                               className="text-[#8b9096]"
                               onClick={(e) => handleCloseGroup(e, position.symbol)}
                             >
-                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
                               </svg>
                             </IconButton>
@@ -428,28 +485,47 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
                                       key={`${position.symbol}-${subIdx}`}
                                       className="border-b border-gray-800 hover:bg-[#1c252f] group/sub"
                                     >
-                                      <td className="px-4 py-3 whitespace-nowrap">
-                                        <div className="flex items-center gap-2 pl-8">
-                                          <div className="w-6 h-6 relative opacity-50">
+                                      <td className="px-3 py-1.5 whitespace-nowrap">
+                                        <div className="flex items-center gap-1.5 pl-6">
+                                          <div className="w-5 h-5 relative opacity-50">
                                             <FlagIcon type={subPos.flag || 'xauusd'} />
                                           </div>
-                                          <span className="text-gray-400 font-medium">{subPos.symbol}</span>
+                                          <span className="text-gray-400 font-medium text-[12px]">{subPos.symbol}</span>
                                         </div>
                                       </td>
 
                                       {/* Dynamic Columns */}
-                                      {columnOrder.map(colId => visibleColumns[colId] && (
-                                        <td key={colId} className={`px-4 py-3 whitespace-nowrap text-${columnDefs[colId].align}`}>
-                                          {renderCell(colId, subPos, false)}
-                                        </td>
-                                      ))}
+                                      {columnOrder.map(colId => {
+                                        // Hide swap, commission, and ticket (Position) columns for Pending tab
+                                        if (activeTab === 'Pending' && (colId === 'swap' || colId === 'commission' || colId === 'ticket')) {
+                                          return null;
+                                        }
+                                        // Show closePrice only in Closed tab, hide currentPrice in Closed tab
+                                        if (activeTab === 'Closed') {
+                                          if (colId === 'currentPrice') return null; // Hide currentPrice in Closed tab
+                                          if (colId === 'closePrice' && !visibleColumns[colId]) return null; // Show closePrice if visible
+                                        } else {
+                                          if (colId === 'closePrice') return null; // Hide closePrice in Open/Pending tabs
+                                        }
+                                        // For Pending tab, show currentPrice even if it's set to false in visibleColumns
+                                        const shouldShow = activeTab === 'Pending' && colId === 'currentPrice' 
+                                          ? true 
+                                          : visibleColumns[colId];
+                                        return shouldShow && (
+                                          <td key={colId} className={`px-3 py-1.5 whitespace-nowrap text-${columnDefs[colId].align}`}>
+                                            {renderCell(colId, subPos, false)}
+                                          </td>
+                                        );
+                                      })}
 
-                                      {/* Sticky Columns Data */}
-                                      <td className="px-4 py-3 text-right whitespace-nowrap sticky right-[90px] bg-[#02040d] group-hover/sub:bg-[#1c252f] z-20 shadow-[-10px_0_10px_-5px_rgba(0,0,0,0.3)] border-b border-gray-800">
-                                        <span className={`font-medium ${subPos.plColor}`}>{subPos.pl}</span>
-                                      </td>
-                                      <td className="px-4 py-3 text-center whitespace-nowrap sticky right-0 bg-[#02040d] group-hover/sub:bg-[#1c252f] z-20 border-b border-gray-800">
-                                        <div className="flex items-center justify-center gap-1">
+                                      {/* Sticky Columns Data - Hide P/L for Pending tab */}
+                                      {activeTab !== 'Pending' && (
+                                        <td className="px-3 py-1.5 text-right whitespace-nowrap sticky right-[90px] bg-[#02040d] group-hover/sub:bg-[#1c252f] z-20 shadow-[-10px_0_10px_-5px_rgba(0,0,0,0.3)] border-b border-gray-800 w-[120px] min-w-[120px]">
+                                          <span className={`font-medium ${subPos.plColor}`}>{subPos.pl}</span>
+                                        </td>
+                                      )}
+                                      <td className="px-3 py-1.5 text-center whitespace-nowrap sticky right-0 bg-[#02040d] group-hover/sub:bg-[#1c252f] z-20 border-b border-gray-800">
+                                        <div className="flex items-center justify-center gap-0.5">
                                           <IconButton
                                             tooltip="Edit"
                                             placement="left"
@@ -459,7 +535,7 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
                                               setEditingPosition(subPos);
                                             }}
                                           >
-                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                                             </svg>
                                           </IconButton>
@@ -472,7 +548,7 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
                                               onClosePosition(subPos)
                                             }}
                                           >
-                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
                                             </svg>
                                           </IconButton>
@@ -494,9 +570,9 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
                     key={idx}
                     className="border-b border-gray-800 hover:bg-[#1c252f] group"
                   >
-                    <td className="px-4 py-3 whitespace-nowrap">
-                      <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 relative">
+                    <td className="px-3 py-1.5 whitespace-nowrap">
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-5 h-5 relative">
                           <FlagIcon type={position.flag || 'xauusd'} />
                         </div>
                         <span className="text-white font-medium">{position.symbol}</span>
@@ -504,28 +580,126 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
                     </td>
 
                     {/* Dynamic Columns */}
-                    {columnOrder.map(colId => visibleColumns[colId] && (
-                      <td key={colId} className={`px-4 py-3 whitespace-nowrap text-${columnDefs[colId].align}`}>
-                        {renderCell(colId, position, false)}
-                      </td>
-                    ))}
+                    {columnOrder.map(colId => {
+                      // Hide swap, commission, and ticket (Position) columns for Pending tab
+                      if (activeTab === 'Pending' && (colId === 'swap' || colId === 'commission' || colId === 'ticket')) {
+                        return null;
+                      }
+                      // Show closePrice only in Closed tab, hide currentPrice in Closed tab
+                      if (activeTab === 'Closed') {
+                        if (colId === 'currentPrice') return null; // Hide currentPrice in Closed tab
+                        if (colId === 'closePrice' && !visibleColumns[colId]) return null; // Show closePrice if visible
+                      } else {
+                        if (colId === 'closePrice') return null; // Hide closePrice in Open/Pending tabs
+                      }
+                      // For Pending tab, show currentPrice even if it's set to false in visibleColumns
+                      const shouldShow = activeTab === 'Pending' && colId === 'currentPrice' 
+                        ? true 
+                        : visibleColumns[colId];
+                      return shouldShow && (
+                        <td key={colId} className={`px-3 py-1.5 whitespace-nowrap text-${columnDefs[colId].align}`}>
+                          {renderCell(colId, position, false)}
+                        </td>
+                      );
+                    })}
 
-                    {/* Sticky Columns Data */}
-                    <td className="px-4 py-3 text-right whitespace-nowrap sticky right-[60px] bg-[#02040d] group-hover:bg-[#1c252f] z-20 shadow-[-10px_0_10px_-5px_rgba(0,0,0,0.3)] border-b border-gray-800">
-                      <span className={`font-medium ${position.plColor}`}>{position.pl}</span>
-                    </td>
-                    <td className="px-4 py-3 text-center whitespace-nowrap sticky right-0 bg-[#02040d] group-hover:bg-[#1c252f] z-20 border-b border-gray-800">
+                    {/* Sticky Columns Data - Hide P/L for Pending tab */}
+                    {activeTab !== 'Pending' && (
+                      <td className="px-3 py-1.5 text-right whitespace-nowrap sticky right-[90px] bg-[#02040d] group-hover:bg-[#1c252f] z-20 shadow-[-10px_0_10px_-5px_rgba(0,0,0,0.3)] border-b border-gray-800 w-[120px] min-w-[120px]">
+                        <span className={`font-medium ${position.plColor}`}>{position.pl}</span>
+                      </td>
+                    )}
+                    <td className="px-3 py-1.5 text-center whitespace-nowrap sticky right-0 bg-[#02040d] group-hover:bg-[#1c252f] z-20 border-b border-gray-800">
                       {/* Empty cell for closed positions */}
                     </td>
                   </tr>
                 ))}
 
                 {activeTab === 'Pending' && (
-                  <tr>
-                    <td colSpan="13" className="text-center py-16 text-[#8b9096]">
-                      No pending orders
-                    </td>
-                  </tr>
+                  pendingPositions.length === 0 ? (
+                    <tr>
+                      <td colSpan="13" className="text-center py-16 text-[#8b9096]">
+                        No pending orders
+                      </td>
+                    </tr>
+                  ) : (
+                    pendingPositions.map((position, idx) => (
+                      <tr
+                        key={idx}
+                        className="border-b border-gray-800 hover:bg-[#1c252f] group"
+                      >
+                        <td className="px-3 py-1.5 whitespace-nowrap">
+                          <div className="flex items-center gap-1.5">
+                            <div className="w-5 h-5 relative">
+                              <FlagIcon type={position.flag || 'xauusd'} />
+                            </div>
+                            <span className="text-white font-medium">{position.symbol}</span>
+                          </div>
+                        </td>
+
+                        {/* Dynamic Columns */}
+                        {columnOrder.map(colId => {
+                          // Hide swap, commission, and ticket (Position) columns for Pending tab
+                          if (activeTab === 'Pending' && (colId === 'swap' || colId === 'commission' || colId === 'ticket')) {
+                            return null;
+                          }
+                          // Show closePrice only in Closed tab, hide currentPrice in Closed tab
+                          if (activeTab === 'Closed') {
+                            if (colId === 'currentPrice') return null; // Hide currentPrice in Closed tab
+                            if (colId === 'closePrice' && !visibleColumns[colId]) return null; // Show closePrice if visible
+                          } else {
+                            if (colId === 'closePrice') return null; // Hide closePrice in Open/Pending tabs
+                          }
+                          // For Pending tab, show currentPrice even if it's set to false in visibleColumns
+                          const shouldShow = activeTab === 'Pending' && colId === 'currentPrice' 
+                            ? true 
+                            : visibleColumns[colId];
+                          return shouldShow && (
+                            <td key={colId} className={`px-3 py-1.5 whitespace-nowrap text-${columnDefs[colId].align}`}>
+                              {renderCell(colId, position, false)}
+                            </td>
+                          );
+                        })}
+
+                        {/* Sticky Columns Data - Hide P/L for Pending tab */}
+                        {activeTab !== 'Pending' && (
+                          <td className="px-3 py-1.5 text-right whitespace-nowrap sticky right-[90px] bg-[#02040d] group-hover:bg-[#1c252f] z-20 shadow-[-10px_0_10px_-5px_rgba(0,0,0,0.3)] border-b border-gray-800 w-[120px] min-w-[120px]">
+                            <span className={`font-medium ${position.plColor}`}>{position.pl}</span>
+                          </td>
+                        )}
+                        <td className="px-3 py-1.5 text-center whitespace-nowrap sticky right-0 bg-[#02040d] group-hover:bg-[#1c252f] z-20 border-b border-gray-800">
+                          <div className="flex items-center justify-center gap-0.5">
+                            <IconButton
+                              tooltip="Edit"
+                              placement="left"
+                              className="text-[#8b9096]"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setEditingPosition(position);
+                              }}
+                            >
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                              </svg>
+                            </IconButton>
+                            <IconButton
+                              tooltip="Cancel order"
+                              placement="left"
+                              className="text-[#8b9096]"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                onClosePosition(position)
+                              }}
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                            </IconButton>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )
                 )}
               </tbody>
             </table>

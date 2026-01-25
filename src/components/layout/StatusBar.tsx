@@ -50,7 +50,13 @@ export default function StatusBar({ openPositions = [], onCloseAll }: any) {
   const margin = data?.Margin ?? 0;
   const freeMargin = data?.MarginFree ?? 0;
   const marginLevel = data?.MarginLevel ?? 0;
-  const totalPL = data?.Profit ?? 0;
+  
+  // Calculate P/L from open positions (same as CloseAllPositionsDropdown)
+  // Sum up all position P/L values
+  const totalPL = openPositions.reduce((sum, pos) => {
+    const pl = parseFloat(String(pos.pl || '0').replace('+', ''));
+    return sum + (isNaN(pl) ? 0 : pl);
+  }, 0);
 
   const renderValue = (value: number, suffix: string = 'USD') => {
     if (hideBalance) return '****';
@@ -72,7 +78,7 @@ export default function StatusBar({ openPositions = [], onCloseAll }: any) {
 
       {/* Right section - P/L, Close all, Connection */}
       <div className="flex items-center gap-4">
-        <span>Total P/L, USD: <span className={`font-mono ${totalPL >= 0 ? 'text-[#2ebd85]' : 'text-[#f6465d]'}`}>
+        <span className="text-gray-400">Total P/L, USD: <span className={`font-mono ${totalPL >= 0 ? 'text-[#2ebd85]' : 'text-[#f6465d]'}`}>
           {hideBalance ? '****' : <>{totalPL >= 0 ? '+' : ''}{totalPL.toFixed(2)}</>}
         </span></span>
 

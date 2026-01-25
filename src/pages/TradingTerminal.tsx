@@ -25,8 +25,14 @@ export default function TradingTerminal() {
   const [isRightSidebarOpen, setIsRightSidebarOpen] = useState(true)
   const [isBottomPanelVisible, setIsBottomPanelVisible] = useState(true)
 
-  // Fetch positions using REST API hook
-  const { positions: rawPositions, isLoading: isPositionsLoading, error: positionsError } = usePositions({
+  // Fetch positions, pending orders, and closed positions using REST API hook
+  const { 
+    positions: rawPositions, 
+    pendingOrders: rawPendingOrders,
+    closedPositions: rawClosedPositions,
+    isLoading: isPositionsLoading, 
+    error: positionsError 
+  } = usePositions({
     accountId: currentAccountId,
     enabled: !!currentAccountId,
   });
@@ -60,8 +66,8 @@ export default function TradingTerminal() {
         volume: (pos.volume / 10000).toFixed(2), // Divide by 1000 and format to 2 decimal places
         openPrice: pos.openPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 }),
         currentPrice: pos.currentPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 }),
-        tp: pos.takeProfit ? pos.takeProfit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 }) : 'Add',
-        sl: pos.stopLoss ? pos.stopLoss.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 }) : 'Add',
+        tp: pos.takeProfit && pos.takeProfit !== 0 ? pos.takeProfit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 }) : 'Not Set',
+        sl: pos.stopLoss && pos.stopLoss !== 0 ? pos.stopLoss.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 }) : 'Not Set',
         ticket: pos.ticket.toString(),
         openTime: new Date(pos.openTime).toLocaleString('en-US', { 
           month: 'short', 
@@ -80,9 +86,91 @@ export default function TradingTerminal() {
     });
   }, [rawPositions]);
 
-  // Empty arrays for pending and closed (to be implemented later)
-  const pendingPositions: any[] = [];
-  const closedPositions: any[] = [];
+  // Format pending orders for BottomPanel display
+  const pendingPositions = useMemo(() => {
+    if (!rawPendingOrders || rawPendingOrders.length === 0) return [];
+    
+    return rawPendingOrders.map((pos: Position) => {
+      const profit = pos.profit || 0;
+      const plFormatted = profit >= 0 ? `+${profit.toFixed(2)}` : profit.toFixed(2);
+      const plColor = profit >= 0 ? 'text-[#00ffaa]' : 'text-[#f6465d]';
+      const symbol = pos.symbol || '';
+      const flag = symbol.toLowerCase().replace('/', '');
+      
+      return {
+        symbol,
+        type: pos.type,
+        volume: (pos.volume / 100).toFixed(2), // Divide by 100 for pending orders
+        openPrice: pos.openPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 }),
+        currentPrice: pos.currentPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 }),
+        tp: pos.takeProfit && pos.takeProfit !== 0 ? pos.takeProfit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 }) : 'Not Set',
+        sl: pos.stopLoss && pos.stopLoss !== 0 ? pos.stopLoss.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 }) : 'Not Set',
+        ticket: pos.ticket.toString(),
+        openTime: new Date(pos.openTime).toLocaleString('en-US', { 
+          month: 'short', 
+          day: 'numeric', 
+          hour: 'numeric', 
+          minute: '2-digit',
+          hour12: true 
+        }),
+        swap: pos.swap.toFixed(2),
+        commission: pos.commission.toFixed(2),
+        pl: plFormatted,
+        plColor,
+        flag,
+        id: pos.id,
+      };
+    });
+  }, [rawPendingOrders]);
+
+  // Format closed positions for BottomPanel display
+  const closedPositions = useMemo(() => {
+    if (!rawClosedPositions || rawClosedPositions.length === 0) return [];
+    
+    return rawClosedPositions.map((pos: Position) => {
+      const profit = pos.profit || 0;
+      const plFormatted = profit >= 0 ? `+${profit.toFixed(2)}` : profit.toFixed(2);
+      const plColor = profit >= 0 ? 'text-[#00ffaa]' : 'text-[#f6465d]';
+      const symbol = pos.symbol || '';
+      const flag = symbol.toLowerCase().replace('/', '');
+      
+      // For closed trades, volume is already processed in formatPosition (in lots)
+      // Log to see what volume we're getting
+      console.log(`[TradingTerminal] Closed position volume:`, {
+        ticket: pos.ticket,
+        symbol: pos.symbol,
+        rawVolume: pos.volume,
+        volumeType: typeof pos.volume
+      });
+      
+      // Closed trades volume is already in lots from formatPosition, use as-is
+      // No division needed (unlike open positions which need /10000)
+      return {
+        symbol,
+        type: pos.type,
+        volume: pos.volume.toFixed(2),
+        openPrice: pos.openPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 }),
+        currentPrice: pos.currentPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 }),
+        closePrice: pos.closePrice ? pos.closePrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 }) : pos.currentPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 }),
+        tp: pos.takeProfit && pos.takeProfit !== 0 ? pos.takeProfit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 }) : 'Not Set',
+        sl: pos.stopLoss && pos.stopLoss !== 0 ? pos.stopLoss.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 }) : 'Not Set',
+        ticket: pos.ticket.toString(),
+        openTime: new Date(pos.openTime).toLocaleString('en-US', { 
+          month: 'short', 
+          day: 'numeric', 
+          hour: 'numeric', 
+          minute: '2-digit',
+          hour12: true 
+        }),
+        swap: pos.swap.toFixed(2),
+        commission: pos.commission.toFixed(2),
+        pl: plFormatted,
+        plColor,
+        flag,
+        id: pos.id,
+      };
+    });
+  }, [rawClosedPositions]);
 
   const handleClosePosition = (position: any) => {
     setClosedToast(position)

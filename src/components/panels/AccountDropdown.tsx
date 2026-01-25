@@ -135,6 +135,8 @@ export default function AccountDropdown({ isOpen, onClose }) {
   const marginLevel = currentData?.MarginLevel ?? 0;
   const leverage = (currentData?.Leverage || currentData?.MarginLeverage) ? `1:${currentData.Leverage || currentData.MarginLeverage}` : '1:200';
   const credit = currentData?.Credit ?? 0;
+  // Calculate P/L: Use Profit field from API (same as StatusBar)
+  const profitLoss = currentData?.Profit ?? 0;
 
   const renderValue = (val: number, isPercent = false) => {
     if (hideBalance) return '***';
@@ -167,18 +169,51 @@ export default function AccountDropdown({ isOpen, onClose }) {
             { label: 'Free margin', value: freeMargin },
             { label: 'Margin level', value: marginLevel, isPercent: true },
             { label: 'Account leverage', value: leverage, isLeverage: true },
-            { label: 'Credit', value: credit }
-          ].map((item, idx) => (
-            <div key={idx} className="flex justify-between items-center text-[13px]">
-              <span className="text-gray-400">{item.label}</span>
-              <div className="flex items-center gap-2">
-                <span className={item.color || 'text-white'}>
-                  {item.isLeverage ? item.value : renderValue(item.value as number, item.isPercent)}
-                </span>
-                <FiHelpCircle className="text-gray-600" size={14} />
+            { label: 'Credit', value: credit },
+            { label: 'Total P/L, USD', value: profitLoss, color: profitLoss >= 0 ? 'text-[#00ffaa]' : 'text-[#f6465d]', isPL: true }
+          ].map((item, idx) => {
+            // Debug: Log P/L item
+            if (item.isPL && isOpen) {
+              console.log('[AccountDropdown] Rendering P/L item:', {
+                label: item.label,
+                value: item.value,
+                profitLoss,
+                currentData: currentData,
+                hasProfit: !!currentData?.Profit
+              });
+            }
+            // Handle P/L rendering with proper loading states
+            let displayValue: string | React.ReactNode;
+            if (item.isLeverage) {
+              displayValue = item.value;
+            } else if (item.isPL) {
+              if (hideBalance) {
+                displayValue = '***';
+              } else if (isAccountSwitching) {
+                displayValue = <span className="animate-pulse text-gray-500">...</span>;
+              } else if (showLoader && !currentData) {
+                displayValue = <span className="animate-wavy opacity-40">~~~</span>;
+              } else {
+                const plValue = profitLoss ?? 0;
+                // Match StatusBar format exactly: +X.XX or -X.XX (no USD suffix, no formatCurrency)
+                displayValue = `${plValue >= 0 ? '+' : ''}${plValue.toFixed(2)}`;
+              }
+            } else {
+              displayValue = renderValue(item.value as number, item.isPercent);
+            }
+
+            return (
+              <div key={idx} className="flex justify-between items-center text-[13px]">
+                <span className="text-gray-400">{item.label}</span>
+                <div className="flex items-center gap-2">
+                  <span className={item.color || 'text-white'}>
+                    {displayValue}
+                  </span>
+                  <FiHelpCircle className="text-gray-600" size={14} />
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
 
           <button className="w-full py-2.5 mt-2 border border-gray-800 hover:bg-gray-800 text-white rounded text-[13px] font-medium transition-colors cursor-pointer uppercase">
             Top Up
