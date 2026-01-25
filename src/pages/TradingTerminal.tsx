@@ -18,6 +18,7 @@ import { ordersApi, PlaceMarketOrderParams, PlacePendingOrderParams } from '../l
 import { ImperativePanelHandle } from 'react-resizable-panels'
 
 import ModifyPositionModal from '../components/modals/ModifyPositionModal'
+import OrderPlacedToast from '../components/ui/OrderPlacedToast'
 
 export default function TradingTerminal() {
   const { isSidebarExpanded, setIsSidebarExpanded } = useSidebar();
@@ -25,6 +26,7 @@ export default function TradingTerminal() {
   const { symbol } = useTrading();
   const leftPanelRef = useRef<ImperativePanelHandle>(null)
   const [closedToast, setClosedToast] = useState(null)
+  const [orderToast, setOrderToast] = useState(null)
   const [isRightSidebarOpen, setIsRightSidebarOpen] = useState(true)
   const [isBottomPanelVisible, setIsBottomPanelVisible] = useState(true)
 
@@ -217,6 +219,16 @@ export default function TradingTerminal() {
         const response = await ordersApi.placeMarketOrder(params);
         if (response.success) {
           console.log('[TradingTerminal] Buy market order placed:', response.data);
+          // Show toast notification
+          const apiData = response.data || {};
+          setOrderToast({
+            side: 'buy',
+            symbol: chosenSymbol,
+            volume: orderData.volume,
+            price: apiData.PriceOpen || apiData.priceOpen || apiData.Price || apiData.price || null,
+            orderType: 'market',
+            profit: apiData.Profit || apiData.profit || null,
+          });
         } else {
           console.error('[TradingTerminal] Failed to place buy market order:', response.message);
         }
@@ -228,7 +240,7 @@ export default function TradingTerminal() {
           side: 'buy',
           volume: orderData.volume,
           price: orderData.openPrice || 0,
-          orderType: 'limit', // Default to limit, can be 'stop' if needed
+          orderType: orderData.orderType === 'stop' ? 'stop' : 'limit', // Use orderType from orderData, default to limit
           stopLoss: orderData.stopLoss,
           takeProfit: orderData.takeProfit,
         };
@@ -236,6 +248,16 @@ export default function TradingTerminal() {
         const response = await ordersApi.placePendingOrder(params);
         if (response.success) {
           console.log('[TradingTerminal] Buy pending order placed:', response.data);
+          // Show toast notification
+          const apiData = response.data || {};
+          setOrderToast({
+            side: 'buy',
+            symbol: chosenSymbol,
+            volume: orderData.volume,
+            price: orderData.openPrice || apiData.PriceOrder || apiData.priceOrder || null,
+            orderType: orderData.orderType === 'stop' ? 'stop' : 'limit',
+            profit: null, // Pending orders don't have profit yet
+          });
         } else {
           console.error('[TradingTerminal] Failed to place buy pending order:', response.message);
         }
@@ -268,6 +290,16 @@ export default function TradingTerminal() {
         const response = await ordersApi.placeMarketOrder(params);
         if (response.success) {
           console.log('[TradingTerminal] Sell market order placed:', response.data);
+          // Show toast notification
+          const apiData = response.data || {};
+          setOrderToast({
+            side: 'sell',
+            symbol: chosenSymbol,
+            volume: orderData.volume,
+            price: apiData.PriceOpen || apiData.priceOpen || apiData.Price || apiData.price || null,
+            orderType: 'market',
+            profit: apiData.Profit || apiData.profit || null,
+          });
         } else {
           console.error('[TradingTerminal] Failed to place sell market order:', response.message);
         }
@@ -279,7 +311,7 @@ export default function TradingTerminal() {
           side: 'sell',
           volume: orderData.volume,
           price: orderData.openPrice || 0,
-          orderType: 'limit', // Default to limit, can be 'stop' if needed
+          orderType: orderData.orderType === 'stop' ? 'stop' : 'limit', // Use orderType from orderData, default to limit
           stopLoss: orderData.stopLoss,
           takeProfit: orderData.takeProfit,
         };
@@ -287,6 +319,16 @@ export default function TradingTerminal() {
         const response = await ordersApi.placePendingOrder(params);
         if (response.success) {
           console.log('[TradingTerminal] Sell pending order placed:', response.data);
+          // Show toast notification
+          const apiData = response.data || {};
+          setOrderToast({
+            side: 'sell',
+            symbol: chosenSymbol,
+            volume: orderData.volume,
+            price: orderData.openPrice || apiData.PriceOrder || apiData.priceOrder || null,
+            orderType: orderData.orderType === 'stop' ? 'stop' : 'limit',
+            profit: null, // Pending orders don't have profit yet
+          });
         } else {
           console.error('[TradingTerminal] Failed to place sell pending order:', response.message);
         }
@@ -415,6 +457,10 @@ export default function TradingTerminal() {
         </ResizablePanel>
       </ResizablePanelGroup>
       <ModifyPositionModal />
+      <OrderPlacedToast
+        order={orderToast}
+        onClose={() => setOrderToast(null)}
+      />
     </>
   )
 }

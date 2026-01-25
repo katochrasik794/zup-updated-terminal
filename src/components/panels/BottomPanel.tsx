@@ -78,7 +78,8 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
     acc[pos.symbol].positions.push(pos)
     return acc
   }, {  })).map((group: any) => {
-    const isHedged = group.totalBuyVolume > 0 && group.totalSellVolume > 0 && Math.abs(group.totalBuyVolume - group.totalSellVolume) < 0.0001;
+    // Show "Hedged" if there are both buy and sell positions (regardless of volume equality)
+    const isHedged = group.totalBuyVolume > 0 && group.totalSellVolume > 0;
     // Set plColor based on totalPL (green for positive, red for negative)
     const plColor = group.totalPL >= 0 ? 'text-[#00ffaa]' : 'text-[#f6465d]';
     return {
