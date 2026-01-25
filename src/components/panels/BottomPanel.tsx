@@ -363,7 +363,7 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
                     return shouldShow && (
                       <th key={colId} className={`px-3 py-[3px] font-normal whitespace-nowrap text-${columnDefs[colId].align}`}>
                         {activeTab === 'Pending' && colId === 'openPrice' ? 'Order Price' : columnDefs[colId].label}
-                      </th>
+                    </th>
                     );
                   })}
 
@@ -419,16 +419,16 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
                           : visibleColumns[colId];
                         return shouldShow && (
                           <td key={colId} className={`px-3 py-1.5 whitespace-nowrap text-${columnDefs[colId].align}`}>
-                            {renderCell(colId, position, isGrouped)}
-                          </td>
+                          {renderCell(colId, position, isGrouped)}
+                        </td>
                         );
                       })}
 
                       {/* Sticky Columns Data - Hide P/L for Pending tab */}
                       {activeTab !== 'Pending' && (
                         <td className="px-3 py-1.5 text-right whitespace-nowrap sticky right-[90px] bg-[#02040d] group-hover:bg-[#1c252f] z-20 shadow-[-10px_0_10px_-5px_rgba(0,0,0,0.3)] border-b border-gray-800 w-[120px] min-w-[120px]">
-                          <span className={`font-medium ${position.plColor}`}>{position.pl}</span>
-                        </td>
+                        <span className={`font-medium ${position.plColor}`}>{position.pl}</span>
+                      </td>
                       )}
                       <td className="px-3 py-1.5 text-center whitespace-nowrap sticky right-0 bg-[#02040d] group-hover:bg-[#1c252f] z-20 border-b border-gray-800">
                         <div className="flex items-center justify-center gap-0.5">
@@ -522,16 +522,16 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
                                           : visibleColumns[colId];
                                         return shouldShow && (
                                           <td key={colId} className={`px-3 py-1.5 whitespace-nowrap text-${columnDefs[colId].align}`}>
-                                            {renderCell(colId, subPos, false)}
-                                          </td>
+                                          {renderCell(colId, subPos, false)}
+                                        </td>
                                         );
                                       })}
 
                                       {/* Sticky Columns Data - Hide P/L for Pending tab */}
                                       {activeTab !== 'Pending' && (
                                         <td className="px-3 py-1.5 text-right whitespace-nowrap sticky right-[90px] bg-[#02040d] group-hover/sub:bg-[#1c252f] z-20 shadow-[-10px_0_10px_-5px_rgba(0,0,0,0.3)] border-b border-gray-800 w-[120px] min-w-[120px]">
-                                          <span className={`font-medium ${subPos.plColor}`}>{subPos.pl}</span>
-                                        </td>
+                                        <span className={`font-medium ${subPos.plColor}`}>{subPos.pl}</span>
+                                      </td>
                                       )}
                                       <td className="px-3 py-1.5 text-center whitespace-nowrap sticky right-0 bg-[#02040d] group-hover/sub:bg-[#1c252f] z-20 border-b border-gray-800">
                                         <div className="flex items-center justify-center gap-0.5">
@@ -607,16 +607,16 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
                         : visibleColumns[colId];
                       return shouldShow && (
                         <td key={colId} className={`px-3 py-1.5 whitespace-nowrap text-${columnDefs[colId].align}`}>
-                          {renderCell(colId, position, false)}
-                        </td>
+                        {renderCell(colId, position, false)}
+                      </td>
                       );
                     })}
 
                     {/* Sticky Columns Data - Hide P/L for Pending tab */}
                     {activeTab !== 'Pending' && (
                       <td className="px-3 py-1.5 text-right whitespace-nowrap sticky right-[90px] bg-[#02040d] group-hover:bg-[#1c252f] z-20 shadow-[-10px_0_10px_-5px_rgba(0,0,0,0.3)] border-b border-gray-800 w-[120px] min-w-[120px]">
-                        <span className={`font-medium ${position.plColor}`}>{position.pl}</span>
-                      </td>
+                      <span className={`font-medium ${position.plColor}`}>{position.pl}</span>
+                    </td>
                     )}
                     <td className="px-3 py-1.5 text-center whitespace-nowrap sticky right-0 bg-[#02040d] group-hover:bg-[#1c252f] z-20 border-b border-gray-800">
                       {/* Empty cell for closed positions */}
@@ -626,11 +626,11 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
 
                 {activeTab === 'Pending' && (
                   pendingPositions.length === 0 ? (
-                    <tr>
-                      <td colSpan="13" className="text-center py-16 text-[#8b9096]">
-                        No pending orders
-                      </td>
-                    </tr>
+                  <tr>
+                    <td colSpan="13" className="text-center py-16 text-[#8b9096]">
+                      No pending orders
+                    </td>
+                  </tr>
                   ) : (
                     pendingPositions.map((position, idx) => (
                       <tr

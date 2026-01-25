@@ -18,11 +18,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <AuthProvider>
                     <AccountProvider>
                         <InstrumentProvider>
-                            <PrivacyProvider>
-                                <ClientLayout>
-                                    {children}
-                                </ClientLayout>
-                            </PrivacyProvider>
+                <PrivacyProvider>
+                    <ClientLayout>
+                        {children}
+                    </ClientLayout>
+                </PrivacyProvider>
                         </InstrumentProvider>
                     </AccountProvider>
                 </AuthProvider>
