@@ -320,7 +320,7 @@ export default function TradingTerminal() {
           side: 'buy',
           volume: orderData.volume,
           price: orderData.openPrice || 0,
-          orderType: orderData.orderType === 'stop' ? 'stop' : 'limit', // Use orderType from orderData, default to limit
+          orderType: orderData.pendingOrderType || 'limit', // Use pendingOrderType from orderData (limit or stop)
           stopLoss: orderData.stopLoss,
           takeProfit: orderData.takeProfit,
         };
@@ -334,7 +334,7 @@ export default function TradingTerminal() {
             symbol: chosenSymbol,
             volume: orderData.volume,
             price: orderData.openPrice || apiData.PriceOrder || apiData.priceOrder || null,
-            orderType: orderData.orderType === 'stop' ? 'stop' : 'limit',
+            orderType: orderData.pendingOrderType || 'limit',
             profit: null, // Pending orders don't have profit yet
           });
         }
@@ -384,7 +384,7 @@ export default function TradingTerminal() {
           side: 'sell',
           volume: orderData.volume,
           price: orderData.openPrice || 0,
-          orderType: orderData.orderType === 'stop' ? 'stop' : 'limit', // Use orderType from orderData, default to limit
+          orderType: orderData.pendingOrderType || 'limit', // Use pendingOrderType from orderData (limit or stop)
           stopLoss: orderData.stopLoss,
           takeProfit: orderData.takeProfit,
         };
@@ -398,7 +398,7 @@ export default function TradingTerminal() {
             symbol: chosenSymbol,
             volume: orderData.volume,
             price: orderData.openPrice || apiData.PriceOrder || apiData.priceOrder || null,
-            orderType: orderData.orderType === 'stop' ? 'stop' : 'limit',
+            orderType: orderData.pendingOrderType || 'limit',
             profit: null, // Pending orders don't have profit yet
           });
         }

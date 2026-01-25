@@ -20,6 +20,7 @@ export interface OrderPanelProps extends React.HTMLAttributes<HTMLDivElement> {
 
 export interface OrderData {
   orderType: "market" | "pending" | "limit"
+  pendingOrderType?: "limit" | "stop" // For pending orders: "limit" = Buy/Sell Limit, "stop" = Buy/Sell Stop
   volume: number
   openPrice?: number
   stopLoss?: number
@@ -59,6 +60,7 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
   
   const [formType, setFormType] = React.useState<FormType>("regular")
   const [orderType, setOrderType] = React.useState<"market" | "limit" | "pending">("market")
+  const [pendingOrderType, setPendingOrderType] = React.useState<"limit" | "stop">("limit") // For pending orders: limit or stop
   const [volume, setVolume] = React.useState("0.01")
   const [risk, setRisk] = React.useState("")
   const [riskMode, setRiskMode] = React.useState<"usd" | "percent">("usd")
@@ -293,6 +295,7 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
       <button
         onClick={() => onSell?.({
           orderType,
+          pendingOrderType: orderType === "pending" ? pendingOrderType : undefined,
           volume: parseFloat(volume),
           openPrice: openPrice ? parseFloat(openPrice) : currentSellPrice,
           stopLoss: undefined,
@@ -311,6 +314,7 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
       <button
         onClick={() => onBuy?.({
           orderType,
+          pendingOrderType: orderType === "pending" ? pendingOrderType : undefined,
           volume: parseFloat(volume),
           openPrice: openPrice ? parseFloat(openPrice) : currentBuyPrice,
           stopLoss: undefined,
@@ -436,6 +440,7 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
               }
               const orderData: OrderData = {
                 orderType,
+                pendingOrderType: orderType === "pending" ? pendingOrderType : undefined,
                 volume: finalVolume,
                 openPrice: finalOpenPrice,
                 stopLoss: finalStopLoss,
@@ -703,43 +708,53 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
             </Tabs>
 
             {orderType === "pending" && (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="text-xs font-medium text-white/80">Open price</div>
-                  <Tooltip text="Set open price for limit order">
-                    <HelpCircle className="h-3.5 w-3.5 text-white/40" />
-                  </Tooltip>
-                </div>
-                <div className="flex items-stretch border border-white/10 rounded-md overflow-hidden bg-white/[0.02] focus-within:border-[#8B5CF6]">
-                  <Input
-                    type="number"
-                    value={openPrice}
-                    onChange={(e) => setOpenPrice(e.target.value)}
-                    placeholder={currentBuyPrice.toFixed(3)}
-                    className="flex-1 border-0 bg-transparent text-center price-font text-sm h-9 focus-visible:ring-0 focus-visible:ring-offset-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none placeholder:text-white/40"
-                  />
-                  <div className="flex items-center justify-center px-3 text-xs text-white/60 min-w-[50px]">
-                    Limit
+              <>
+                {/* Pending Order Type Selector: Limit vs Stop */}
+                <Tabs value={pendingOrderType} onValueChange={(value: string) => setPendingOrderType(value as "limit" | "stop")}>
+                  <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="limit">Limit</TabsTrigger>
+                    <TabsTrigger value="stop">Stop</TabsTrigger>
+                  </TabsList>
+                </Tabs>
+
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="text-xs font-medium text-white/80">Open price</div>
+                    <Tooltip text={`Set open price for ${pendingOrderType === "limit" ? "limit" : "stop"} order`}>
+                      <HelpCircle className="h-3.5 w-3.5 text-white/40" />
+                    </Tooltip>
                   </div>
-                  <button
-                    onClick={() => decrementField(openPrice, setOpenPrice)}
-                    className="h-9 w-9 flex items-center justify-center hover:bg-white/5 cursor-pointer"
-                  >
-                    <Minus className="h-3.5 w-3.5 text-white/60" />
-                  </button>
-                  <button
-                    onClick={() => incrementField(openPrice, setOpenPrice)}
-                    className="h-9 w-9 flex items-center justify-center hover:bg-white/5 cursor-pointer"
-                  >
-                    <Plus className="h-3.5 w-3.5 text-white/60" />
-                  </button>
-                </div>
-                {openPrice && (
-                  <div className="text-xs text-white/60">
-                    {((parseFloat(openPrice) - currentBuyPrice) * 10000).toFixed(1)} pips
+                  <div className="flex items-stretch border border-white/10 rounded-md overflow-hidden bg-white/[0.02] focus-within:border-[#8B5CF6]">
+                    <Input
+                      type="number"
+                      value={openPrice}
+                      onChange={(e) => setOpenPrice(e.target.value)}
+                      placeholder={currentBuyPrice.toFixed(3)}
+                      className="flex-1 border-0 bg-transparent text-center price-font text-sm h-9 focus-visible:ring-0 focus-visible:ring-offset-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none placeholder:text-white/40"
+                    />
+                    <div className="flex items-center justify-center px-3 text-xs text-white/60 min-w-[50px]">
+                      {pendingOrderType === "limit" ? "Limit" : "Stop"}
+                    </div>
+                    <button
+                      onClick={() => decrementField(openPrice, setOpenPrice)}
+                      className="h-9 w-9 flex items-center justify-center hover:bg-white/5 cursor-pointer"
+                    >
+                      <Minus className="h-3.5 w-3.5 text-white/60" />
+                    </button>
+                    <button
+                      onClick={() => incrementField(openPrice, setOpenPrice)}
+                      className="h-9 w-9 flex items-center justify-center hover:bg-white/5 cursor-pointer"
+                    >
+                      <Plus className="h-3.5 w-3.5 text-white/60" />
+                    </button>
                   </div>
-                )}
-              </div>
+                  {openPrice && (
+                    <div className="text-xs text-white/60">
+                      {((parseFloat(openPrice) - currentBuyPrice) * 10000).toFixed(1)} pips
+                    </div>
+                  )}
+                </div>
+              </>
             )}
 
             <div className="space-y-2">
@@ -794,43 +809,63 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
             </Tabs>
 
             {orderType === "pending" && (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="text-xs font-medium text-white/80">Open price</div>
-                  <Tooltip text="Set open price for pending order">
-                    <HelpCircle className="h-3.5 w-3.5 text-white/40" />
-                  </Tooltip>
-                </div>
-                <div className="flex items-stretch border border-white/10 rounded-md overflow-hidden bg-white/[0.02] focus-within:border-[#8B5CF6]">
-                  <Input
-                    type="number"
-                    value={openPrice}
-                    onChange={(e) => setOpenPrice(e.target.value)}
-                    placeholder={currentBuyPrice.toFixed(3)}
-                    className="flex-1 border-0 bg-transparent text-center price-font text-sm h-9 focus-visible:ring-0 focus-visible:ring-offset-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none placeholder:text-white/40"
-                  />
-                  <div className="flex items-center justify-center px-3 text-xs text-white/60 min-w-[50px]">
-                    Limit
+              <>
+                {/* Pending Order Type Selector: Limit vs Stop */}
+                <Tabs value={pendingOrderType} onValueChange={(value: string) => setPendingOrderType(value as "limit" | "stop")}>
+                  <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="limit">Limit</TabsTrigger>
+                    <TabsTrigger value="stop">Stop</TabsTrigger>
+                  </TabsList>
+                </Tabs>
+
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="text-xs font-medium text-white/80">Open price</div>
+                    <Tooltip text={`Set open price for ${pendingOrderType === "limit" ? "limit" : "stop"} order`}>
+                      <HelpCircle className="h-3.5 w-3.5 text-white/40" />
+                    </Tooltip>
                   </div>
-                  <button
-                    onClick={() => decrementField(openPrice, setOpenPrice)}
-                    className="h-9 w-9 flex items-center justify-center hover:bg-white/5 cursor-pointer"
-                  >
-                    <Minus className="h-3.5 w-3.5 text-white/60" />
-                  </button>
-                  <button
-                    onClick={() => incrementField(openPrice, setOpenPrice)}
-                    className="h-9 w-9 flex items-center justify-center hover:bg-white/5 cursor-pointer"
-                  >
-                    <Plus className="h-3.5 w-3.5 text-white/60" />
-                  </button>
-                </div>
-                {openPrice && (
-                  <div className="text-xs text-white/60">
-                    {((parseFloat(openPrice) - currentBuyPrice) * 10000).toFixed(1)} pips
+                  <div className="flex items-stretch border border-white/10 rounded-md overflow-hidden bg-white/[0.02] focus-within:border-[#8B5CF6]">
+                    <Input
+                      type="number"
+                      value={openPrice}
+                      onChange={(e) => setOpenPrice(e.target.value)}
+                      placeholder={currentBuyPrice.toFixed(3)}
+                      className="flex-1 border-0 bg-transparent text-center price-font text-sm h-9 focus-visible:ring-0 focus-visible:ring-offset-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none placeholder:text-white/40"
+                    />
+                    <div className="flex items-center justify-center px-3 text-xs text-white/60 min-w-[50px]">
+                      {pendingOrderType === "limit" ? "Limit" : "Stop"}
+                    </div>
+                    <button
+                      onClick={() => decrementField(openPrice, setOpenPrice)}
+                      className="h-9 w-9 flex items-center justify-center hover:bg-white/5 cursor-pointer"
+                    >
+                      <Minus className="h-3.5 w-3.5 text-white/60" />
+                    </button>
+                    <button
+                      onClick={() => incrementField(openPrice, setOpenPrice)}
+                      className="h-9 w-9 flex items-center justify-center hover:bg-white/5 cursor-pointer"
+                    >
+                      <Plus className="h-3.5 w-3.5 text-white/60" />
+                    </button>
                   </div>
-                )}
-              </div>
+                  {openPrice && (
+                    <div className="text-xs text-white/60">
+                      {((parseFloat(openPrice) - currentBuyPrice) * 10000).toFixed(1)} pips
+                      {pendingOrderType === "limit" && (
+                        <span className="ml-2 text-white/40">
+                          (Buy Limit: below current, Sell Limit: above current)
+                        </span>
+                      )}
+                      {pendingOrderType === "stop" && (
+                        <span className="ml-2 text-white/40">
+                          (Buy Stop: above current, Sell Stop: below current)
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </>
             )}
 
             <div className="space-y-2">
@@ -1016,6 +1051,7 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
                       
                       const orderData: OrderData = {
                         orderType,
+                        pendingOrderType: orderType === "pending" ? pendingOrderType : undefined,
                         volume: finalVolume,
                         openPrice: orderType !== "market" && openPrice ? parseFloat(openPrice) : undefined,
                         stopLoss: finalStopLoss,
