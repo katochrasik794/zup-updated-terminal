@@ -398,14 +398,20 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
               // In regular form, set pending order side to show confirmation
               setPendingOrderSide('sell')
             } else {
-              // In risk calculator, place order directly
+              // In risk calculator or pending orders, place order directly
               if (!onSell) return
               if (!finalVolume || finalVolume <= 0) {
                 console.warn('Invalid volume for sell order:', finalVolume)
                 return
               }
+              // For pending orders, validate that openPrice is provided
+              if (orderType === 'pending' && !finalOpenPrice) {
+                alert('Please enter an open price for pending orders')
+                return
+              }
               const orderData: OrderData = {
                 orderType,
+                pendingOrderType: orderType === "pending" ? pendingOrderType : undefined,
                 volume: finalVolume,
                 openPrice: orderType === 'market' ? currentSellPrice : finalOpenPrice,
                 stopLoss: finalStopLoss,
@@ -432,10 +438,15 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
               // In regular form, set pending order side to show confirmation
               setPendingOrderSide('buy')
             } else {
-              // In risk calculator, place order directly
+              // In risk calculator or pending orders, place order directly
               if (!onBuy) return
               if (!finalVolume || finalVolume <= 0) {
                 console.warn('Invalid volume for buy order:', finalVolume)
+                return
+              }
+              // For pending orders, validate that openPrice is provided
+              if (orderType === 'pending' && !finalOpenPrice) {
+                alert('Please enter an open price for pending orders')
                 return
               }
               const orderData: OrderData = {
@@ -1049,6 +1060,12 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
                         }
                       }
                       
+                      // For pending orders, validate that openPrice is provided
+                      if (orderType === 'pending' && !openPrice) {
+                        alert('Please enter an open price for pending orders')
+                        return
+                      }
+
                       const orderData: OrderData = {
                         orderType,
                         pendingOrderType: orderType === "pending" ? pendingOrderType : undefined,

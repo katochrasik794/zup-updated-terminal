@@ -305,37 +305,14 @@ export default function TradingTerminal() {
       return;
     }
 
-    // CRITICAL: Fetch latest balance data directly (like StatusBar does) to ensure we have the most up-to-date free margin
-    // This MUST happen BEFORE any API calls to prevent placing orders when free margin is negative
-    try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        setOrderToast({
-          side: 'buy',
-          symbol: symbol || 'BTCUSD',
-          volume: orderData.volume || 0,
-          price: null,
-          orderType: orderData.orderType || 'market',
-          profit: null,
-          error: 'Not enough money',
-        });
-        return;
-      }
-
-      const balanceResponse = await fetch(`http://localhost:5000/api/accounts/${currentAccountId}/profile`, {
-        cache: 'no-store',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const balanceResult = await balanceResponse.json();
-      
-      if (balanceResult.success && balanceResult.data) {
-        const balanceData = balanceResult.data;
-        const equity = Number(balanceData.Equity ?? balanceData.equity ?? 0);
-        const margin = Number(balanceData.Margin ?? balanceData.margin ?? balanceData.MarginUsed ?? balanceData.marginUsed ?? 0);
-        const freeMargin = parseFloat((equity - margin).toFixed(2));
-        
-        // CRITICAL: Block if free margin is negative or zero
-        if (freeMargin <= 0) {
+    // For pending orders, skip free margin validation - only check when API responds with failure
+    const isPendingOrder = orderData.orderType === 'pending' || orderData.orderType === 'limit';
+    
+    // For market orders only: Fetch latest balance data and validate free margin BEFORE API calls
+    if (!isPendingOrder) {
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) {
           setOrderToast({
             side: 'buy',
             symbol: symbol || 'BTCUSD',
@@ -345,10 +322,49 @@ export default function TradingTerminal() {
             profit: null,
             error: 'Not enough money',
           });
-          return; // CRITICAL: Exit immediately - do NOT proceed to try block
+          return;
         }
-      } else {
-        // If we can't get balance data, block the order to be safe
+
+        const balanceResponse = await fetch(`http://localhost:5000/api/accounts/${currentAccountId}/profile`, {
+          cache: 'no-store',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const balanceResult = await balanceResponse.json();
+        
+        if (balanceResult.success && balanceResult.data) {
+          const balanceData = balanceResult.data;
+          const equity = Number(balanceData.Equity ?? balanceData.equity ?? 0);
+          const margin = Number(balanceData.Margin ?? balanceData.margin ?? balanceData.MarginUsed ?? balanceData.marginUsed ?? 0);
+          const freeMargin = parseFloat((equity - margin).toFixed(2));
+          
+          // CRITICAL: Block if free margin is negative or zero (only for market orders)
+          if (freeMargin <= 0) {
+            setOrderToast({
+              side: 'buy',
+              symbol: symbol || 'BTCUSD',
+              volume: orderData.volume || 0,
+              price: null,
+              orderType: orderData.orderType || 'market',
+              profit: null,
+              error: 'Not enough money',
+            });
+            return;
+          }
+        } else {
+          // If we can't get balance data, block the order to be safe
+          setOrderToast({
+            side: 'buy',
+            symbol: symbol || 'BTCUSD',
+            volume: orderData.volume || 0,
+            price: null,
+            orderType: orderData.orderType || 'market',
+            profit: null,
+            error: 'Not enough money',
+          });
+          return;
+        }
+      } catch (error) {
+        // If balance fetch fails, block the order to be safe
         setOrderToast({
           side: 'buy',
           symbol: symbol || 'BTCUSD',
@@ -360,24 +376,8 @@ export default function TradingTerminal() {
         });
         return;
       }
-    } catch (error) {
-      // If balance fetch fails, block the order to be safe
-      setOrderToast({
-        side: 'buy',
-        symbol: symbol || 'BTCUSD',
-        volume: orderData.volume || 0,
-        price: null,
-        orderType: orderData.orderType || 'market',
-        profit: null,
-        error: 'Not enough money',
-      });
-      return;
-    }
 
-    try {
-      const chosenSymbol = symbol || 'BTCUSD';
-      
-      // Margin validation before placing order
+      // Additional margin validation for market orders only
       if (currentBalance) {
         const equity = currentBalance.Equity ?? currentBalance.equity ?? 0;
         const margin = currentBalance.Margin ?? currentBalance.margin ?? 0;
@@ -386,17 +386,14 @@ export default function TradingTerminal() {
         const leverageMatch = leverageStr.match(/:?(\d+)/);
         const leverage = leverageMatch ? parseInt(leverageMatch[1], 10) : 400;
         
-        // Get trade price (openPrice now contains current price for market orders, order price for pending orders)
+        const chosenSymbol = symbol || 'BTCUSD';
         const tradePrice = orderData.openPrice || 0;
         
-        // If we don't have a price, we can't validate margin - skip validation
-        // (This will be caught by the API anyway)
         if (tradePrice > 0) {
           const requiredMargin = calculateRequiredMargin(orderData.volume, tradePrice, chosenSymbol, leverage);
           const newMargin = margin + requiredMargin;
           const newFreeMargin = equity - newMargin;
           
-          // CRITICAL CHECK: Block if new margin would exceed equity (would make free margin negative)
           if (newMargin > equity) {
             setOrderToast({
               side: 'buy',
@@ -410,7 +407,6 @@ export default function TradingTerminal() {
             return;
           }
           
-          // Check if required margin exceeds available free margin
           if (requiredMargin > freeMargin) {
             setOrderToast({
               side: 'buy',
@@ -424,7 +420,6 @@ export default function TradingTerminal() {
             return;
           }
           
-          // Additional safety check: ensure margin level would remain reasonable after trade
           const newMarginLevel = equity > 0 ? (equity / newMargin) * 100 : 0;
           if (newMarginLevel < 50 && newMarginLevel > 0) {
             setOrderToast({
@@ -439,7 +434,6 @@ export default function TradingTerminal() {
             return;
           }
           
-          // Final check: ensure new free margin would not be negative
           if (newFreeMargin < 0) {
             setOrderToast({
               side: 'buy',
@@ -454,6 +448,10 @@ export default function TradingTerminal() {
           }
         }
       }
+    }
+
+    try {
+      const chosenSymbol = symbol || 'BTCUSD';
       
       if (orderData.orderType === 'market') {
         // Place market order
@@ -491,13 +489,27 @@ export default function TradingTerminal() {
           });
         }
       } else if (orderData.orderType === 'pending' || orderData.orderType === 'limit') {
+        // Validate that openPrice is provided for pending orders
+        if (!orderData.openPrice || orderData.openPrice <= 0) {
+          setOrderToast({
+            side: 'buy',
+            symbol: chosenSymbol,
+            volume: orderData.volume,
+            price: null,
+            orderType: orderData.pendingOrderType || 'limit',
+            profit: null,
+            error: 'Open price is required for pending orders',
+          });
+          return;
+        }
+
         // Place pending order
         const params: PlacePendingOrderParams = {
           accountId: currentAccountId,
           symbol: chosenSymbol,
           side: 'buy',
           volume: orderData.volume,
-          price: orderData.openPrice || 0,
+          price: orderData.openPrice,
           orderType: orderData.pendingOrderType || 'limit', // Use pendingOrderType from orderData (limit or stop)
           stopLoss: orderData.stopLoss,
           takeProfit: orderData.takeProfit,
@@ -548,37 +560,14 @@ export default function TradingTerminal() {
       return;
     }
 
-    // CRITICAL: Fetch latest balance data directly (like StatusBar does) to ensure we have the most up-to-date free margin
-    // This MUST happen BEFORE any API calls to prevent placing orders when free margin is negative
-    try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        setOrderToast({
-          side: 'sell',
-          symbol: symbol || 'BTCUSD',
-          volume: orderData.volume || 0,
-          price: null,
-          orderType: orderData.orderType || 'market',
-          profit: null,
-          error: 'Not enough money',
-        });
-        return;
-      }
-
-      const balanceResponse = await fetch(`http://localhost:5000/api/accounts/${currentAccountId}/profile`, {
-        cache: 'no-store',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const balanceResult = await balanceResponse.json();
-      
-      if (balanceResult.success && balanceResult.data) {
-        const balanceData = balanceResult.data;
-        const equity = Number(balanceData.Equity ?? balanceData.equity ?? 0);
-        const margin = Number(balanceData.Margin ?? balanceData.margin ?? balanceData.MarginUsed ?? balanceData.marginUsed ?? 0);
-        const freeMargin = parseFloat((equity - margin).toFixed(2));
-        
-        // CRITICAL: Block if free margin is negative or zero
-        if (freeMargin <= 0) {
+    // For pending orders, skip free margin validation - only check when API responds with failure
+    const isPendingOrder = orderData.orderType === 'pending' || orderData.orderType === 'limit';
+    
+    // For market orders only: Fetch latest balance data and validate free margin BEFORE API calls
+    if (!isPendingOrder) {
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) {
           setOrderToast({
             side: 'sell',
             symbol: symbol || 'BTCUSD',
@@ -588,10 +577,49 @@ export default function TradingTerminal() {
             profit: null,
             error: 'Not enough money',
           });
-          return; // CRITICAL: Exit immediately - do NOT proceed to try block
+          return;
         }
-      } else {
-        // If we can't get balance data, block the order to be safe
+
+        const balanceResponse = await fetch(`http://localhost:5000/api/accounts/${currentAccountId}/profile`, {
+          cache: 'no-store',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const balanceResult = await balanceResponse.json();
+        
+        if (balanceResult.success && balanceResult.data) {
+          const balanceData = balanceResult.data;
+          const equity = Number(balanceData.Equity ?? balanceData.equity ?? 0);
+          const margin = Number(balanceData.Margin ?? balanceData.margin ?? balanceData.MarginUsed ?? balanceData.marginUsed ?? 0);
+          const freeMargin = parseFloat((equity - margin).toFixed(2));
+          
+          // CRITICAL: Block if free margin is negative or zero (only for market orders)
+          if (freeMargin <= 0) {
+            setOrderToast({
+              side: 'sell',
+              symbol: symbol || 'BTCUSD',
+              volume: orderData.volume || 0,
+              price: null,
+              orderType: orderData.orderType || 'market',
+              profit: null,
+              error: 'Not enough money',
+            });
+            return;
+          }
+        } else {
+          // If we can't get balance data, block the order to be safe
+          setOrderToast({
+            side: 'sell',
+            symbol: symbol || 'BTCUSD',
+            volume: orderData.volume || 0,
+            price: null,
+            orderType: orderData.orderType || 'market',
+            profit: null,
+            error: 'Not enough money',
+          });
+          return;
+        }
+      } catch (error) {
+        // If balance fetch fails, block the order to be safe
         setOrderToast({
           side: 'sell',
           symbol: symbol || 'BTCUSD',
@@ -603,24 +631,8 @@ export default function TradingTerminal() {
         });
         return;
       }
-    } catch (error) {
-      // If balance fetch fails, block the order to be safe
-      setOrderToast({
-        side: 'sell',
-        symbol: symbol || 'BTCUSD',
-        volume: orderData.volume || 0,
-        price: null,
-        orderType: orderData.orderType || 'market',
-        profit: null,
-        error: 'Not enough money',
-      });
-      return;
-    }
 
-    try {
-      const chosenSymbol = symbol || 'BTCUSD';
-      
-      // Margin validation before placing order
+      // Additional margin validation for market orders only
       if (currentBalance) {
         const equity = currentBalance.Equity ?? currentBalance.equity ?? 0;
         const margin = currentBalance.Margin ?? currentBalance.margin ?? 0;
@@ -629,17 +641,14 @@ export default function TradingTerminal() {
         const leverageMatch = leverageStr.match(/:?(\d+)/);
         const leverage = leverageMatch ? parseInt(leverageMatch[1], 10) : 400;
         
-        // Get trade price (openPrice now contains current price for market orders, order price for pending orders)
+        const chosenSymbol = symbol || 'BTCUSD';
         const tradePrice = orderData.openPrice || 0;
         
-        // If we don't have a price, we can't validate margin - skip validation
-        // (This will be caught by the API anyway)
         if (tradePrice > 0) {
           const requiredMargin = calculateRequiredMargin(orderData.volume, tradePrice, chosenSymbol, leverage);
           const newMargin = margin + requiredMargin;
           const newFreeMargin = equity - newMargin;
           
-          // CRITICAL CHECK: Block if new margin would exceed equity (would make free margin negative)
           if (newMargin > equity) {
             setOrderToast({
               side: 'sell',
@@ -653,7 +662,6 @@ export default function TradingTerminal() {
             return;
           }
           
-          // Check if required margin exceeds available free margin
           if (requiredMargin > freeMargin) {
             setOrderToast({
               side: 'sell',
@@ -667,7 +675,6 @@ export default function TradingTerminal() {
             return;
           }
           
-          // Additional safety check: ensure margin level would remain reasonable after trade
           const newMarginLevel = equity > 0 ? (equity / newMargin) * 100 : 0;
           if (newMarginLevel < 50 && newMarginLevel > 0) {
             setOrderToast({
@@ -682,7 +689,6 @@ export default function TradingTerminal() {
             return;
           }
           
-          // Final check: ensure new free margin would not be negative
           if (newFreeMargin < 0) {
             setOrderToast({
               side: 'sell',
@@ -697,6 +703,10 @@ export default function TradingTerminal() {
           }
         }
       }
+    }
+
+    try {
+      const chosenSymbol = symbol || 'BTCUSD';
       
       if (orderData.orderType === 'market') {
         // Place market order
@@ -734,13 +744,27 @@ export default function TradingTerminal() {
           });
         }
       } else if (orderData.orderType === 'pending' || orderData.orderType === 'limit') {
+        // Validate that openPrice is provided for pending orders
+        if (!orderData.openPrice || orderData.openPrice <= 0) {
+          setOrderToast({
+            side: 'sell',
+            symbol: chosenSymbol,
+            volume: orderData.volume,
+            price: null,
+            orderType: orderData.pendingOrderType || 'limit',
+            profit: null,
+            error: 'Open price is required for pending orders',
+          });
+          return;
+        }
+
         // Place pending order
         const params: PlacePendingOrderParams = {
           accountId: currentAccountId,
           symbol: chosenSymbol,
           side: 'sell',
           volume: orderData.volume,
-          price: orderData.openPrice || 0,
+          price: orderData.openPrice,
           orderType: orderData.pendingOrderType || 'limit', // Use pendingOrderType from orderData (limit or stop)
           stopLoss: orderData.stopLoss,
           takeProfit: orderData.takeProfit,
