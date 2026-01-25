@@ -51,7 +51,7 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
     }
   }, [hubSymbol, subscribe, unsubscribe])
 
-  const quote = lastQuotes[normalizeSymbol(hubSymbol)] || {}
+  const quote = lastQuotes[normalizeSymbol(hubSymbol)] || lastQuotes[hubSymbol] || {}
 
   // Use live prices if available, otherwise fall back to defaults
   const currentSellPrice = quote.bid ?? 0

@@ -64,6 +64,17 @@ const resolutionToTimeframe = (resolution: string): string => {
     return resolution;
 };
 
+// Normalizes symbols by stripping lowercase suffixes (e.g., BTCUSDm -> BTCUSD)
+const normalizeSymbol = (symbol: string): string => {
+    if (!symbol) return '';
+    // Strip trailing suffixes like m, a, c, f, h, r (case-insensitive) and dots
+    return symbol.trim()
+        .replace(/[macfhrMACFHR]+$/, '') // Strip specific suffixes requested by user
+        .replace(/[a-z]+$/, '')         // Strip any remaining lowercase suffixes
+        .replace(/\.$/, '')             // Strip trailing dots
+        .toUpperCase();
+};
+
 // Inverse map for initial configuration if needed, but not strictly required by this logic.
 
 class WebSocketManager {
@@ -127,7 +138,7 @@ class WebSocketManager {
 
         // Collect all unique symbols currently subscribed
         const symbolsToSubscribe = new Set<string>();
-        this.subscribers.forEach(sub => symbolsToSubscribe.add(sub.symbol));
+        this.subscribers.forEach(sub => symbolsToSubscribe.add(normalizeSymbol(sub.symbol)));
 
         if (symbolsToSubscribe.size > 0) {
             const msg: SubSymbolsRequest = {
@@ -144,9 +155,10 @@ class WebSocketManager {
         this.subscribers.add(subscription);
 
         if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+            const normalizedSymbol = normalizeSymbol(symbol);
             const msg: SubSymbolsRequest = {
                 type: 'sub_symbols',
-                symbols: [symbol],
+                symbols: [normalizedSymbol],
                 streams: ['candle_live']
             };
             this.ws.send(JSON.stringify(msg));
@@ -174,12 +186,13 @@ class WebSocketManager {
             // But it has symbol and tf.
             // We can store the callback mapped by `${symbol}-${tf}`.
             // NOTE: This assumes one pending history request per symbol-tf at a time.
-            const key = `${symbol}-${tf}`;
+            const normalizedSymbol = normalizeSymbol(symbol);
+            const key = `${normalizedSymbol}-${tf}`;
             this.historyCallbacks.set(key, { onSuccess, onError });
 
             const msg: CandleHistoryRequest = {
                 type: 'candle_history',
-                symbol,
+                symbol: normalizedSymbol,
                 tf,
                 count
             };
@@ -224,8 +237,10 @@ class WebSocketManager {
 
             Array.from(this.subscribers).forEach(sub => {
                 const subTf = resolutionToTimeframe(sub.tf);
+                const subNormalized = normalizeSymbol(sub.symbol);
+                const updateNormalized = normalizeSymbol(update.symbol);
 
-                if (sub.symbol === update.symbol && subTf === update.tf) {
+                if (subNormalized === updateNormalized && subTf === update.tf) {
                     const bar = {
                         time: update.t,
                         open: update.o,

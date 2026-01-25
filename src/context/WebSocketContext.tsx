@@ -35,19 +35,10 @@ const WebSocketContext = createContext<WebSocketContextType | undefined>(undefin
 // I will try to strictly capitalize and remove trailing lowercase letters and dots.
 export const normalizeSymbol = (symbol: string): string => {
     if (!symbol) return '';
-    // Remove period and anything after? "BTCUSD.e" -> "BTCUSD"
-    let s = symbol.split('.')[0];
-    // Remove trailing lowercase "m", "e" if attached directly? "BTCUSDm"
-    // Regex: Replace any suffix that is not uppercase/digit?
-    // Assuming standard symbols are uppercase.
-    s = s.replace(/[^A-Z0-9]+$/, ''); // Remove trailing non-uppercase/non-numbers if mixed?
-    // Wait, usually modifiers are lowercase?
-    // Let's try: take the first 6 characters if standard forex? No, simple regex: `^([A-Z0-9]+)`?
-    // Use a regex that captures the main uppercase part.
-    // "BTCUSDm" -> match /^[A-Z0-9]+/ -> "BTCUSD"
-    const match = s.match(/^([A-Z0-9]+)/);
-    if (match) return match[1];
-    return s;
+    const s = symbol.split('.')[0].trim();
+    // Strip trailing suffixes like m, a, c, f, h, r (case-insensitive)
+    // Matches BTCUSDm, BTCUSDM, BTCUSD.i, etc.
+    return s.replace(/[macfhrMACFHR]+$/, '').toUpperCase();
 };
 
 export function WebSocketProvider({ children }: { children: ReactNode }) {
@@ -108,11 +99,12 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
 
                 if (data.type === 'watch') {
                     // Update quote cache
-                    // Store by NORMALIZED symbol so "BTCUSD" updates apply to "BTCUSD.e" lookups
+                    // Store by NORMALIZED symbol AND RAW symbol to be safe
                     const norm = normalizeSymbol(data.symbol);
                     setLastQuotes(prev => ({
                         ...prev,
-                        [norm]: data as QuoteData
+                        [norm]: data as QuoteData,
+                        [data.symbol]: data as QuoteData
                     }));
                 }
             } catch (e) {
@@ -124,14 +116,13 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
 
     const sendSubscription = (socket: WebSocket, symbols: string[]) => {
         if (socket.readyState === WebSocket.OPEN && symbols.length > 0) {
-            // Normalize before sending if the server expects base symbols
-            // or send both? User said "catch symbol like btcusd".
-            // I'll assume sending the BASE symbol is correct for the socket.
-            const normalized = Array.from(new Set(symbols.map(normalizeSymbol)));
+            // Send the ACTUAL symbols requested by the UI (raw)
+            // This ensures the broker recognizes specific instrument variants (e.g. BTCUSDm)
+            const uniqueSymbols = Array.from(new Set(symbols));
 
             const payload = {
                 type: "sub_symbols",
-                symbols: normalized,
+                symbols: uniqueSymbols,
                 streams: ["watch"]
             };
             socket.send(JSON.stringify(payload));
@@ -159,10 +150,9 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
 
         const newSymbols: string[] = [];
         symbols.forEach(s => {
-            const n = normalizeSymbol(s);
-            if (!activeSubscriptions.current.has(n)) {
-                activeSubscriptions.current.add(n);
-                newSymbols.push(n);
+            if (!activeSubscriptions.current.has(s)) {
+                activeSubscriptions.current.add(s);
+                newSymbols.push(s);
             }
         });
 
