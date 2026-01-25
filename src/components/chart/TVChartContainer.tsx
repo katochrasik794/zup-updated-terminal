@@ -172,17 +172,33 @@ export const TVChartContainer = () => {
                     'widgetbar',
                     'dom_widget',
                     'right_toolbar',
+                    'buy_sell_buttons',
+                    'legend_show_volume',
+                    'header_symbol_search',
+                    'symbol_search_hot_key',
+                    'header_compare',
                 ],
                 enabled_features: ['study_templates'],
                 charts_storage_url: 'https://saveload.tradingview.com',
                 charts_storage_api_version: '1.1',
                 client_id: 'trading_platform_demo',
                 user_id: 'public_user',
+                loading_screen: {
+                    backgroundColor: "#02040d",
+                },
                 overrides: {
                     "paneProperties.background": "#02040d",
                     "paneProperties.backgroundType": "solid",
                     "paneProperties.vertGridProperties.color": "#02040d",
+                    "paneProperties.horzGridProperties.color": "#02040d",
+                    "mainSeriesProperties.candleStyle.upColor": "#16A34A",
+                    "mainSeriesProperties.candleStyle.downColor": "#EF4444",
+                    "mainSeriesProperties.candleStyle.borderUpColor": "#16A34A",
+                    "mainSeriesProperties.candleStyle.borderDownColor": "#EF4444",
+                    "mainSeriesProperties.candleStyle.wickUpColor": "#16A34A",
+                    "mainSeriesProperties.candleStyle.wickDownColor": "#EF4444",
                 },
+                toolbar_bg: '#02040d',
 
                 broker_factory: (host: any) => {
                     const broker = new window.Brokers.BrokerDemo(host, datafeed);
