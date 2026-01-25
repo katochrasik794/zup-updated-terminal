@@ -375,7 +375,7 @@ export class RealtimeDataFeed {
         // User said: "NO REST API IS ALLOWED FOR HISTORICAL DATA."
         // User said: "candle_history" ... "count": 10.
 
-        const count = countBack || 1000; // Default to a reasonable number
+        const count = 1000; // Uniformly fetch 1000 candles as requested
 
         // If scrolling back (firstDataRequest is false), and we can't specify start time,
         // calling `candle_history` again will just return the LATEST candles again.

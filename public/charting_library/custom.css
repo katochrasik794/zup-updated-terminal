@@ -1,0 +1,41 @@
+/* Custom styles for TradingView Charting Library UI */
+
+/* Target the main layout areas for toolbars/strips */
+.layout__area--top,
+.layout__area--left,
+.layout__area--bottom,
+.layout__area--right {
+    background-color: #02040d !important;
+    border: 1px solid #1f2937 !important;
+    /* gray-800 equivalent */
+    z-index: 10 !important;
+}
+
+/* Ensure the drawing toolbar specifically gets the treatment if it's inside an area */
+.drawing-toolbar {
+    background-color: #02040d !important;
+    border: 1px solid #1f2937 !important;
+}
+
+/* Background for the entire chart container area to avoid white flashes or misalignments */
+.chart-container {
+    background-color: #02040d !important;
+}
+
+/* 
+   Only show in toolbar outside not in side anywhere and in idntdicator 
+   This means we shouldn't affect the inner chart widgets or indicators themselves
+*/
+
+/* Hide internal dividers of the layout areas to keep the clean "outer border" look */
+.layout__area--top .header-chart-panel {
+    border: none !important;
+}
+
+.layout__area--left .left-toolbar {
+    border: none !important;
+}
+
+.layout__area--bottom .footer-chart-panel {
+    border: none !important;
+}

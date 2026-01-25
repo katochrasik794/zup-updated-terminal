@@ -166,6 +166,7 @@ export const TVChartContainer = () => {
                 fullscreen: false,
                 autosize: true,
                 theme: 'Dark',
+                custom_css_url: '/charting_library/custom.css',
                 disabled_features: [
                     'use_localstorage_for_settings',
                     'order_panel',
