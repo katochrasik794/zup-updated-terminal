@@ -1,451 +1,1236 @@
 "use client";
-import React, { useState, useEffect, useMemo } from 'react'
-import { ChevronDown, X, Minus, Plus, HelpCircle } from 'lucide-react'
-import FlagIcon from '../ui/FlagIcon'
+
+import * as React from "react"
+import { X, Plus, Minus, HelpCircle } from "lucide-react"
+import { cn } from "@/lib/utils"
+import { Input } from "@/components/ui/input"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import Tooltip from "@/components/ui/Tooltip"
+import FlagIcon from "@/components/ui/FlagIcon"
+import { useTrading } from '../../context/TradingContext'
+import { useWebSocket } from '../../context/WebSocketContext'
+import { useAccount } from '../../context/AccountContext'
 import OrderModeModal from '../modals/OrderModeModal'
-import { useTrading } from '../../context/TradingContext';
-import { useWebSocket } from '../../context/WebSocketContext';
 
-export default function OrderPanel({ onClose }) {
-  const { placeOrder, symbol } = useTrading();
-  const { subscribe, unsubscribe, lastQuotes, normalizeSymbol } = useWebSocket();
+export interface OrderPanelProps extends React.HTMLAttributes<HTMLDivElement> {
+  onClose?: () => void
+  onBuy?: (data: OrderData) => void
+  onSell?: (data: OrderData) => void
+}
 
-  const [isPending, setIsPending] = useState(false)
-  const [orderSide, setOrderSide] = useState<'buy' | 'sell' | null>(null)
-  const [volume, setVolume] = useState('0.01')
-  const [pendingPrice, setPendingPrice] = useState('')
-  const [takeProfit, setTakeProfit] = useState('')
-  const [stopLoss, setStopLoss] = useState('')
-  const [isModeDropdownOpen, setIsModeDropdownOpen] = useState(false)
-  const [selectedMode, setSelectedMode] = useState('Regular form')
-  const [isDetailsExpanded, setIsDetailsExpanded] = useState(false)
-  const [showModeModal, setShowModeModal] = useState(false)
-  const [pendingMode, setPendingMode] = useState<string | null>(null)
+export interface OrderData {
+  orderType: "market" | "pending" | "limit"
+  volume: number
+  openPrice?: number
+  stopLoss?: number
+  takeProfit?: number
+  risk?: number
+}
 
-  // Manage Subscription for current symbol
-  useEffect(() => {
-    if (symbol) {
-      subscribe([symbol]);
-      return () => unsubscribe([symbol]);
+type FormType = "one-click" | "regular" | "risk-calculator"
+
+const OrderPanel: React.FC<OrderPanelProps> = ({
+  onClose,
+  onBuy,
+  onSell,
+  className,
+  ...props
+}) => {
+  const { symbol } = useTrading()
+  const { subscribe, unsubscribe, lastQuotes, normalizeSymbol, isConnected } = useWebSocket()
+  const { currentBalance } = useAccount()
+
+  // Get real-time prices from WebSocket
+  const hubSymbol = React.useMemo(() => (symbol || 'BTCUSD').replace('/', ''), [symbol])
+  
+  React.useEffect(() => {
+    if (hubSymbol) {
+      subscribe([hubSymbol])
+      return () => unsubscribe([hubSymbol])
     }
-  }, [symbol, subscribe, unsubscribe]);
+  }, [hubSymbol, subscribe, unsubscribe])
 
-  // Derived Real-Time Data
-  const quote = lastQuotes[normalizeSymbol(symbol || '')] || {};
+  const quote = lastQuotes[normalizeSymbol(hubSymbol)] || {}
+  
+  // Use live prices if available, otherwise fall back to defaults
+  const currentSellPrice = quote.bid ?? 0
+  const currentBuyPrice = quote.ask ?? 0
+  const currentSpread = quote.spread !== undefined ? `${quote.spread.toFixed(2)} pips` : '0.00 pips'
+  
+  const [formType, setFormType] = React.useState<FormType>("regular")
+  const [orderType, setOrderType] = React.useState<"market" | "limit" | "pending">("market")
+  const [volume, setVolume] = React.useState("0.01")
+  const [risk, setRisk] = React.useState("")
+  const [riskMode, setRiskMode] = React.useState<"usd" | "percent">("usd")
+  const [takeProfit, setTakeProfit] = React.useState("")
+  const [takeProfitMode, setTakeProfitMode] = React.useState<"pips" | "price">("price")
+  const [stopLoss, setStopLoss] = React.useState("")
+  const [stopLossMode, setStopLossMode] = React.useState<"pips" | "price">("price")
+  const [openPrice, setOpenPrice] = React.useState("")
+  const [showMoreDetails, setShowMoreDetails] = React.useState(false)
+  const [showOneClickModal, setShowOneClickModal] = React.useState(false)
+  const [showRiskCalculatorModal, setShowRiskCalculatorModal] = React.useState(false)
+  const [pendingFormType, setPendingFormType] = React.useState<FormType | null>(null)
+  const [pendingOrderSide, setPendingOrderSide] = React.useState<'buy' | 'sell' | null>(null)
 
-  // Splitting prices for formatting (Small pips)
-  const formatPrice = (price: number | undefined, fallback: string) => {
-    if (price === undefined) return { main: fallback, sub: '0' };
-    const str = price.toFixed(2); // 2 decimals
-    const main = str.slice(0, -1);
-    const sub = str.slice(-1);
-    return { main, sub };
-  };
+  // Check if user has dismissed the one-click modal
+  const shouldShowOneClickModal = React.useCallback(() => {
+    if (typeof window === 'undefined') return false
+    const dismissed = localStorage.getItem('zup_oneclick_modal_dismissed')
+    return dismissed !== 'true'
+  }, [])
 
-  // Defaults if no data
-  const bidDisplay = formatPrice(quote.bid, '0.0');
-  const askDisplay = formatPrice(quote.ask, '0.0');
-  const spreadDisplay = quote.spread !== undefined ? quote.spread.toFixed(1) : '0.0';
+  // Check if user has dismissed the risk calculator modal
+  const shouldShowRiskCalculatorModal = React.useCallback(() => {
+    if (typeof window === 'undefined') return false
+    const dismissed = localStorage.getItem('zup_riskcalculator_modal_dismissed')
+    return dismissed !== 'true'
+  }, [])
 
-  // Range Calculation for "Sentiment" Bar
-  const rangeData = useMemo(() => {
-    let pct = 50;
-    if (quote.dayHigh && quote.dayLow && quote.bid) {
-      const total = quote.dayHigh - quote.dayLow;
-      if (total > 0) {
-        pct = ((quote.bid - quote.dayLow) / total) * 100;
-        pct = Math.min(100, Math.max(0, pct)); // Clamp
+  // Handle form type change - show modal for one-click or risk calculator if needed
+  const handleFormTypeChange = React.useCallback((newFormType: FormType) => {
+    if (newFormType === "one-click" && shouldShowOneClickModal()) {
+      setPendingFormType(newFormType)
+      setShowOneClickModal(true)
+    } else if (newFormType === "risk-calculator" && shouldShowRiskCalculatorModal()) {
+      setPendingFormType(newFormType)
+      setShowRiskCalculatorModal(true)
+    } else {
+      setFormType(newFormType)
+    }
+  }, [shouldShowOneClickModal, shouldShowRiskCalculatorModal])
+
+  // Handle one-click modal confirmation
+  const handleOneClickModalConfirm = React.useCallback((dontShowAgain: boolean) => {
+    if (dontShowAgain && typeof window !== 'undefined') {
+      localStorage.setItem('zup_oneclick_modal_dismissed', 'true')
+    }
+    if (pendingFormType) {
+      setFormType(pendingFormType)
+      setPendingFormType(null)
+    }
+    setShowOneClickModal(false)
+  }, [pendingFormType])
+
+  // Handle one-click modal cancel
+  const handleOneClickModalCancel = React.useCallback(() => {
+    setShowOneClickModal(false)
+    setPendingFormType(null)
+  }, [])
+
+  // Handle risk calculator modal confirmation
+  const handleRiskCalculatorModalConfirm = React.useCallback((dontShowAgain: boolean) => {
+    if (dontShowAgain && typeof window !== 'undefined') {
+      localStorage.setItem('zup_riskcalculator_modal_dismissed', 'true')
+    }
+    if (pendingFormType) {
+      setFormType(pendingFormType)
+      setPendingFormType(null)
+    }
+    setShowRiskCalculatorModal(false)
+  }, [pendingFormType])
+
+  // Handle risk calculator modal cancel
+  const handleRiskCalculatorModalCancel = React.useCallback(() => {
+    setShowRiskCalculatorModal(false)
+    setPendingFormType(null)
+  }, [])
+
+  // Update dropdown modes when form type changes
+  React.useEffect(() => {
+    if (formType === "regular") {
+      setTakeProfitMode("price")
+      setStopLossMode("price")
+    } else if (formType === "risk-calculator") {
+      setTakeProfitMode("pips")
+      setStopLossMode("pips")
+      setRiskMode("usd")
+    }
+    // Reset pending order side when form type changes
+    setPendingOrderSide(null)
+  }, [formType])
+  
+  // Get pip size based on symbol type
+  const getPipSize = React.useMemo(() => {
+    const symbolUpper = (symbol || '').toUpperCase()
+    if (symbolUpper.includes('JPY')) {
+      return 0.01
+    } else if (symbolUpper.includes('BTC') || symbolUpper.includes('BTCUSD')) {
+      return 0.10
+    } else if (symbolUpper.includes('ETH') || symbolUpper.includes('ETHUSD')) {
+      return 0.01
+    } else if (symbolUpper.includes('XAU') || symbolUpper.includes('XAG')) {
+      return 0.01
+    } else {
+      return 0.0001
+    }
+  }, [symbol])
+  
+  // Get pip value per lot based on symbol type
+  const getPipValuePerLot = React.useMemo(() => {
+    const symbolUpper = (symbol || '').toUpperCase()
+    if (symbolUpper.includes('JPY')) {
+      return 10
+    } else if (symbolUpper.includes('XAU') || symbolUpper.includes('GOLD')) {
+      return 10
+    } else if (symbolUpper.includes('XAG') || symbolUpper.includes('SILVER')) {
+      return 10
+    } else if (symbolUpper.includes('BTC') || symbolUpper.includes('BTCUSD')) {
+      return getPipSize
+    } else if (symbolUpper.includes('ETH') || symbolUpper.includes('ETHUSD')) {
+      return getPipSize
+    } else {
+      return 10
+    }
+  }, [symbol, getPipSize])
+  
+  // Calculate SL and TP prices from pips (for risk calculator)
+  const calculatePriceFromPips = React.useCallback((pips: number, isBuy: boolean, isStopLoss: boolean = false) => {
+    if (pips === null || pips === undefined || isNaN(pips)) return null
+    const pipSize = getPipSize
+    const priceChange = pips * pipSize
+    if (isBuy) {
+      return currentBuyPrice + priceChange
+    } else {
+      return currentSellPrice - priceChange
+    }
+  }, [getPipSize, currentBuyPrice, currentSellPrice])
+  
+  // Calculate volume for risk calculator based on Risk and Stop Loss
+  const calculateRiskBasedVolume = React.useMemo(() => {
+    if (formType !== "risk-calculator" || !risk || !stopLoss || stopLossMode !== "pips" || riskMode !== "usd") {
+      return null
+    }
+    
+    const riskAmount = parseFloat(risk)
+    const stopLossPips = Math.abs(parseFloat(stopLoss))
+    
+    if (!riskAmount || !stopLossPips || stopLossPips <= 0 || riskAmount <= 0) {
+      return null
+    }
+    
+    const pipValuePerLot = getPipValuePerLot
+    const calculatedVolume = riskAmount / (stopLossPips * pipValuePerLot)
+    const clampedVolume = Math.max(0.01, Math.min(50.00, calculatedVolume))
+    
+    return clampedVolume
+  }, [formType, risk, stopLoss, stopLossMode, riskMode, getPipValuePerLot])
+  
+  // Calculate SL and TP prices from pips
+  const calculatedStopLossPrice = React.useMemo(() => {
+    if (formType !== "risk-calculator" || !stopLoss || stopLossMode !== "pips") return null
+    const pips = parseFloat(stopLoss)
+    if (isNaN(pips)) return null
+    return calculatePriceFromPips(pips, true, true)
+  }, [formType, stopLoss, stopLossMode, calculatePriceFromPips])
+
+  const calculatedTakeProfitPrice = React.useMemo(() => {
+    if (formType !== "risk-calculator" || !takeProfit || takeProfitMode !== "pips") return null
+    const pips = parseFloat(takeProfit)
+    if (isNaN(pips) || pips <= 0) return null
+    return calculatePriceFromPips(pips, true, false)
+  }, [formType, takeProfit, takeProfitMode, calculatePriceFromPips])
+  
+  // Update volume when risk calculator values change
+  React.useEffect(() => {
+    if (formType === "risk-calculator" && calculateRiskBasedVolume !== null) {
+      setVolume(calculateRiskBasedVolume.toFixed(2))
+    }
+  }, [formType, calculateRiskBasedVolume])
+
+  const handleVolumeChange = (value: string) => {
+    if (value === '') {
+      setVolume('')
+      return
+    }
+    
+    const trimmedValue = value.trim()
+    
+    if (!/^[\d.]*$/.test(trimmedValue) || (trimmedValue.match(/\./g) || []).length > 1) {
+      return
+    }
+    
+    const decimalIndex = trimmedValue.indexOf('.')
+    if (decimalIndex !== -1) {
+      const decimalPart = trimmedValue.substring(decimalIndex + 1)
+      if (decimalPart.length > 2) {
+        const truncated = trimmedValue.substring(0, decimalIndex + 3)
+        setVolume(truncated)
+        return
       }
     }
-    return {
-      buyPct: Math.round(pct),
-      sellPct: Math.round(100 - pct)
-    };
-  }, [quote.dayHigh, quote.dayLow, quote.bid]);
+    
+    setVolume(trimmedValue)
+  }
 
+  const incrementVolume = () => {
+    const currentValue = parseFloat(volume) || 0.01
+    const roundedCurrent = Math.round(currentValue * 100) / 100
+    const newValue = Math.min(50.00, roundedCurrent + 0.01)
+    setVolume(newValue.toFixed(2))
+  }
 
-  const handleModeSelect = (mode) => {
-    setIsModeDropdownOpen(false)
-    if (mode === 'Regular form') {
-      setSelectedMode(mode)
+  const decrementVolume = () => {
+    const currentValue = parseFloat(volume) || 0.01
+    const roundedCurrent = Math.round(currentValue * 100) / 100
+    const newValue = Math.max(0.01, roundedCurrent - 0.01)
+    setVolume(newValue.toFixed(2))
+  }
+
+  const incrementField = (value: string, setter: (v: string) => void) => {
+    const basePrice = value && !isNaN(parseFloat(value)) ? parseFloat(value) : currentBuyPrice
+    setter((basePrice + 0.001).toFixed(3))
+  }
+
+  const decrementField = (value: string, setter: (v: string) => void) => {
+    const basePrice = value && !isNaN(parseFloat(value)) ? parseFloat(value) : currentBuyPrice
+    setter(Math.max(0, basePrice - 0.001).toFixed(3))
+  }
+
+  // Render buy/sell price buttons with spread overlay - solid backgrounds for one-click
+  const renderPriceButtonsSolid = () => (
+    <div className="relative grid grid-cols-2 gap-3">
+      <button
+        onClick={() => onSell?.({
+          orderType,
+          volume: parseFloat(volume),
+          openPrice: openPrice ? parseFloat(openPrice) : currentSellPrice,
+          stopLoss: undefined,
+          takeProfit: undefined,
+        })}
+        className="rounded-md p-3 bg-[#FF5555] hover:bg-[#FF5555]/90 cursor-pointer text-left"
+      >
+        <div className="text-xs text-white/80 mb-1">Sell</div>
+        <div className="price-font text-white font-bold text-sm leading-tight">
+          {Math.floor(currentSellPrice).toLocaleString()}
+          <span className="text-lg">.{String(Math.floor((currentSellPrice % 1) * 100)).padStart(2, '0')}</span>
+          <sup className="text-sm">{String(Math.floor((currentSellPrice % 1) * 1000) % 10)}</sup>
+        </div>
+      </button>
+
+      <button
+        onClick={() => onBuy?.({
+          orderType,
+          volume: parseFloat(volume),
+          openPrice: openPrice ? parseFloat(openPrice) : currentBuyPrice,
+          stopLoss: undefined,
+          takeProfit: undefined,
+        })}
+        className="rounded-md p-3 bg-[#4A9EFF] hover:bg-[#4A9EFF]/90 cursor-pointer text-right"
+      >
+        <div className="text-xs text-white/80 mb-1">Buy</div>
+        <div className="price-font text-white font-bold text-sm leading-tight">
+          {Math.floor(currentBuyPrice).toLocaleString()}
+          <span className="text-lg">.{String(Math.floor((currentBuyPrice % 1) * 100)).padStart(2, '0')}</span>
+          <sup className="text-sm">{String(Math.floor((currentBuyPrice % 1) * 1000) % 10)}</sup>
+        </div>
+      </button>
+
+      <div className="absolute left-1/2 bottom-0 -translate-x-1/2 px-2 py-0.5 rounded backdrop-blur-xl bg-white/[0.03] border border-white/10 text-[10px] text-white/80 font-medium whitespace-nowrap z-10">
+        {currentSpread} {isConnected && <span className="text-green-500 ml-1">●</span>}
+      </div>
+    </div>
+  )
+
+  // Render buy/sell price buttons with spread overlay - bordered for regular/risk calculator
+  // In regular form, clicking these buttons sets pendingOrderSide to show confirmation
+  const renderPriceButtonsBordered = (readOnly: boolean = false, showConfirmation: boolean = false) => {
+    const finalVolume = formType === "risk-calculator" && calculateRiskBasedVolume !== null 
+      ? calculateRiskBasedVolume 
+      : (parseFloat(volume) || 0.01)
+    
+    let finalStopLoss: number | undefined = undefined
+    let finalTakeProfit: number | undefined = undefined
+    
+    if (formType === "risk-calculator") {
+      finalStopLoss = calculatedStopLossPrice ?? undefined
+      finalTakeProfit = calculatedTakeProfitPrice ?? undefined
     } else {
-      setPendingMode(mode)
-      setShowModeModal(true)
+      // Regular form: convert pips to price if needed
+      if (stopLoss) {
+        if (stopLossMode === "price") {
+          finalStopLoss = parseFloat(stopLoss)
+        } else if (stopLossMode === "pips") {
+          // Convert pips to price - for buy orders, negative pips means price goes down (SL below entry)
+          // For sell orders, positive pips means price goes up (SL above entry)
+          const pips = parseFloat(stopLoss)
+          if (!isNaN(pips)) {
+            const pipSize = getPipSize
+            const priceChange = pips * pipSize
+            // Use buy price as base for calculation (will be adjusted based on order side in API)
+            finalStopLoss = currentBuyPrice + priceChange
+          }
+        }
+      }
+      
+      if (takeProfit) {
+        if (takeProfitMode === "price") {
+          finalTakeProfit = parseFloat(takeProfit)
+        } else if (takeProfitMode === "pips") {
+          // Convert pips to price - for buy orders, positive pips means price goes up (TP above entry)
+          // For sell orders, negative pips means price goes down (TP below entry)
+          const pips = parseFloat(takeProfit)
+          if (!isNaN(pips) && pips > 0) {
+            const pipSize = getPipSize
+            const priceChange = pips * pipSize
+            // Use buy price as base for calculation
+            finalTakeProfit = currentBuyPrice + priceChange
+          }
+        }
+      }
     }
+    
+    const finalOpenPrice = orderType !== "market" && openPrice 
+      ? parseFloat(openPrice) 
+      : undefined
+    
+    return (
+      <div className="relative grid grid-cols-2 gap-3">
+        <button
+          type="button"
+          className={`rounded-md p-3 border-2 border-[#FF5555] bg-transparent ${readOnly ? '' : 'hover:bg-[#FF5555]/10'} text-left cursor-pointer`}
+          onClick={readOnly ? undefined : () => {
+            if (showConfirmation) {
+              // In regular form, set pending order side to show confirmation
+              setPendingOrderSide('sell')
+            } else {
+              // In risk calculator, place order directly
+              if (!onSell) return
+              if (!finalVolume || finalVolume <= 0) {
+                console.warn('Invalid volume for sell order:', finalVolume)
+                return
+              }
+              const orderData: OrderData = {
+                orderType,
+                volume: finalVolume,
+                openPrice: finalOpenPrice,
+                stopLoss: finalStopLoss,
+                takeProfit: finalTakeProfit,
+              }
+              onSell(orderData)
+            }
+          }}
+          disabled={readOnly}
+        >
+          <div className="text-xs text-white/60 mb-1">Sell</div>
+          <div className="price-font text-[#FF5555] font-bold text-sm leading-tight">
+            {Math.floor(currentSellPrice).toLocaleString()}
+            <span className="text-lg">.{String(Math.floor((currentSellPrice % 1) * 100)).padStart(2, '0')}</span>
+            <sup className="text-sm">{String(Math.floor((currentSellPrice % 1) * 1000) % 10)}</sup>
+          </div>
+        </button>
+
+        <button
+          type="button"
+          className={`rounded-md p-3 border-2 border-[#4A9EFF] bg-transparent ${readOnly ? '' : 'hover:bg-[#4A9EFF]/10'} text-right cursor-pointer`}
+          onClick={readOnly ? undefined : () => {
+            if (showConfirmation) {
+              // In regular form, set pending order side to show confirmation
+              setPendingOrderSide('buy')
+            } else {
+              // In risk calculator, place order directly
+              if (!onBuy) return
+              if (!finalVolume || finalVolume <= 0) {
+                console.warn('Invalid volume for buy order:', finalVolume)
+                return
+              }
+              const orderData: OrderData = {
+                orderType,
+                volume: finalVolume,
+                openPrice: finalOpenPrice,
+                stopLoss: finalStopLoss,
+                takeProfit: finalTakeProfit,
+              }
+              onBuy(orderData)
+            }
+          }}
+          disabled={readOnly}
+        >
+          <div className="text-xs text-white/60 mb-1">Buy</div>
+          <div className="price-font text-[#4A9EFF] font-bold text-sm leading-tight">
+            {Math.floor(currentBuyPrice).toLocaleString()}
+            <span className="text-lg">.{String(Math.floor((currentBuyPrice % 1) * 100)).padStart(2, '0')}</span>
+            <sup className="text-sm">{String(Math.floor((currentBuyPrice % 1) * 1000) % 10)}</sup>
+          </div>
+        </button>
+
+        <div className="absolute left-1/2 bottom-0 -translate-x-1/2 px-2 py-0.5 rounded backdrop-blur-xl bg-white/[0.03] border border-white/10 text-[10px] text-white/80 font-medium whitespace-nowrap z-10">
+          {currentSpread} {isConnected && <span className="text-green-500 ml-1">●</span>}
+        </div>
+      </div>
+    )
   }
 
-  const handleModeConfirm = (dontShowAgain) => {
-    if (pendingMode) setSelectedMode(pendingMode)
-    setShowModeModal(false)
-    setPendingMode(null)
-    // Here you could save dontShowAgain preference to local storage
-  }
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (orderSide) {
-      placeOrder({
-        symbol: symbol || 'XAU/USD',
-        side: orderSide,
-        volume: volume,
-        type: isPending ? 'limit' : 'market',
-        price: isPending ? pendingPrice : undefined,
-        tp: takeProfit || undefined,
-        sl: stopLoss || undefined
-      });
-      // Optional: Reset state or give feedback
-      setOrderSide(null);
+  // Calculate financial metrics in real-time
+  const calculateFinancialMetrics = React.useMemo(() => {
+    const vol = parseFloat(volume) || 0
+    const price = orderType === "limit" && openPrice ? parseFloat(openPrice) : currentBuyPrice
+    const symbolUpper = (symbol || '').toUpperCase()
+    
+    let contractSize = 100000
+    let pipValue = 0.0001
+    
+    if (symbolUpper.includes('XAU') || symbolUpper.includes('XAG')) {
+      contractSize = 100
+      pipValue = 0.01
+    } else if (symbolUpper.includes('BTC') || symbolUpper.includes('ETH')) {
+      contractSize = 1
+      pipValue = 0.01
+    } else {
+      contractSize = 100000
+      pipValue = symbolUpper.includes('JPY') ? 0.01 : 0.0001
     }
-  };
+    
+    const leverageStr = String(currentBalance?.leverage || "1:400")
+    const leverageMatch = leverageStr.match(/:?(\d+)/)
+    const leverage = leverageMatch ? parseInt(leverageMatch[1], 10) : 400
+    
+    const margin = (vol * contractSize * price) / leverage
+    const tradeValue = vol * contractSize * price
+    const fees = tradeValue * 0.001
+    const calculatedPipValue = contractSize * pipValue * vol
+    const swapLong = -(tradeValue * 0.0001)
+    const swapShort = 0
+    const volumeInUnits = vol * contractSize
+    const volumeInUSD = tradeValue
+    const credit = currentBalance?.credit || 0
+    
+    return {
+      fees,
+      leverage: `1:${leverage}`,
+      margin,
+      swapLong,
+      swapShort,
+      pipValue: calculatedPipValue,
+      volumeInUnits,
+      volumeInUSD,
+      credit
+    }
+  }, [volume, currentBuyPrice, openPrice, orderType, symbol, currentBalance])
+  
+  // Render financial details section
+  const renderFinancialDetails = () => (
+    <div className="space-y-2 pt-2 border-t border-white/10">
+      <div className="flex items-center justify-between text-xs">
+        <span className="text-white/60">Fees:</span>
+        <div className="flex items-center gap-1">
+          <span className="text-white price-font">≈ {calculateFinancialMetrics.fees.toFixed(2)} USD</span>
+          <Tooltip text="Estimated commission and spread costs">
+            <HelpCircle className="h-3 w-3 text-white/40" />
+          </Tooltip>
+        </div>
+      </div>
+      
+      <div className="flex items-center justify-between text-xs">
+        <span className="text-white/60">Leverage:</span>
+        <div className="flex items-center gap-1">
+          <span className="text-white price-font">{calculateFinancialMetrics.leverage}</span>
+          <Tooltip text="Account leverage ratio">
+            <HelpCircle className="h-3 w-3 text-white/40" />
+          </Tooltip>
+        </div>
+      </div>
+      
+      <div className="flex items-center justify-between text-xs">
+        <span className="text-white/60">Margin:</span>
+        <span className="text-white price-font">{calculateFinancialMetrics.margin.toFixed(2)} USD</span>
+      </div>
+      
+      {showMoreDetails && (
+        <>
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-white/60">Swap Long:</span>
+            <div className="flex items-center gap-1">
+              <span className="text-white price-font">{calculateFinancialMetrics.swapLong.toFixed(2)} USD</span>
+              <Tooltip text="Overnight swap for long positions">
+                <HelpCircle className="h-3 w-3 text-white/40" />
+              </Tooltip>
+            </div>
+          </div>
+          
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-white/60">Swap Short:</span>
+            <div className="flex items-center gap-1">
+              <span className="text-white price-font">{calculateFinancialMetrics.swapShort.toFixed(2)} USD</span>
+              <Tooltip text="Overnight swap for short positions">
+                <HelpCircle className="h-3 w-3 text-white/40" />
+              </Tooltip>
+            </div>
+          </div>
+          
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-white/60">Pip Value:</span>
+            <span className="text-white price-font">{calculateFinancialMetrics.pipValue.toFixed(2)} USD</span>
+          </div>
+          
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-white/60">Volume in units:</span>
+            <span className="text-white price-font">{calculateFinancialMetrics.volumeInUnits.toFixed(2)} {symbol?.toUpperCase().includes('BTC') ? 'BTC' : symbol?.toUpperCase().includes('ETH') ? 'ETH' : symbol?.toUpperCase().includes('XAU') ? 'oz' : ''}</span>
+          </div>
+          
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-white/60">Volume in USD:</span>
+            <span className="text-white price-font">{calculateFinancialMetrics.volumeInUSD.toFixed(2)} USD</span>
+          </div>
+          
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-white/60">Credit:</span>
+            <span className="text-white price-font">{calculateFinancialMetrics.credit.toFixed(2)} USD</span>
+          </div>
+        </>
+      )}
+      
+      <button
+        onClick={() => setShowMoreDetails(!showMoreDetails)}
+        className="w-full flex items-center justify-center gap-1 text-xs text-white/60 hover:text-white/80 pt-1"
+      >
+        {showMoreDetails ? (
+          <>
+            <span>Less</span>
+            <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+            </svg>
+          </>
+        ) : (
+          <>
+            <span>More</span>
+            <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </>
+        )}
+      </button>
+    </div>
+  )
+
+  // Render input field with dropdown and +/- buttons
+  const renderInputField = (
+    label: string,
+    value: string,
+    onChange: (v: string) => void,
+    mode: string,
+    onModeChange: (v: string) => void,
+    modeOptions: { value: string; label: string }[],
+    showTooltip?: boolean
+  ) => (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <div className="text-xs font-medium text-white/80">{label}</div>
+        {showTooltip && (
+          <Tooltip text={`Set ${label.toLowerCase()}`}>
+            <HelpCircle className="h-3.5 w-3.5 text-white/40" />
+          </Tooltip>
+        )}
+      </div>
+      <div className="flex items-stretch border border-white/10 rounded-md overflow-hidden bg-white/[0.02] focus-within:border-[#8B5CF6]">
+        <Input
+          type="number"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="Not set"
+          className="flex-1 border-0 bg-transparent text-center price-font text-sm h-9 focus-visible:ring-0 focus-visible:ring-offset-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none placeholder:text-white/40"
+        />
+        <select value={mode} onChange={(e) => onModeChange(e.target.value)} className="w-[70px] border-0 h-9 bg-transparent text-xs text-white focus:outline-none focus:ring-0">
+          {modeOptions.map(opt => (
+            <option key={opt.value} value={opt.value} className="bg-[#1a1f28]">{opt.label}</option>
+          ))}
+        </select>
+        <button
+          onClick={() => decrementField(value, onChange)}
+          className="h-9 w-9 flex items-center justify-center hover:bg-white/5 cursor-pointer"
+        >
+          <Minus className="h-3.5 w-3.5 text-white/60" />
+        </button>
+        <button
+          onClick={() => incrementField(value, onChange)}
+          className="h-9 w-9 flex items-center justify-center hover:bg-white/5 cursor-pointer"
+        >
+          <Plus className="h-3.5 w-3.5 text-white/60" />
+        </button>
+      </div>
+    </div>
+  )
+
+  // Get country code from symbol (simplified - can be enhanced)
+  const getCountryCode = () => {
+    const symbolUpper = (symbol || '').toUpperCase()
+    if (symbolUpper.includes('USD')) return 'US'
+    if (symbolUpper.includes('EUR')) return 'EU'
+    if (symbolUpper.includes('GBP')) return 'GB'
+    if (symbolUpper.includes('JPY')) return 'JP'
+    return 'US'
+  }
 
   return (
-    <div className="bg-background flex flex-col h-full w-full overflow-hidden text-[#c0c0c0] font-sans border border-gray-800 rounded-l-md">
-      <form className="flex flex-col h-full overflow-y-auto overflow-x-hidden custom-scrollbar" onSubmit={handleSubmit}>
-
-        {/* Header */}
-        <div className="px-2 py-4 flex-shrink-0 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1 text-gray-200 font-medium text-[14px]">
-              <div className="w-4 h-4 rounded-full overflow-hidden">
-                <FlagIcon symbol={symbol || 'XAUusd'} />
-              </div>
-              <span>{symbol || 'Select Symbol'}</span>
-            </div>
+    <div className={cn("w-full h-full flex flex-col glass-card border border-white/10 rounded-lg overflow-hidden", className)} {...props}>
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-white/[0.02]">
+        <div className="flex items-center gap-2.5">
+          <div className="w-5 h-5">
+            <FlagIcon symbol={symbol || 'BTCUSD'} />
           </div>
-          <button
-            className="text-gray-400 hover:text-white transition-colors cursor-pointer p-1 hover:bg-gray-800 rounded-md"
-            type="button"
-            onClick={onClose}
-          >
-            <X size={18} />
-          </button>
+          <span className="text-sm font-semibold text-white">{symbol || 'Select Symbol'}</span>
         </div>
+        {onClose && (
+          <button
+            onClick={onClose}
+            className="h-7 w-7 flex items-center justify-center rounded-md hover:bg-white/10 hover:border border-transparent hover:border-white/20 cursor-pointer group"
+            title="Close Order Panel"
+          >
+            <X className="h-4 w-4 text-white/60 group-hover:text-white" />
+          </button>
+        )}
+      </div>
 
-        {/* Mode Select */}
-        <div className="px-2 pb-4 flex-shrink-0 relative z-10">
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => setIsModeDropdownOpen(!isModeDropdownOpen)}
-              className="w-full bg-background border-[1px] border-gray-800 rounded px-3 py-2 text-gray-200 text-[14px] flex items-center justify-between hover:border-gray-400 transition-colors cursor-pointer"
-            >
-              <span>{selectedMode}</span>
-              <ChevronDown size={16} className={`text-gray-400 transition-transform ${isModeDropdownOpen ? 'rotate-180' : ''}`} />
-            </button>
+      <div className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-thin">
+        {/* Form Type Selector */}
+        <select value={formType} onChange={(e) => handleFormTypeChange(e.target.value as FormType)} className="w-full bg-white/[0.02] border border-white/10 rounded-md h-9 px-3 text-sm text-white focus:outline-none focus:ring-0 focus:border-[#8B5CF6]">
+          <option value="regular" className="bg-[#1a1f28]">Regular form</option>
+          <option value="one-click" className="bg-[#1a1f28]">One-click form</option>
+          <option value="risk-calculator" className="bg-[#1a1f28]">Risk calculator form</option>
+        </select>
 
-            {isModeDropdownOpen && (
-              <div className="absolute top-full left-0 w-full mt-1 bg-[#2a2f36] border border-[#3b4148] rounded-md shadow-xl overflow-hidden py-1 z-20">
-                {['Regular form', 'One-click form', 'Risk calculator form'].map((mode) => (
+        {/* ONE-CLICK FORM */}
+        {formType === "one-click" && (
+          <>
+            <Tabs value={orderType === "pending" ? "limit" : orderType} onValueChange={(value: string) => {
+              setOrderType(value === "limit" ? "pending" : (value as "market" | "pending"))
+            }}>
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="market">Market</TabsTrigger>
+                <TabsTrigger value="limit">Limit</TabsTrigger>
+              </TabsList>
+            </Tabs>
+
+            {orderType === "pending" && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="text-xs font-medium text-white/80">Open price</div>
+                  <Tooltip text="Set open price for limit order">
+                    <HelpCircle className="h-3.5 w-3.5 text-white/40" />
+                  </Tooltip>
+                </div>
+                <div className="flex items-stretch border border-white/10 rounded-md overflow-hidden bg-white/[0.02] focus-within:border-[#8B5CF6]">
+                  <Input
+                    type="number"
+                    value={openPrice}
+                    onChange={(e) => setOpenPrice(e.target.value)}
+                    placeholder={currentBuyPrice.toFixed(3)}
+                    className="flex-1 border-0 bg-transparent text-center price-font text-sm h-9 focus-visible:ring-0 focus-visible:ring-offset-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none placeholder:text-white/40"
+                  />
+                  <div className="flex items-center justify-center px-3 text-xs text-white/60 min-w-[50px]">
+                    Limit
+                  </div>
                   <button
-                    key={mode}
-                    type="button"
-                    onClick={() => handleModeSelect(mode)}
-                    className={`w-full text-left px-3 py-2 text-[14px] text-[#c0c0c0] hover:bg-[#3b4148] hover:text-gray-200 transition-colors cursor-pointer ${selectedMode === mode ? 'bg-[#3b4148] text-gray-200' : ''}`}
+                    onClick={() => decrementField(openPrice, setOpenPrice)}
+                    className="h-9 w-9 flex items-center justify-center hover:bg-white/5 cursor-pointer"
                   >
-                    {mode}
+                    <Minus className="h-3.5 w-3.5 text-white/60" />
                   </button>
-                ))}
+                  <button
+                    onClick={() => incrementField(openPrice, setOpenPrice)}
+                    className="h-9 w-9 flex items-center justify-center hover:bg-white/5 cursor-pointer"
+                  >
+                    <Plus className="h-3.5 w-3.5 text-white/60" />
+                  </button>
+                </div>
+                {openPrice && (
+                  <div className="text-xs text-white/60">
+                    {((parseFloat(openPrice) - currentBuyPrice) * 10000).toFixed(1)} pips
+                  </div>
+                )}
               </div>
             )}
-          </div>
-        </div>
 
-        {/* Inputs Container */}
-        <div className="px-2 flex-col flex gap-2">
-
-          {/* Order Buttons & Sentiment */}
-          <div>
-            <div className="flex gap-1 mb-1 relative">
-              {/* Sell Button */}
-              <button
-                className={`flex-1 rounded-sm border px-2 pt-2 flex flex-col items-start transition-colors relative overflow-hidden group cursor-pointer ${orderSide === 'sell'
-                  ? 'bg-[#eb483f] border-[#eb483f]'
-                  : 'bg-transparent border-[#ff444f] hover:bg-[#ff444f]/5'
-                  }`}
-                type="button"
-                onClick={() => setOrderSide('sell')}
-              >
-                <span className={`${orderSide === 'sell' ? 'text-white' : 'text-[#ff444f]'} text-[12px] mb-0 font-normal opacity-60`}>Sell</span>
-                <div className={`flex items-baseline ${orderSide === 'sell' ? 'text-white' : 'text-[#ff444f]'}`}>
-                  <span className="text-[16px]">{bidDisplay.main}</span>
-                  {/* <span className="text-[24px] font-bold">36</span> */}
-                  <span className="text-[14px] align-top ml-0.5 -mt-1">{bidDisplay.sub}</span>
-                </div>
-              </button>
-
-              {/* Buy Button */}
-              <button
-                className={`flex-1 rounded-sm border px-2 pt-2 flex flex-col items-end transition-colors relative overflow-hidden group cursor-pointer ${orderSide === 'buy'
-                  ? 'bg-[#158bf9] border-[#158bf9]'
-                  : 'bg-transparent border-[#007bff] hover:bg-[#007bff]/5'
-                  }`}
-                type="button"
-                onClick={() => setOrderSide('buy')}
-              >
-                <span className={`${orderSide === 'buy' ? 'text-white' : 'text-[#007bff]'} text-[12px] mb-0 font-normal opacity-60`}>Buy</span>
-                <div className={`flex items-baseline ${orderSide === 'buy' ? 'text-white' : 'text-[#007bff]'}`}>
-                  <span className="text-[16px]">{askDisplay.main}</span>
-                  <span className="text-[14px] align-top ml-0.5 -mt-1">{askDisplay.sub}</span>
-                </div>
-              </button>
-
-              {/* Spread Badge */}
-              <div className="absolute left-1/2 bottom-0 -translate-x-1/2 translate-y-1/2 z-10">
-                <div className="bg-background text-white text-[11px] px-1.5 py-0.5 rounded border border-gray-800 shadow-sm">
-                  {spreadDisplay}
-                </div>
-              </div>
-            </div>
-
-            {/* Sentiment Bar (Day Range) */}
-            <div className="mb-1 mt-2 flex items-center gap-2">
-              <span className="text-[#ff444f] text-[12px] font-medium">{rangeData.sellPct}%</span>
-              <div className="h-[4px] flex-1 bg-[#2a2f36] rounded-full overflow-hidden flex">
-                <div className="h-full bg-[#ff444f] transition-all duration-300" style={{ width: `${rangeData.sellPct}%` }}></div>
-                <div className="h-full bg-[#007bff] transition-all duration-300" style={{ width: `${rangeData.buyPct}%` }}></div>
-              </div>
-              <span className="text-[#007bff] text-[12px] font-medium">{rangeData.buyPct}%</span>
-            </div>
-          </div>
-
-          {/* Tabs (Market / Pending) */}
-          <div className="bg-background p-1 rounded-md flex border-[1px] border-gray-500">
-            <button
-              className={`flex-1 py-1 text-[14px] border border-transparent hover:border-gray-400 font-medium rounded-md transition-colors cursor-pointer ${!isPending ? 'bg-[#8b5cf6] text-white shadow-sm' : 'text-gray-400 hover:text-white'
-                }`}
-              type="button"
-              onClick={() => setIsPending(false)}
-            >
-              Market
-            </button>
-            <button
-              className={`flex-1 py-1 text-[14px] border border-transparent hover:border-gray-400 font-medium rounded-md transition-colors cursor-pointer ${isPending ? 'bg-[#8b5cf6] text-white shadow-sm' : 'text-gray-400 hover:text-white'
-                }`}
-              type="button"
-              onClick={() => setIsPending(true)}
-            >
-              Pending
-            </button>
-          </div>
-
-          {/* Open Price (Pending Only) */}
-          {isPending && (
-            <div>
-              <div className="flex items-center gap-1 mb-1.5">
-                <label className="text-[#c0c0c0] text-[12px]">Open price</label>
-                <HelpCircle size={14} className="text-gray-500" />
-              </div>
-              <div className="flex items-center h-[36px] border border-gray-800 rounded bg-background hover:border-gray-500 transition-colors group">
-                <div className="relative flex-1 h-full">
-                  <input
-                    type="text"
-                    value={pendingPrice}
-                    onChange={(e) => setPendingPrice(e.target.value)}
-                    placeholder="0.00"
-                    className="w-full h-full bg-transparent border-none px-3 text-white text-[14px] focus:outline-none font-medium"
-                  />
-                  <div className="absolute right-0 top-0 h-full flex items-center pr-2 gap-1">
-                    <span className="bg-gray-700 text-[10px] px-1.5 py-0.5 rounded text-white">Stop</span>
-                  </div>
-                </div>
-                <div className="flex items-center h-full border-l border-gray-800 group-hover:border-gray-500 transition-colors">
-                  <button type="button" className="w-[36px] h-full flex items-center justify-center text-gray-400 hover:text-white cursor-pointer border-r border-gray-800 group-hover:border-gray-500 transition-colors">
-                    <Minus size={14} />
-                  </button>
-                  <button type="button" className="w-[36px] h-full flex items-center justify-center text-gray-400 hover:text-white cursor-pointer">
-                    <Plus size={14} />
-                  </button>
-                </div>
-              </div>
-              <div className="text-[10px] text-gray-500 mt-1 text-right">
-                +31.0 pips
-              </div>
-            </div>
-          )}
-
-          {/* Volume Input */}
-          <div>
-            <div className="flex items-center justify-between mb-1.5 ">
-              <label className="text-gray-100 text-[12px]">Volume</label>
-            </div>
-            <div className="flex items-center h-[36px] border-[1px] border-gray-800 rounded bg-transparent hover:border-gray-400 transition-colors group">
-              <div className="relative flex-1 h-full">
-                <input
+            <div className="space-y-2">
+              <div className="text-xs font-medium text-white/80">Volume</div>
+              <div className="flex items-stretch border border-white/10 rounded-md overflow-hidden bg-white/[0.02] focus-within:border-[#8B5CF6]">
+                <Input
                   type="text"
+                  inputMode="decimal"
                   value={volume}
-                  onChange={(e) => setVolume(e.target.value)}
-                  className="w-full h-full bg-transparent border-none px-3 text-white text-[14px] focus:outline-none font-medium"
+                  onChange={(e) => handleVolumeChange(e.target.value)}
+                  onBlur={(e) => {
+                    const numValue = parseFloat(e.target.value) || 0.01
+                    const roundedValue = Math.round(numValue * 100) / 100
+                    const clampedValue = Math.max(0.01, Math.min(50.00, roundedValue))
+                    setVolume(clampedValue.toFixed(2))
+                  }}
+                  className="flex-1 border-0 bg-transparent text-center price-font text-sm h-9 focus-visible:ring-0 focus-visible:ring-offset-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                 />
-              </div>
-              <div className="flex items-center h-full border-l border-gray-800 group-hover:border-gray-500 transition-colors">
-                <div className="px-3 text-[12px] text-gray-400 border-r border-gray-800 h-full flex items-center group-hover:border-gray-500 transition-colors">
+                <div className="flex items-center justify-center px-3 text-xs text-white/60 min-w-[50px]">
                   Lots
                 </div>
-                <button type="button" className="w-[36px] h-full flex items-center justify-center text-gray-400 hover:text-white cursor-pointer border-r border-gray-800 group-hover:border-gray-500 transition-colors">
-                  <Minus size={14} />
+                <button
+                  onClick={decrementVolume}
+                  className="h-9 w-9 flex items-center justify-center hover:bg-white/5 cursor-pointer"
+                >
+                  <Minus className="h-3.5 w-3.5 text-white/60" />
                 </button>
-                <button type="button" className="w-[36px] h-full flex items-center justify-center text-gray-400 hover:text-white cursor-pointer">
-                  <Plus size={14} />
+                <button
+                  onClick={incrementVolume}
+                  className="h-9 w-9 flex items-center justify-center hover:bg-white/5 cursor-pointer"
+                >
+                  <Plus className="h-3.5 w-3.5 text-white/60" />
                 </button>
               </div>
             </div>
-          </div>
 
-          {/* Take Profit */}
-          <div>
-            <div className="flex items-center justify-between gap-1 mb-1.5">
-              <label className="text-gray-100 text-[12px]">Take Profit</label>
-              <HelpCircle size={14} className="text-gray-500" />
-            </div>
-            <div className="flex items-center h-[36px] border-[1px] border-gray-800 rounded bg-transparent hover:border-gray-500 transition-colors group">
-              <div className="relative flex-1 h-full">
-                <input
+            {renderPriceButtonsSolid()}
+            {renderFinancialDetails()}
+          </>
+        )}
+
+        {/* REGULAR FORM */}
+        {formType === "regular" && (
+          <>
+            {renderPriceButtonsBordered(false, true)}
+
+            <Tabs value={orderType} onValueChange={(value: string) => setOrderType(value as "market" | "limit" | "pending")}>
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="market">Market</TabsTrigger>
+                <TabsTrigger value="pending">Pending</TabsTrigger>
+              </TabsList>
+            </Tabs>
+
+            {orderType === "pending" && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="text-xs font-medium text-white/80">Open price</div>
+                  <Tooltip text="Set open price for pending order">
+                    <HelpCircle className="h-3.5 w-3.5 text-white/40" />
+                  </Tooltip>
+                </div>
+                <div className="flex items-stretch border border-white/10 rounded-md overflow-hidden bg-white/[0.02] focus-within:border-[#8B5CF6]">
+                  <Input
+                    type="number"
+                    value={openPrice}
+                    onChange={(e) => setOpenPrice(e.target.value)}
+                    placeholder={currentBuyPrice.toFixed(3)}
+                    className="flex-1 border-0 bg-transparent text-center price-font text-sm h-9 focus-visible:ring-0 focus-visible:ring-offset-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none placeholder:text-white/40"
+                  />
+                  <div className="flex items-center justify-center px-3 text-xs text-white/60 min-w-[50px]">
+                    Limit
+                  </div>
+                  <button
+                    onClick={() => decrementField(openPrice, setOpenPrice)}
+                    className="h-9 w-9 flex items-center justify-center hover:bg-white/5 cursor-pointer"
+                  >
+                    <Minus className="h-3.5 w-3.5 text-white/60" />
+                  </button>
+                  <button
+                    onClick={() => incrementField(openPrice, setOpenPrice)}
+                    className="h-9 w-9 flex items-center justify-center hover:bg-white/5 cursor-pointer"
+                  >
+                    <Plus className="h-3.5 w-3.5 text-white/60" />
+                  </button>
+                </div>
+                {openPrice && (
+                  <div className="text-xs text-white/60">
+                    {((parseFloat(openPrice) - currentBuyPrice) * 10000).toFixed(1)} pips
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <div className="text-xs font-medium text-white/80">Volume</div>
+              <div className="flex items-stretch border border-white/10 rounded-md overflow-hidden bg-white/[0.02] focus-within:border-[#8B5CF6]">
+                <Input
                   type="text"
-                  value={takeProfit}
-                  onChange={(e) => setTakeProfit(e.target.value)}
-                  placeholder="Not set"
-                  className="w-full h-full bg-transparent border-none px-3 text-white text-[14px] focus:outline-none placeholder-gray-500"
+                  inputMode="decimal"
+                  value={volume}
+                  onChange={(e) => handleVolumeChange(e.target.value)}
+                  onBlur={(e) => {
+                    const numValue = parseFloat(e.target.value) || 0.01
+                    const roundedValue = Math.round(numValue * 100) / 100
+                    const clampedValue = Math.max(0.01, Math.min(50.00, roundedValue))
+                    setVolume(clampedValue.toFixed(2))
+                  }}
+                  className="flex-1 border-0 bg-transparent text-center price-font text-sm h-9 focus-visible:ring-0 focus-visible:ring-offset-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                 />
-              </div>
-              <div className="flex items-center h-full border-l border-gray-800 group-hover:border-gray-500 transition-colors">
-                <button type="button" className="px-2 h-full flex items-center gap-1 text-[12px] text-gray-400 hover:text-white border-r border-gray-800 group-hover:border-gray-500 transition-colors cursor-pointer">
-                  Price <ChevronDown size={12} />
+                <div className="flex items-center justify-center px-3 text-xs text-white/60 min-w-[50px]">
+                  Lots
+                </div>
+                <button
+                  onClick={decrementVolume}
+                  className="h-9 w-9 flex items-center justify-center hover:bg-white/5 cursor-pointer"
+                >
+                  <Minus className="h-3.5 w-3.5 text-white/60" />
                 </button>
-                <button type="button" className="w-[36px] h-full flex items-center justify-center text-gray-400 hover:text-white cursor-pointer border-r border-gray-800 group-hover:border-gray-500 transition-colors">
-                  <Minus size={14} />
-                </button>
-                <button type="button" className="w-[36px] h-full flex items-center justify-center text-gray-400 hover:text-white cursor-pointer">
-                  <Plus size={14} />
+                <button
+                  onClick={incrementVolume}
+                  className="h-9 w-9 flex items-center justify-center hover:bg-white/5 cursor-pointer"
+                >
+                  <Plus className="h-3.5 w-3.5 text-white/60" />
                 </button>
               </div>
             </div>
-          </div>
 
-          {/* Stop Loss */}
-          <div>
-            <div className="flex items-center justify-between gap-1 mb-1.5">
-              <label className="text-gray-100 text-[12px]">Stop Loss</label>
-              <HelpCircle size={14} className="text-gray-500" />
+            {renderInputField(
+              "Take Profit",
+              takeProfit,
+              setTakeProfit,
+              takeProfitMode,
+              (value: string) => setTakeProfitMode(value as "pips" | "price"),
+              [
+                { value: "price", label: "Price" },
+                { value: "pips", label: "Pips" }
+              ],
+              true
+            )}
+
+            {renderInputField(
+              "Stop Loss",
+              stopLoss,
+              setStopLoss,
+              stopLossMode,
+              (value: string) => setStopLossMode(value as "pips" | "price"),
+              [
+                { value: "price", label: "Price" },
+                { value: "pips", label: "Pips" }
+              ],
+              true
+            )}
+
+            {/* Confirmation Buttons - Only show when a side is selected */}
+            {pendingOrderSide && (
+              <>
+                {/* Stop Loss Metrics - Show above confirmation button */}
+                {stopLoss && (
+                  <div className="flex items-center justify-center gap-4 pt-2 pb-1 text-xs text-white/60">
+                    {stopLossMode === "pips" ? (
+                      <>
+                        <span>{stopLoss.startsWith('-') ? stopLoss : `-${stopLoss}`} pips</span>
+                        <span className="text-white/40">|</span>
+                        <span>
+                          {(() => {
+                            const pips = Math.abs(parseFloat(stopLoss) || 0)
+                            const isBuy = pendingOrderSide === 'buy'
+                            const calculatedPrice = calculatePriceFromPips(pips, isBuy, true)
+                            if (calculatedPrice !== null) {
+                              const priceDiff = isBuy 
+                                ? currentBuyPrice - calculatedPrice 
+                                : calculatedPrice - currentSellPrice
+                              const pipValue = pips * getPipValuePerLot * (parseFloat(volume) || 0.01)
+                              return `-${Math.abs(pipValue).toFixed(2)} USD`
+                            }
+                            return '-0.00 USD'
+                          })()}
+                        </span>
+                        <span className="text-white/40">|</span>
+                        <span>
+                          {(() => {
+                            const pips = Math.abs(parseFloat(stopLoss) || 0)
+                            const pipValue = pips * getPipValuePerLot * (parseFloat(volume) || 0.01)
+                            const balance = currentBalance?.equity || 1
+                            const percent = (Math.abs(pipValue) / balance) * 100
+                            return `-${percent.toFixed(2)} %`
+                          })()}
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <span>
+                          {(() => {
+                            const slPrice = parseFloat(stopLoss) || 0
+                            const isBuy = pendingOrderSide === 'buy'
+                            const entryPrice = isBuy ? currentBuyPrice : currentSellPrice
+                            const priceDiff = isBuy ? entryPrice - slPrice : slPrice - entryPrice
+                            const pipSize = getPipSize
+                            const pips = priceDiff / pipSize
+                            return `${pips.toFixed(1)} pips`
+                          })()}
+                        </span>
+                        <span className="text-white/40">|</span>
+                        <span>
+                          {(() => {
+                            const slPrice = parseFloat(stopLoss) || 0
+                            const isBuy = pendingOrderSide === 'buy'
+                            const entryPrice = isBuy ? currentBuyPrice : currentSellPrice
+                            const priceDiff = Math.abs(entryPrice - slPrice)
+                            const pipSize = getPipSize
+                            const pips = priceDiff / pipSize
+                            const pipValue = pips * getPipValuePerLot * (parseFloat(volume) || 0.01)
+                            return `-${pipValue.toFixed(2)} USD`
+                          })()}
+                        </span>
+                        <span className="text-white/40">|</span>
+                        <span>
+                          {(() => {
+                            const slPrice = parseFloat(stopLoss) || 0
+                            const isBuy = pendingOrderSide === 'buy'
+                            const entryPrice = isBuy ? currentBuyPrice : currentSellPrice
+                            const priceDiff = Math.abs(entryPrice - slPrice)
+                            const pipSize = getPipSize
+                            const pips = priceDiff / pipSize
+                            const pipValue = pips * getPipValuePerLot * (parseFloat(volume) || 0.01)
+                            const balance = currentBalance?.equity || 1
+                            const percent = (pipValue / balance) * 100
+                            return `-${percent.toFixed(2)} %`
+                          })()}
+                        </span>
+                      </>
+                    )}
+                  </div>
+                )}
+                
+                <div className="flex flex-col gap-2 pt-2">
+                  <button
+                    onClick={() => {
+                      const handler = pendingOrderSide === 'buy' ? onBuy : onSell
+                      if (!handler) return
+                      const finalVolume = parseFloat(volume) || 0.01
+                      if (finalVolume <= 0) {
+                        console.warn(`Invalid volume for ${pendingOrderSide} order:`, finalVolume)
+                        return
+                      }
+                      let finalStopLoss: number | undefined = undefined
+                      let finalTakeProfit: number | undefined = undefined
+                      
+                      const isBuy = pendingOrderSide === 'buy'
+                      
+                      if (stopLossMode === "price") {
+                        finalStopLoss = stopLoss ? parseFloat(stopLoss) : undefined
+                      } else if (stopLossMode === "pips" && stopLoss) {
+                        const pips = parseFloat(stopLoss)
+                        if (!isNaN(pips)) {
+                          const calculatedPrice = calculatePriceFromPips(pips, isBuy, true)
+                          if (calculatedPrice !== null) {
+                            finalStopLoss = calculatedPrice
+                          }
+                        }
+                      }
+                      
+                      if (takeProfitMode === "price") {
+                        finalTakeProfit = takeProfit ? parseFloat(takeProfit) : undefined
+                      } else if (takeProfitMode === "pips" && takeProfit) {
+                        const pips = parseFloat(takeProfit)
+                        if (!isNaN(pips) && pips > 0) {
+                          const calculatedPrice = calculatePriceFromPips(pips, isBuy, false)
+                          if (calculatedPrice !== null) {
+                            finalTakeProfit = calculatedPrice
+                          }
+                        }
+                      }
+                      
+                      const orderData: OrderData = {
+                        orderType,
+                        volume: finalVolume,
+                        openPrice: orderType !== "market" && openPrice ? parseFloat(openPrice) : undefined,
+                        stopLoss: finalStopLoss,
+                        takeProfit: finalTakeProfit,
+                      }
+                      handler(orderData)
+                      setPendingOrderSide(null)
+                    }}
+                    className={`w-full ${pendingOrderSide === 'buy' ? 'bg-[#4A9EFF] hover:bg-[#4A9EFF]/90' : 'bg-[#FF5555] hover:bg-[#FF5555]/90'} text-white font-semibold py-3 px-4 rounded-md transition-colors flex flex-col items-center justify-center`}
+                  >
+                    <span className="text-sm">Confirm {pendingOrderSide === 'buy' ? 'Buy' : 'Sell'}</span>
+                    <span className="text-xs opacity-90">{volume} lots</span>
+                  </button>
+                  <button
+                    onClick={() => setPendingOrderSide(null)}
+                    className="w-full bg-[#2a2f36] hover:bg-[#363c45] text-white font-medium py-2.5 px-4 rounded-md text-sm transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+                
+                {/* Financial Details - Show below confirmation buttons */}
+                {renderFinancialDetails()}
+              </>
+            )}
+          </>
+        )}
+
+        {/* RISK CALCULATOR FORM */}
+        {formType === "risk-calculator" && (
+          <>
+            {renderPriceButtonsBordered(false)}
+            
+            <Tabs value={orderType} onValueChange={(value: string) => setOrderType(value as "market" | "limit" | "pending")}>
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="market">Market</TabsTrigger>
+                <TabsTrigger value="pending">Pending</TabsTrigger>
+              </TabsList>
+            </Tabs>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="text-xs font-medium text-white/80">Risk</div>
+                <Tooltip text="Maximum amount you're willing to risk on this trade">
+                  <HelpCircle className="h-3.5 w-3.5 text-white/40" />
+                </Tooltip>
+              </div>
+              <div className="flex items-stretch border border-white/10 rounded-md overflow-hidden bg-white/[0.02] focus-within:border-[#8B5CF6]">
+                <Input
+                  type="number"
+                  value={risk}
+                  onChange={(e) => setRisk(e.target.value)}
+                  placeholder="Not set"
+                  className="flex-1 border-0 bg-transparent text-center price-font text-sm h-9 focus-visible:ring-0 focus-visible:ring-offset-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none placeholder:text-white/40"
+                />
+                <select value={riskMode} onChange={(e) => setRiskMode(e.target.value as "usd" | "percent")} className="w-[70px] border-0 h-9 bg-transparent text-xs text-white focus:outline-none focus:ring-0">
+                  <option value="usd" className="bg-[#1a1f28]">USD</option>
+                  <option value="percent" className="bg-[#1a1f28]">%</option>
+                </select>
+                <button
+                  onClick={() => {
+                    const currentValue = parseFloat(risk) || 0
+                    setRisk(Math.max(0, currentValue - 1).toString())
+                  }}
+                  className="h-9 w-9 flex items-center justify-center hover:bg-white/5 cursor-pointer"
+                >
+                  <Minus className="h-3.5 w-3.5 text-white/60" />
+                </button>
+                <button
+                  onClick={() => {
+                    const currentValue = parseFloat(risk) || 0
+                    setRisk((currentValue + 1).toString())
+                  }}
+                  className="h-9 w-9 flex items-center justify-center hover:bg-white/5 cursor-pointer"
+                >
+                  <Plus className="h-3.5 w-3.5 text-white/60" />
+                </button>
+              </div>
+              {riskMode === "percent" && risk && (
+                <div className="text-xs text-white/60 text-center">
+                  {((parseFloat(risk) || 0) * (currentBalance?.equity || 0) / 100).toFixed(2)} USD
+                </div>
+              )}
+              {riskMode === "usd" && calculateRiskBasedVolume !== null && (
+                <div className="text-xs text-white/80 text-center font-medium">
+                  {calculateRiskBasedVolume.toFixed(2)} lots
+                </div>
+              )}
             </div>
-            <div className="flex items-center h-[36px] border-[1px] border-gray-500 rounded bg-transparent hover:border-gray-500 transition-colors group">
-              <div className="relative flex-1 h-full">
-                <input
-                  type="text"
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="text-xs font-medium text-white/80">Stop Loss</div>
+                <Tooltip text="Stop loss distance in pips (negative for Buy, positive for Sell)">
+                  <HelpCircle className="h-3.5 w-3.5 text-white/40" />
+                </Tooltip>
+              </div>
+              <div className="flex items-stretch border border-white/10 rounded-md overflow-hidden bg-white/[0.02] focus-within:border-[#8B5CF6]">
+                <Input
+                  type="number"
                   value={stopLoss}
                   onChange={(e) => setStopLoss(e.target.value)}
                   placeholder="Not set"
-                  className="w-full h-full bg-transparent border-none px-3 text-white text-[14px] focus:outline-none placeholder-gray-500"
+                  className="flex-1 border-0 bg-transparent text-center price-font text-sm h-9 focus-visible:ring-0 focus-visible:ring-offset-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none placeholder:text-white/40"
                 />
+                <div className="flex items-center justify-center px-3 text-xs text-white/60 min-w-[70px] opacity-50">
+                  Pips
+                </div>
+                <button
+                  onClick={() => {
+                    const currentValue = parseFloat(stopLoss) || 0
+                    setStopLoss((currentValue - 1).toString())
+                  }}
+                  className="h-9 w-9 flex items-center justify-center hover:bg-white/5 cursor-pointer"
+                >
+                  <Minus className="h-3.5 w-3.5 text-white/60" />
+                </button>
+                <button
+                  onClick={() => {
+                    const currentValue = parseFloat(stopLoss) || 0
+                    setStopLoss((currentValue + 1).toString())
+                  }}
+                  className="h-9 w-9 flex items-center justify-center hover:bg-white/5 cursor-pointer"
+                >
+                  <Plus className="h-3.5 w-3.5 text-white/60" />
+                </button>
               </div>
-              <div className="flex items-center h-full border-l border-gray-800 group-hover:border-gray-500 transition-colors">
-                <button type="button" className="px-2 h-full flex items-center gap-1 text-[12px] text-gray-400 hover:text-white border-r border-gray-800 group-hover:border-gray-500 transition-colors cursor-pointer">
-                  Price <ChevronDown size={12} />
-                </button>
-                <button type="button" className="w-[36px] h-full flex items-center justify-center text-gray-400 hover:text-white cursor-pointer border-r border-gray-800 group-hover:border-gray-500 transition-colors">
-                  <Minus size={14} />
-                </button>
-                <button type="button" className="w-[36px] h-full flex items-center justify-center text-gray-400 hover:text-white cursor-pointer">
-                  <Plus size={14} />
-                </button>
-              </div>
+              {calculatedStopLossPrice !== null && (
+                <div className="space-y-0.5">
+                  <div className="text-xs text-white/60 text-center">
+                    {calculatedStopLossPrice.toFixed(2)}
+                  </div>
+                  {stopLoss && calculateRiskBasedVolume !== null && (
+                    <div className="text-xs text-red-400/80 text-center font-medium">
+                      {((Math.abs(parseFloat(stopLoss)) || 0) * getPipValuePerLot * calculateRiskBasedVolume).toFixed(2)} USD loss
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
-          </div>
 
-        </div>
-
-        {/* Confirmation Button & Footer (Only when orderSide is selected) */}
-        {
-          orderSide && (
-            <>
-              <div className="px-2 mt-2 flex-shrink-0">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="text-xs font-medium text-white/80">Take Profit</div>
+                <Tooltip text="Take profit distance in pips">
+                  <HelpCircle className="h-3.5 w-3.5 text-white/40" />
+                </Tooltip>
+              </div>
+              <div className="flex items-stretch border border-white/10 rounded-md overflow-hidden bg-white/[0.02] focus-within:border-[#8B5CF6]">
+                <Input
+                  type="number"
+                  value={takeProfit}
+                  onChange={(e) => setTakeProfit(e.target.value)}
+                  placeholder="Not set"
+                  className="flex-1 border-0 bg-transparent text-center price-font text-sm h-9 focus-visible:ring-0 focus-visible:ring-offset-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none placeholder:text-white/40"
+                />
+                <div className="flex items-center justify-center px-3 text-xs text-white/60 min-w-[70px] opacity-50">
+                  Pips
+                </div>
                 <button
-                  className={`w-full text-white font-medium py-2.5 rounded text-[14px] transition-colors shadow-lg cursor-pointer ${orderSide === 'sell'
-                    ? 'bg-[#ff444f] hover:bg-[#eb3b46] shadow-red-900/20'
-                    : 'bg-[#007bff] hover:bg-[#0069d9] shadow-blue-900/20'
-                    }`}
-                  type="submit"
+                  onClick={() => {
+                    const currentValue = parseFloat(takeProfit) || 0
+                    setTakeProfit(Math.max(0, currentValue - 1).toString())
+                  }}
+                  className="h-9 w-9 flex items-center justify-center hover:bg-white/5 cursor-pointer"
                 >
-                  Confirm {orderSide === 'sell' ? 'Sell' : 'Buy'} {volume} lots
+                  <Minus className="h-3.5 w-3.5 text-white/60" />
                 </button>
-
                 <button
-                  className="w-full mt-2 py-2 bg-gray-800 text-white text-[13px] transition-colors border border-transparent hover:border-gray-400 rounded cursor-pointer"
-                  type="button"
-                  onClick={() => setOrderSide(null)}
+                  onClick={() => {
+                    const currentValue = parseFloat(takeProfit) || 0
+                    setTakeProfit((currentValue + 1).toString())
+                  }}
+                  className="h-9 w-9 flex items-center justify-center hover:bg-white/5 cursor-pointer"
                 >
-                  Cancel
+                  <Plus className="h-3.5 w-3.5 text-white/60" />
                 </button>
               </div>
-
-              {/* Footer Details */}
-              <div className="px-2 py-2 flex-shrink-0 space-y-1">
-                <div className="flex items-center justify-between text-[12px] font-medium">
-                  <span className="text-gray-400">Fees:</span>
-                  <div className="flex items-center gap-1">
-                    <span className="text-gray-300">≈ 0.11 USD</span>
-                    <HelpCircle size={12} className="text-gray-500" />
+              {calculatedTakeProfitPrice !== null && (
+                <div className="space-y-0.5">
+                  <div className="text-xs text-white/60 text-center">
+                    {calculatedTakeProfitPrice.toFixed(2)}
                   </div>
+                  {takeProfit && calculateRiskBasedVolume !== null && (
+                    <div className="text-xs text-green-400/80 text-center font-medium">
+                      {((parseFloat(takeProfit) || 0) * getPipValuePerLot * calculateRiskBasedVolume).toFixed(2)} USD profit
+                    </div>
+                  )}
                 </div>
-                <div className="flex items-center justify-between text-[12px] font-medium">
-                  <span className="text-gray-400">Leverage:</span>
-                  <div className="flex items-center gap-1">
-                    <span className="text-gray-300">1:2000</span>
-                    <HelpCircle size={12} className="text-gray-500" />
-                  </div>
-                </div>
-                <div className="flex items-center justify-between text-[12px] font-medium">
-                  <span className="text-gray-400">Margin:</span>
-                  <span className="text-gray-300">2.10 USD</span>
-                </div>
+              )}
+            </div>
+            
+            {renderFinancialDetails()}
+          </>
+        )}
 
-                {isDetailsExpanded && (
-                  <>
-                    <div className="flex items-center justify-between text-[12px] font-medium">
-                      <span className="text-gray-400">Swap:</span>
-                      <div className="flex items-center gap-1">
-                        <span className="text-gray-300">0.00 USD</span>
-                        <HelpCircle size={12} className="text-gray-500" />
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-between text-[12px] font-medium">
-                      <span className="text-gray-400">Pip Value:</span>
-                      <span className="text-gray-300">0.01 USD</span>
-                    </div>
-                    <div className="flex items-center justify-between text-[12px] font-medium">
-                      <span className="text-gray-400">Volume in units:</span>
-                      <span className="text-gray-300">1.00 Troy oz.</span>
-                    </div>
-                    <div className="flex items-center justify-between text-[12px] font-medium">
-                      <span className="text-gray-400">Volume in USD:</span>
-                      <span className="text-gray-300">4,203.70 USD</span>
-                    </div>
-                  </>
-                )}
+      </div>
 
-                <button
-                  className="text-gray-400 hover:text-white text-[12px] cursor-pointer flex items-center gap-1 mt-1 underline decoration-gray-500 hover:decoration-white underline-offset-2 transition-colors"
-                  type="button"
-                  onClick={() => setIsDetailsExpanded(!isDetailsExpanded)}
-                >
-                  {isDetailsExpanded ? 'Less' : 'More'}
-                  <ChevronDown size={12} className={`transition-transform duration-200 ${isDetailsExpanded ? 'rotate-180' : ''}`} />
-                </button>
-              </div>
-            </>
-          )
-        }
-
-      </form >
-
+      {/* One-click Trading Modal */}
       <OrderModeModal
-        isOpen={showModeModal}
-        onClose={() => {
-          setShowModeModal(false)
-          setPendingMode(null)
-        }}
-        onConfirm={handleModeConfirm}
-        mode={pendingMode}
+        isOpen={showOneClickModal}
+        onClose={handleOneClickModalCancel}
+        onConfirm={handleOneClickModalConfirm}
+        mode="One-click form"
       />
-    </div >
+
+      {/* Risk Calculator Modal */}
+      <OrderModeModal
+        isOpen={showRiskCalculatorModal}
+        onClose={handleRiskCalculatorModalCancel}
+        onConfirm={handleRiskCalculatorModalConfirm}
+        mode="Risk calculator form"
+      />
+    </div>
   )
 }
+
+export default OrderPanel

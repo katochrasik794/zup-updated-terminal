@@ -11,7 +11,9 @@ import StatusBar from '../components/layout/StatusBar'
 
 import { useSidebar } from '../context/SidebarContext'
 import { useAccount } from '../context/AccountContext'
+import { useTrading } from '../context/TradingContext'
 import { usePositions, Position } from '../hooks/usePositions'
+import { ordersApi, PlaceMarketOrderParams, PlacePendingOrderParams } from '../lib/api'
 
 import { ImperativePanelHandle } from 'react-resizable-panels'
 
@@ -19,7 +21,8 @@ import ModifyPositionModal from '../components/modals/ModifyPositionModal'
 
 export default function TradingTerminal() {
   const { isSidebarExpanded, setIsSidebarExpanded } = useSidebar();
-  const { currentAccountId } = useAccount();
+  const { currentAccountId, currentBalance } = useAccount();
+  const { symbol } = useTrading();
   const leftPanelRef = useRef<ImperativePanelHandle>(null)
   const [closedToast, setClosedToast] = useState(null)
   const [isRightSidebarOpen, setIsRightSidebarOpen] = useState(true)
@@ -190,6 +193,109 @@ export default function TradingTerminal() {
     console.log('[TradingTerminal] Close all positions:', option);
   }
 
+  // Order placement handlers
+  const handleBuyOrder = async (orderData: any) => {
+    if (!currentAccountId) {
+      console.error('[TradingTerminal] No account selected');
+      return;
+    }
+
+    try {
+      const chosenSymbol = symbol || 'BTCUSD';
+      
+      if (orderData.orderType === 'market') {
+        // Place market order
+        const params: PlaceMarketOrderParams = {
+          accountId: currentAccountId,
+          symbol: chosenSymbol,
+          side: 'buy',
+          volume: orderData.volume,
+          stopLoss: orderData.stopLoss,
+          takeProfit: orderData.takeProfit,
+        };
+        
+        const response = await ordersApi.placeMarketOrder(params);
+        if (response.success) {
+          console.log('[TradingTerminal] Buy market order placed:', response.data);
+        } else {
+          console.error('[TradingTerminal] Failed to place buy market order:', response.message);
+        }
+      } else if (orderData.orderType === 'pending' || orderData.orderType === 'limit') {
+        // Place pending order
+        const params: PlacePendingOrderParams = {
+          accountId: currentAccountId,
+          symbol: chosenSymbol,
+          side: 'buy',
+          volume: orderData.volume,
+          price: orderData.openPrice || 0,
+          orderType: 'limit', // Default to limit, can be 'stop' if needed
+          stopLoss: orderData.stopLoss,
+          takeProfit: orderData.takeProfit,
+        };
+        
+        const response = await ordersApi.placePendingOrder(params);
+        if (response.success) {
+          console.log('[TradingTerminal] Buy pending order placed:', response.data);
+        } else {
+          console.error('[TradingTerminal] Failed to place buy pending order:', response.message);
+        }
+      }
+    } catch (error) {
+      console.error('[TradingTerminal] Error placing buy order:', error);
+    }
+  };
+
+  const handleSellOrder = async (orderData: any) => {
+    if (!currentAccountId) {
+      console.error('[TradingTerminal] No account selected');
+      return;
+    }
+
+    try {
+      const chosenSymbol = symbol || 'BTCUSD';
+      
+      if (orderData.orderType === 'market') {
+        // Place market order
+        const params: PlaceMarketOrderParams = {
+          accountId: currentAccountId,
+          symbol: chosenSymbol,
+          side: 'sell',
+          volume: orderData.volume,
+          stopLoss: orderData.stopLoss,
+          takeProfit: orderData.takeProfit,
+        };
+        
+        const response = await ordersApi.placeMarketOrder(params);
+        if (response.success) {
+          console.log('[TradingTerminal] Sell market order placed:', response.data);
+        } else {
+          console.error('[TradingTerminal] Failed to place sell market order:', response.message);
+        }
+      } else if (orderData.orderType === 'pending' || orderData.orderType === 'limit') {
+        // Place pending order
+        const params: PlacePendingOrderParams = {
+          accountId: currentAccountId,
+          symbol: chosenSymbol,
+          side: 'sell',
+          volume: orderData.volume,
+          price: orderData.openPrice || 0,
+          orderType: 'limit', // Default to limit, can be 'stop' if needed
+          stopLoss: orderData.stopLoss,
+          takeProfit: orderData.takeProfit,
+        };
+        
+        const response = await ordersApi.placePendingOrder(params);
+        if (response.success) {
+          console.log('[TradingTerminal] Sell pending order placed:', response.data);
+        } else {
+          console.error('[TradingTerminal] Failed to place sell pending order:', response.message);
+        }
+      }
+    } catch (error) {
+      console.error('[TradingTerminal] Error placing sell order:', error);
+    }
+  };
+
   // Resize the left panel when it expands or collapses
   useEffect(() => {
     if (leftPanelRef.current) {
@@ -281,7 +387,11 @@ export default function TradingTerminal() {
             {/* Order Panel */}
             {isRightSidebarOpen && (
               <div className="w-[280px] border-l border-[#2a2f36] bg-background flex-shrink-0">
-                <OrderPanel onClose={() => setIsRightSidebarOpen(false)} />
+                <OrderPanel 
+                  onClose={() => setIsRightSidebarOpen(false)}
+                  onBuy={handleBuyOrder}
+                  onSell={handleSellOrder}
+                />
               </div>
             )}
 

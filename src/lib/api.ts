@@ -189,3 +189,50 @@ export const authApi = {
   ssoLogin: (token: string, clientId: string) =>
     apiClient.post('/api/auth/sso-login', { token, clientId }),
 };
+
+// Orders API methods
+export interface PlaceMarketOrderParams {
+  accountId: string;
+  symbol: string;
+  side: 'buy' | 'sell';
+  volume: number;
+  stopLoss?: number;
+  takeProfit?: number;
+}
+
+export interface PlacePendingOrderParams {
+  accountId: string;
+  symbol: string;
+  side: 'buy' | 'sell';
+  volume: number;
+  price: number;
+  orderType: 'limit' | 'stop';
+  stopLoss?: number;
+  takeProfit?: number;
+}
+
+export interface ModifyPendingOrderParams {
+  accountId: string;
+  orderId: string;
+  price?: number;
+  volume?: number;
+  stopLoss?: number;
+  takeProfit?: number;
+}
+
+export const ordersApi = {
+  placeMarketOrder: (params: PlaceMarketOrderParams) =>
+    apiClient.post('/api/orders/market', params),
+
+  placePendingOrder: (params: PlacePendingOrderParams) =>
+    apiClient.post('/api/orders/pending', params),
+
+  modifyPendingOrder: (params: ModifyPendingOrderParams) =>
+    apiClient.put(`/api/orders/pending/${params.orderId}`, {
+      accountId: params.accountId,
+      price: params.price,
+      volume: params.volume,
+      stopLoss: params.stopLoss,
+      takeProfit: params.takeProfit,
+    }),
+};

@@ -77,13 +77,16 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
     acc[pos.symbol].totalCommission += parseFloat(pos.commission || 0)
     acc[pos.symbol].positions.push(pos)
     return acc
-  }, {})).map((group: any) => {
+  }, {  })).map((group: any) => {
     const isHedged = group.totalBuyVolume > 0 && group.totalSellVolume > 0 && Math.abs(group.totalBuyVolume - group.totalSellVolume) < 0.0001;
+    // Set plColor based on totalPL (green for positive, red for negative)
+    const plColor = group.totalPL >= 0 ? 'text-[#00ffaa]' : 'text-[#f6465d]';
     return {
       ...group,
       type: isHedged ? 'Hedged' : group.positions[0].type,
       volume: group.totalVolume.toFixed(2),
       pl: (group.totalPL > 0 ? '+' : '') + group.totalPL.toFixed(2),
+      plColor, // Add plColor for grouped positions
       swap: group.totalSwap.toFixed(2),
       commission: group.totalCommission.toFixed(2),
       // Use approximation for open price in group view

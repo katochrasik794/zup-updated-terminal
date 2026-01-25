@@ -49,16 +49,10 @@ export default function OrderModeModal({ isOpen, onClose, onConfirm, mode }) {
           ) : (
             <>
               <p>
-                Selecting this option activates the One-click trading mode.
+                Selecting this option activates One-click Trading mode for order placement.
               </p>
               <p>
-                In this mode, orders are submitted immediately without additional confirmation.
-              </p>
-              <p>
-                By enabling this mode, you understand that your market or pending orders will be submitted by clicking the Buy or Sell button.
-              </p>
-              <p>
-                You agree to accept all risks associated with the use of the order submission mode you have chosen, including, without limitation, the risk of errors, omissions or mistakes made in submitting any order.
+                By enabling this mode, you understand that your market or limit orders will be submitted by clicking the bid or ask rate button, without any further order confirmation. You agree to accept all risks associated with the use of the order submission mode you have chosen, including, without limitation, the risk of errors, omissions or mistakes made in submitting any order.
               </p>
             </>
           )}
@@ -88,7 +82,7 @@ export default function OrderModeModal({ isOpen, onClose, onConfirm, mode }) {
             </button>
             <button
               onClick={() => onConfirm(dontShowAgain)}
-              className="px-4 py-2 bg-[#8b5cf6] hover:bg-[#eab308] text-black text-[14px] font-bold rounded transition-colors"
+              className="px-4 py-2 bg-[#eab308] hover:bg-[#facc15] text-black text-[14px] font-bold rounded transition-colors"
             >
               Yes, proceed
             </button>

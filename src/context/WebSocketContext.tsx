@@ -91,7 +91,15 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
         };
 
         socket.onerror = (err) => {
-            console.error('[WebSocket] Error:', err);
+            // WebSocket errors are often non-critical (connection issues, network problems)
+            // The WebSocket is used for real-time price updates, but order placement uses REST APIs
+            // Only log once to avoid console spam
+            if (wsRef.current?.readyState !== WebSocket.CLOSED && !wsRef.current?.hasErrorLogged) {
+                console.warn('[WebSocket] Connection error (non-critical - order placement will still work via REST APIs)');
+                if (wsRef.current) {
+                    (wsRef.current as any).hasErrorLogged = true;
+                }
+            }
         };
 
         socket.onmessage = (event) => {
