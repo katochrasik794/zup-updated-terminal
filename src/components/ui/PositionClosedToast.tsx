@@ -6,7 +6,7 @@ import ReactDOM from 'react-dom'
 export default function PositionClosedToast({ position, onClose }) {
   useEffect(() => {
     if (!position) return;
-    
+
     const timer = setTimeout(() => {
       onClose()
     }, 5000)
@@ -14,6 +14,11 @@ export default function PositionClosedToast({ position, onClose }) {
   }, [position]) // Remove onClose from dependencies to prevent timer reset
 
   if (!position) return null
+
+  // Calculate if profit is positive or negative
+  const plValue = parseFloat(String(position.pl || '0').replace('+', ''));
+  const isPositive = plValue >= 0;
+  const colorClass = isPositive ? 'text-[#2ebd85]' : 'text-[#f6465d]';
 
   return ReactDOM.createPortal(
     <div className="fixed bottom-4 left-4 z-[99999] bg-[#02040d] text-[#b2b5be] rounded-md shadow-lg border border-gray-800 w-[320px] overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-300">
@@ -29,7 +34,7 @@ export default function PositionClosedToast({ position, onClose }) {
         </button>
 
         <div className="flex items-start gap-3">
-          <div className="mt-0.5 text-[#2ebd85]">
+          <div className={`mt-0.5 ${colorClass}`}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="12" r="10" />
               <polyline points="9 11 12 14 22 4" />
@@ -44,7 +49,7 @@ export default function PositionClosedToast({ position, onClose }) {
 
             <div className="flex items-center justify-between text-[13px]">
               <span className="text-[#b2b5be]">Profit</span>
-              <span className="text-[#2ebd85] font-medium font-mono">
+              <span className={`${colorClass} font-medium font-mono`}>
                 {position.pl} USD
               </span>
             </div>

@@ -14,6 +14,7 @@ import { useAccount } from '../context/AccountContext'
 import { useTrading } from '../context/TradingContext'
 import { usePositions, Position } from '../hooks/usePositions'
 import { ordersApi, positionsApi, PlaceMarketOrderParams, PlacePendingOrderParams, ClosePositionParams, CloseAllParams, ModifyPendingOrderParams, ModifyPositionParams } from '../lib/api'
+import { closePositionDirect, placeMarketOrderDirect, placePendingOrderDirect } from '../lib/metaapi'
 
 import { ImperativePanelHandle } from 'react-resizable-panels'
 
@@ -22,11 +23,11 @@ import OrderPlacedToast from '../components/ui/OrderPlacedToast'
 
 export default function TradingTerminal() {
   const { isSidebarExpanded, setIsSidebarExpanded } = useSidebar();
-  const { currentAccountId, currentBalance } = useAccount();
+  const { currentAccountId, currentBalance, getMetaApiToken } = useAccount();
   const { symbol, lastModification } = useTrading();
   const leftPanelRef = useRef<ImperativePanelHandle>(null)
-  const [closedToast, setClosedToast] = useState(null)
-  const [orderToast, setOrderToast] = useState(null)
+  const [closedToast, setClosedToast] = useState<any>(null)
+  const [orderToast, setOrderToast] = useState<any>(null)
   const [isRightSidebarOpen, setIsRightSidebarOpen] = useState(true)
   const [isBottomPanelVisible, setIsBottomPanelVisible] = useState(true)
 
@@ -40,11 +41,11 @@ export default function TradingTerminal() {
   }, []);
 
   // Fetch positions, pending orders, and closed positions using REST API hook
-  const { 
-    positions: rawPositions, 
+  const {
+    positions: rawPositions,
     pendingOrders: rawPendingOrders,
     closedPositions: rawClosedPositions,
-    isLoading: isPositionsLoading, 
+    isLoading: isPositionsLoading,
     error: positionsError,
     refetch: refetchPositions
   } = usePositions({
@@ -56,14 +57,14 @@ export default function TradingTerminal() {
   // Format positions for BottomPanel display
   const openPositions = useMemo(() => {
     if (!rawPositions || rawPositions.length === 0) return [];
-    
+
     return rawPositions.map((pos: Position) => {
       const profit = pos.profit || 0;
       const plFormatted = profit >= 0 ? `+${profit.toFixed(2)}` : profit.toFixed(2);
       const plColor = profit >= 0 ? 'text-[#00ffaa]' : 'text-[#f6465d]';
       const symbol = pos.symbol || '';
       const flag = symbol.toLowerCase().replace('/', '');
-      
+
       return {
         symbol,
         type: pos.type,
@@ -73,12 +74,12 @@ export default function TradingTerminal() {
         tp: pos.takeProfit && pos.takeProfit !== 0 ? pos.takeProfit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 }) : 'Add',
         sl: pos.stopLoss && pos.stopLoss !== 0 ? pos.stopLoss.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 }) : 'Add',
         ticket: pos.ticket.toString(),
-        openTime: new Date(pos.openTime).toLocaleString('en-US', { 
-          month: 'short', 
-          day: 'numeric', 
-          hour: 'numeric', 
+        openTime: new Date(pos.openTime).toLocaleString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          hour: 'numeric',
           minute: '2-digit',
-          hour12: true 
+          hour12: true
         }),
         swap: pos.swap.toFixed(2),
         commission: pos.commission.toFixed(2),
@@ -93,14 +94,14 @@ export default function TradingTerminal() {
   // Format pending orders for BottomPanel display
   const pendingPositions = useMemo(() => {
     if (!rawPendingOrders || rawPendingOrders.length === 0) return [];
-    
+
     return rawPendingOrders.map((pos: Position) => {
       const profit = pos.profit || 0;
       const plFormatted = profit >= 0 ? `+${profit.toFixed(2)}` : profit.toFixed(2);
       const plColor = profit >= 0 ? 'text-[#00ffaa]' : 'text-[#f6465d]';
       const symbol = pos.symbol || '';
       const flag = symbol.toLowerCase().replace('/', '');
-      
+
       return {
         symbol,
         type: pos.type,
@@ -110,12 +111,12 @@ export default function TradingTerminal() {
         tp: pos.takeProfit && pos.takeProfit !== 0 ? pos.takeProfit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 }) : 'Add',
         sl: pos.stopLoss && pos.stopLoss !== 0 ? pos.stopLoss.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 }) : 'Add',
         ticket: pos.ticket.toString(),
-        openTime: new Date(pos.openTime).toLocaleString('en-US', { 
-          month: 'short', 
-          day: 'numeric', 
-          hour: 'numeric', 
+        openTime: new Date(pos.openTime).toLocaleString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          hour: 'numeric',
           minute: '2-digit',
-          hour12: true 
+          hour12: true
         }),
         swap: pos.swap.toFixed(2),
         commission: pos.commission.toFixed(2),
@@ -130,14 +131,14 @@ export default function TradingTerminal() {
   // Format closed positions for BottomPanel display
   const closedPositions = useMemo(() => {
     if (!rawClosedPositions || rawClosedPositions.length === 0) return [];
-    
+
     return rawClosedPositions.map((pos: Position) => {
       const profit = pos.profit || 0;
       const plFormatted = profit >= 0 ? `+${profit.toFixed(2)}` : profit.toFixed(2);
       const plColor = profit >= 0 ? 'text-[#00ffaa]' : 'text-[#f6465d]';
       const symbol = pos.symbol || '';
       const flag = symbol.toLowerCase().replace('/', '');
-      
+
       // Closed trades volume is already in lots from formatPosition, use as-is
       // No division needed (unlike open positions which need /10000)
       return {
@@ -150,12 +151,12 @@ export default function TradingTerminal() {
         tp: pos.takeProfit && pos.takeProfit !== 0 ? pos.takeProfit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 }) : 'Not Set',
         sl: pos.stopLoss && pos.stopLoss !== 0 ? pos.stopLoss.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 }) : 'Not Set',
         ticket: pos.ticket.toString(),
-        openTime: new Date(pos.openTime).toLocaleString('en-US', { 
-          month: 'short', 
-          day: 'numeric', 
-          hour: 'numeric', 
+        openTime: new Date(pos.openTime).toLocaleString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          hour: 'numeric',
           minute: '2-digit',
-          hour12: true 
+          hour12: true
         }),
         swap: pos.swap.toFixed(2),
         commission: pos.commission.toFixed(2),
@@ -179,19 +180,33 @@ export default function TradingTerminal() {
         return;
       }
 
-      const params: ClosePositionParams = {
-        accountId: currentAccountId,
-        positionId: positionId,
-        symbol: position.symbol,
-      };
+      // Show toast immediately for better UX (optimistic update)
+      // setClosedToast(position); // MOVED TO AFTER SUCCESS
 
-      const response = await positionsApi.closePosition(params);
-      if (response.success) {
-        // Show toast notification
+      // Get MetaAPI access token
+      const accessToken = await getMetaApiToken(currentAccountId);
+      if (!accessToken) {
+        console.error("Failed to get MetaAPI access token");
+        return;
+      }
+
+      const response = await closePositionDirect({
+        positionId: positionId,
+        accountId: currentAccountId,
+        accessToken: accessToken,
+        comment: "Closed from Terminal (Fast)"
+      });
+
+      if (!response.success) {
+        console.error("Failed to close position via direct API", response.message);
+        // Optionally handle failure (e.g., revert toast or show error)
+      } else {
+        console.log(`Position ${positionId} closed in record time!`);
+        // Show toast ONLY after successful closing
         setClosedToast(position);
       }
     } catch (error) {
-      // Silent fail
+      console.error("Error in handleClosePosition:", error);
     }
   }
 
@@ -203,26 +218,39 @@ export default function TradingTerminal() {
     try {
       // Get all positions for this symbol
       const symbolPositions = openPositions.filter((pos: any) => pos.symbol === symbol);
-      
+
       if (symbolPositions.length === 0) {
         return;
       }
 
-      // Close all positions for this symbol
+      // Show toast for the first position immediately
+      // setClosedToast(symbolPositions[0]); // MOVED TO AFTER SUCCESS
+
+      // Get MetaAPI access token
+      const accessToken = await getMetaApiToken(currentAccountId);
+      if (!accessToken) return;
+
+      // Close all positions for this symbol in parallel
       const closePromises = symbolPositions.map((pos: any) => {
         const positionId = pos.ticket || pos.id || pos.positionId;
         if (!positionId) return Promise.resolve({ success: false });
-        
-        return positionsApi.closePosition({
-          accountId: currentAccountId,
+
+        return closePositionDirect({
           positionId: positionId,
-          symbol: pos.symbol,
+          accountId: currentAccountId,
+          accessToken: accessToken,
+          comment: "Group Closed from Terminal (Fast)"
         });
       });
 
-      await Promise.allSettled(closePromises);
+      const results = await Promise.allSettled(closePromises);
+      const successful = results.filter(r => r.status === 'fulfilled' && r.value.success).length;
+
+      if (successful > 0) {
+        setClosedToast(symbolPositions[0]);
+      }
     } catch (error) {
-      // Silent fail
+      console.error("Error in handleCloseGroup:", error);
     }
   }
 
@@ -234,7 +262,7 @@ export default function TradingTerminal() {
     try {
       // Filter positions based on the selected option
       let positionsToClose = [...openPositions];
-      
+
       if (option === 'profitable') {
         positionsToClose = openPositions.filter((pos: any) => {
           const pl = parseFloat(pos.pl.replace('+', ''));
@@ -250,21 +278,28 @@ export default function TradingTerminal() {
       } else if (option === 'sell') {
         positionsToClose = openPositions.filter((pos: any) => pos.type === 'Sell');
       }
-      // 'all' option uses all positions (no filtering)
 
       if (positionsToClose.length === 0) {
         return;
       }
 
-      // Close each position individually
+      // Show notification immediately for the first closed position
+      // setClosedToast(positionsToClose[0]); // MOVED TO AFTER SUCCESS
+
+      // Get MetaAPI access token
+      const accessToken = await getMetaApiToken(currentAccountId);
+      if (!accessToken) return;
+
+      // Close each position individually in parallel
       const closePromises = positionsToClose.map((pos: any) => {
         const positionId = pos.ticket || pos.id || pos.positionId;
         if (!positionId) return Promise.resolve({ success: false });
-        
-        return positionsApi.closePosition({
-          accountId: currentAccountId,
+
+        return closePositionDirect({
           positionId: positionId,
-          symbol: pos.symbol,
+          accountId: currentAccountId,
+          accessToken: accessToken,
+          comment: "Close All from Terminal (Fast)"
         });
       });
 
@@ -272,18 +307,17 @@ export default function TradingTerminal() {
       const successful = results.filter(r => r.status === 'fulfilled' && r.value.success).length;
 
       if (successful > 0) {
-        // Show notification for the first closed position
         setClosedToast(positionsToClose[0]);
       }
     } catch (error) {
-      // Silent fail
+      console.error("Error in handleCloseAll:", error);
     }
   }
 
   // Helper function to calculate required margin (matching zuperior-terminal)
   const calculateRequiredMargin = useCallback((volume: number, price: number, symbol: string, leverage: number): number => {
     const symbolUpper = symbol.toUpperCase();
-    
+
     let contractSize: number;
     if (symbolUpper.includes('XAU') || symbolUpper.includes('XAG')) {
       contractSize = 100; // Metals: 1 lot = 100 oz
@@ -292,10 +326,10 @@ export default function TradingTerminal() {
     } else {
       contractSize = 100000; // Forex: 1 lot = 100,000 units
     }
-    
+
     // Calculate margin: (Volume * ContractSize * Price) / Leverage
     const requiredMargin = (volume * contractSize * price) / leverage;
-    
+
     // Add 5% buffer for safety (spread, slippage, etc.)
     return requiredMargin * 1.05;
   }, []);
@@ -308,7 +342,7 @@ export default function TradingTerminal() {
 
     // For pending orders, skip free margin validation - only check when API responds with failure
     const isPendingOrder = orderData.orderType === 'pending' || orderData.orderType === 'limit';
-    
+
     // For market orders only: Fetch latest balance data and validate free margin BEFORE API calls
     if (!isPendingOrder) {
       try {
@@ -331,13 +365,13 @@ export default function TradingTerminal() {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         const balanceResult = await balanceResponse.json();
-        
+
         if (balanceResult.success && balanceResult.data) {
           const balanceData = balanceResult.data;
           const equity = Number(balanceData.Equity ?? balanceData.equity ?? 0);
           const margin = Number(balanceData.Margin ?? balanceData.margin ?? balanceData.MarginUsed ?? balanceData.marginUsed ?? 0);
           const freeMargin = parseFloat((equity - margin).toFixed(2));
-          
+
           // CRITICAL: Block if free margin is negative or zero (only for market orders)
           if (freeMargin <= 0) {
             setOrderToast({
@@ -386,15 +420,15 @@ export default function TradingTerminal() {
         const leverageStr = String(currentBalance.leverage || "1:400");
         const leverageMatch = leverageStr.match(/:?(\d+)/);
         const leverage = leverageMatch ? parseInt(leverageMatch[1], 10) : 400;
-        
+
         const chosenSymbol = symbol || 'BTCUSD';
         const tradePrice = orderData.openPrice || 0;
-        
+
         if (tradePrice > 0) {
           const requiredMargin = calculateRequiredMargin(orderData.volume, tradePrice, chosenSymbol, leverage);
           const newMargin = margin + requiredMargin;
           const newFreeMargin = equity - newMargin;
-          
+
           if (newMargin > equity) {
             setOrderToast({
               side: 'buy',
@@ -407,7 +441,7 @@ export default function TradingTerminal() {
             });
             return;
           }
-          
+
           if (requiredMargin > freeMargin) {
             setOrderToast({
               side: 'buy',
@@ -420,7 +454,7 @@ export default function TradingTerminal() {
             });
             return;
           }
-          
+
           const newMarginLevel = equity > 0 ? (equity / newMargin) * 100 : 0;
           if (newMarginLevel < 50 && newMarginLevel > 0) {
             setOrderToast({
@@ -434,7 +468,7 @@ export default function TradingTerminal() {
             });
             return;
           }
-          
+
           if (newFreeMargin < 0) {
             setOrderToast({
               side: 'buy',
@@ -453,22 +487,28 @@ export default function TradingTerminal() {
 
     try {
       const chosenSymbol = symbol || 'BTCUSD';
-      
+
       if (orderData.orderType === 'market') {
-        // Place market order
-        const params: PlaceMarketOrderParams = {
+        // Get MetaAPI access token
+        const accessToken = await getMetaApiToken(currentAccountId);
+        if (!accessToken) {
+          throw new Error('Failed to get MetaAPI access token');
+        }
+
+        // Place market order directly
+        const response = await placeMarketOrderDirect({
           accountId: currentAccountId,
+          accessToken: accessToken,
           symbol: chosenSymbol,
           side: 'buy',
           volume: orderData.volume,
           stopLoss: orderData.stopLoss,
           takeProfit: orderData.takeProfit,
-        };
-        
-        const response = await ordersApi.placeMarketOrder(params);
+          comment: 'Buy from Terminal (Fast)'
+        });
         if (response.success) {
           // Show toast notification
-          const apiData = response.data || {};
+          const apiData: any = response.data || {};
           setOrderToast({
             side: 'buy',
             symbol: chosenSymbol,
@@ -504,22 +544,29 @@ export default function TradingTerminal() {
           return;
         }
 
-        // Place pending order
-        const params: PlacePendingOrderParams = {
+        // Get MetaAPI access token
+        const accessToken = await getMetaApiToken(currentAccountId);
+        if (!accessToken) {
+          throw new Error('Failed to get MetaAPI access token');
+        }
+
+        // Place pending order directly
+        const response = await placePendingOrderDirect({
           accountId: currentAccountId,
+          accessToken: accessToken,
           symbol: chosenSymbol,
           side: 'buy',
           volume: orderData.volume,
           price: orderData.openPrice,
-          orderType: orderData.pendingOrderType || 'limit', // Use pendingOrderType from orderData (limit or stop)
+          orderType: orderData.pendingOrderType || 'limit',
           stopLoss: orderData.stopLoss,
           takeProfit: orderData.takeProfit,
-        };
-        
-        const response = await ordersApi.placePendingOrder(params);
+          comment: 'Buy Limit/Stop from Terminal (Fast)'
+        });
+
         if (response.success) {
           // Show toast notification
-          const apiData = response.data || {};
+          const apiData: any = response.data || {};
           setOrderToast({
             side: 'buy',
             symbol: chosenSymbol,
@@ -563,7 +610,7 @@ export default function TradingTerminal() {
 
     // For pending orders, skip free margin validation - only check when API responds with failure
     const isPendingOrder = orderData.orderType === 'pending' || orderData.orderType === 'limit';
-    
+
     // For market orders only: Fetch latest balance data and validate free margin BEFORE API calls
     if (!isPendingOrder) {
       try {
@@ -586,13 +633,13 @@ export default function TradingTerminal() {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         const balanceResult = await balanceResponse.json();
-        
+
         if (balanceResult.success && balanceResult.data) {
           const balanceData = balanceResult.data;
           const equity = Number(balanceData.Equity ?? balanceData.equity ?? 0);
           const margin = Number(balanceData.Margin ?? balanceData.margin ?? balanceData.MarginUsed ?? balanceData.marginUsed ?? 0);
           const freeMargin = parseFloat((equity - margin).toFixed(2));
-          
+
           // CRITICAL: Block if free margin is negative or zero (only for market orders)
           if (freeMargin <= 0) {
             setOrderToast({
@@ -641,15 +688,15 @@ export default function TradingTerminal() {
         const leverageStr = String(currentBalance.leverage || "1:400");
         const leverageMatch = leverageStr.match(/:?(\d+)/);
         const leverage = leverageMatch ? parseInt(leverageMatch[1], 10) : 400;
-        
+
         const chosenSymbol = symbol || 'BTCUSD';
         const tradePrice = orderData.openPrice || 0;
-        
+
         if (tradePrice > 0) {
           const requiredMargin = calculateRequiredMargin(orderData.volume, tradePrice, chosenSymbol, leverage);
           const newMargin = margin + requiredMargin;
           const newFreeMargin = equity - newMargin;
-          
+
           if (newMargin > equity) {
             setOrderToast({
               side: 'sell',
@@ -662,7 +709,7 @@ export default function TradingTerminal() {
             });
             return;
           }
-          
+
           if (requiredMargin > freeMargin) {
             setOrderToast({
               side: 'sell',
@@ -675,7 +722,7 @@ export default function TradingTerminal() {
             });
             return;
           }
-          
+
           const newMarginLevel = equity > 0 ? (equity / newMargin) * 100 : 0;
           if (newMarginLevel < 50 && newMarginLevel > 0) {
             setOrderToast({
@@ -689,7 +736,7 @@ export default function TradingTerminal() {
             });
             return;
           }
-          
+
           if (newFreeMargin < 0) {
             setOrderToast({
               side: 'sell',
@@ -708,22 +755,29 @@ export default function TradingTerminal() {
 
     try {
       const chosenSymbol = symbol || 'BTCUSD';
-      
+
       if (orderData.orderType === 'market') {
-        // Place market order
-        const params: PlaceMarketOrderParams = {
+        // Get MetaAPI access token
+        const accessToken = await getMetaApiToken(currentAccountId);
+        if (!accessToken) {
+          throw new Error('Failed to get MetaAPI access token');
+        }
+
+        // Place market order directly
+        const response = await placeMarketOrderDirect({
           accountId: currentAccountId,
+          accessToken: accessToken,
           symbol: chosenSymbol,
           side: 'sell',
           volume: orderData.volume,
           stopLoss: orderData.stopLoss,
           takeProfit: orderData.takeProfit,
-        };
-        
-        const response = await ordersApi.placeMarketOrder(params);
+          comment: 'Sell from Terminal (Fast)'
+        });
+
         if (response.success) {
           // Show toast notification
-          const apiData = response.data || {};
+          const apiData: any = response.data || {};
           setOrderToast({
             side: 'sell',
             symbol: chosenSymbol,
@@ -759,22 +813,29 @@ export default function TradingTerminal() {
           return;
         }
 
-        // Place pending order
-        const params: PlacePendingOrderParams = {
+        // Get MetaAPI access token
+        const accessToken = await getMetaApiToken(currentAccountId);
+        if (!accessToken) {
+          throw new Error('Failed to get MetaAPI access token');
+        }
+
+        // Place pending order directly
+        const response = await placePendingOrderDirect({
           accountId: currentAccountId,
+          accessToken: accessToken,
           symbol: chosenSymbol,
           side: 'sell',
           volume: orderData.volume,
           price: orderData.openPrice,
-          orderType: orderData.pendingOrderType || 'limit', // Use pendingOrderType from orderData (limit or stop)
+          orderType: orderData.pendingOrderType || 'limit',
           stopLoss: orderData.stopLoss,
           takeProfit: orderData.takeProfit,
-        };
-        
-        const response = await ordersApi.placePendingOrder(params);
+          comment: 'Sell Limit/Stop from Terminal (Fast)'
+        });
+
         if (response.success) {
           // Show toast notification
-          const apiData = response.data || {};
+          const apiData: any = response.data || {};
           setOrderToast({
             side: 'sell',
             symbol: chosenSymbol,
@@ -818,9 +879,9 @@ export default function TradingTerminal() {
     const handleModify = async () => {
       try {
         const { id, tp, sl } = lastModification;
-        
+
         // Check if this is a pending order by checking if it exists in pendingOrders
-        const pendingOrder = rawPendingOrders.find((order: Position) => 
+        const pendingOrder = rawPendingOrders.find((order: Position) =>
           order.ticket.toString() === id.toString() || order.id === id
         );
 
@@ -834,21 +895,21 @@ export default function TradingTerminal() {
           };
 
           const response = await ordersApi.modifyPendingOrder(params);
-          
-            if (response.success) {
-              // Refresh pending orders to show updated TP/SL
-              refetchPositions();
-              
-              // Show success toast for modification
-              setOrderToast({
-                side: pendingOrder.type?.includes('Buy') ? 'buy' : 'sell',
-                symbol: pendingOrder.symbol || symbol || 'BTCUSD',
-                volume: (pendingOrder.volume / 100).toFixed(2),
-                price: null,
-                orderType: pendingOrder.type?.includes('Limit') ? 'limit' : 'stop',
-                profit: null,
-                isModified: true, // Flag to indicate this is a modification
-              });
+
+          if (response.success) {
+            // Refresh pending orders to show updated TP/SL
+            refetchPositions();
+
+            // Show success toast for modification
+            setOrderToast({
+              side: pendingOrder.type?.includes('Buy') ? 'buy' : 'sell',
+              symbol: pendingOrder.symbol || symbol || 'BTCUSD',
+              volume: (pendingOrder.volume / 100).toFixed(2),
+              price: null,
+              orderType: pendingOrder.type?.includes('Limit') ? 'limit' : 'stop',
+              profit: null,
+              isModified: true, // Flag to indicate this is a modification
+            });
           } else {
             // Show error toast
             setOrderToast({
@@ -863,7 +924,7 @@ export default function TradingTerminal() {
           }
         } else {
           // Modify open position
-          const openPosition = rawPositions.find((pos: Position) => 
+          const openPosition = rawPositions.find((pos: Position) =>
             pos.ticket.toString() === id.toString() || pos.id === id
           );
 
@@ -871,7 +932,7 @@ export default function TradingTerminal() {
             // Clean and parse TP/SL values, removing commas
             let stopLoss: number | undefined = undefined;
             let takeProfit: number | undefined = undefined;
-            
+
             if (sl && sl !== '' && sl !== 'Not Set' && sl !== 'Add') {
               const slClean = String(sl).replace(/,/g, '');
               const slParsed = parseFloat(slClean);
@@ -879,7 +940,7 @@ export default function TradingTerminal() {
                 stopLoss = slParsed;
               }
             }
-            
+
             if (tp && tp !== '' && tp !== 'Not Set' && tp !== 'Add') {
               const tpClean = String(tp).replace(/,/g, '');
               const tpParsed = parseFloat(tpClean);
@@ -887,7 +948,7 @@ export default function TradingTerminal() {
                 takeProfit = tpParsed;
               }
             }
-            
+
             const params: ModifyPositionParams = {
               accountId: currentAccountId,
               positionId: id.toString(),
@@ -897,11 +958,11 @@ export default function TradingTerminal() {
             };
 
             const response = await positionsApi.modifyPosition(params);
-            
+
             if (response.success) {
               // Refresh positions to show updated TP/SL
               refetchPositions();
-              
+
               // Show success toast for modification
               setOrderToast({
                 side: openPosition.type?.includes('Buy') || openPosition.type === 'Buy' ? 'buy' : 'sell',
@@ -1034,7 +1095,7 @@ export default function TradingTerminal() {
             {/* Order Panel */}
             {isRightSidebarOpen && (
               <div className="w-[280px] border-l border-[#2a2f36] bg-background flex-shrink-0">
-                <OrderPanel 
+                <OrderPanel
                   onClose={() => setIsRightSidebarOpen(false)}
                   onBuy={handleBuyOrder}
                   onSell={handleSellOrder}

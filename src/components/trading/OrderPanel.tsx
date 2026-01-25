@@ -43,7 +43,7 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
 
   // Get real-time prices from WebSocket
   const hubSymbol = React.useMemo(() => (symbol || 'BTCUSD').replace('/', ''), [symbol])
-  
+
   React.useEffect(() => {
     if (hubSymbol) {
       subscribe([hubSymbol])
@@ -52,12 +52,12 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
   }, [hubSymbol, subscribe, unsubscribe])
 
   const quote = lastQuotes[normalizeSymbol(hubSymbol)] || {}
-  
+
   // Use live prices if available, otherwise fall back to defaults
   const currentSellPrice = quote.bid ?? 0
   const currentBuyPrice = quote.ask ?? 0
   const currentSpread = quote.spread !== undefined ? `${quote.spread.toFixed(2)} pips` : '0.00 pips'
-  
+
   const [formType, setFormType] = React.useState<FormType>("regular")
   const [orderType, setOrderType] = React.useState<"market" | "limit" | "pending">("market")
   const [pendingOrderType, setPendingOrderType] = React.useState<"limit" | "stop">("limit") // For pending orders: limit or stop
@@ -74,6 +74,7 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
   const [showRiskCalculatorModal, setShowRiskCalculatorModal] = React.useState(false)
   const [pendingFormType, setPendingFormType] = React.useState<FormType | null>(null)
   const [pendingOrderSide, setPendingOrderSide] = React.useState<'buy' | 'sell' | null>(null)
+  const [isLoading, setIsLoading] = React.useState(false)
 
   // Check if user has dismissed the one-click modal
   const shouldShowOneClickModal = React.useCallback(() => {
@@ -151,7 +152,7 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
     // Reset pending order side when form type changes
     setPendingOrderSide(null)
   }, [formType])
-  
+
   // Get pip size based on symbol type
   const getPipSize = React.useMemo(() => {
     const symbolUpper = (symbol || '').toUpperCase()
@@ -167,7 +168,7 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
       return 0.0001
     }
   }, [symbol])
-  
+
   // Get pip value per lot based on symbol type
   const getPipValuePerLot = React.useMemo(() => {
     const symbolUpper = (symbol || '').toUpperCase()
@@ -185,7 +186,7 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
       return 10
     }
   }, [symbol, getPipSize])
-  
+
   // Calculate SL and TP prices from pips (for risk calculator)
   const calculatePriceFromPips = React.useCallback((pips: number, isBuy: boolean, isStopLoss: boolean = false) => {
     if (pips === null || pips === undefined || isNaN(pips)) return null
@@ -197,27 +198,27 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
       return currentSellPrice - priceChange
     }
   }, [getPipSize, currentBuyPrice, currentSellPrice])
-  
+
   // Calculate volume for risk calculator based on Risk and Stop Loss
   const calculateRiskBasedVolume = React.useMemo(() => {
     if (formType !== "risk-calculator" || !risk || !stopLoss || stopLossMode !== "pips" || riskMode !== "usd") {
       return null
     }
-    
+
     const riskAmount = parseFloat(risk)
     const stopLossPips = Math.abs(parseFloat(stopLoss))
-    
+
     if (!riskAmount || !stopLossPips || stopLossPips <= 0 || riskAmount <= 0) {
       return null
     }
-    
+
     const pipValuePerLot = getPipValuePerLot
     const calculatedVolume = riskAmount / (stopLossPips * pipValuePerLot)
     const clampedVolume = Math.max(0.01, Math.min(50.00, calculatedVolume))
-    
+
     return clampedVolume
   }, [formType, risk, stopLoss, stopLossMode, riskMode, getPipValuePerLot])
-  
+
   // Calculate SL and TP prices from pips
   const calculatedStopLossPrice = React.useMemo(() => {
     if (formType !== "risk-calculator" || !stopLoss || stopLossMode !== "pips") return null
@@ -232,7 +233,7 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
     if (isNaN(pips) || pips <= 0) return null
     return calculatePriceFromPips(pips, true, false)
   }, [formType, takeProfit, takeProfitMode, calculatePriceFromPips])
-  
+
   // Update volume when risk calculator values change
   React.useEffect(() => {
     if (formType === "risk-calculator" && calculateRiskBasedVolume !== null) {
@@ -245,13 +246,13 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
       setVolume('')
       return
     }
-    
+
     const trimmedValue = value.trim()
-    
+
     if (!/^[\d.]*$/.test(trimmedValue) || (trimmedValue.match(/\./g) || []).length > 1) {
       return
     }
-    
+
     const decimalIndex = trimmedValue.indexOf('.')
     if (decimalIndex !== -1) {
       const decimalPart = trimmedValue.substring(decimalIndex + 1)
@@ -261,7 +262,7 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
         return
       }
     }
-    
+
     setVolume(trimmedValue)
   }
 
@@ -293,16 +294,46 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
   const renderPriceButtonsSolid = () => (
     <div className="relative grid grid-cols-2 gap-3">
       <button
-        onClick={() => onSell?.({
-          orderType,
-          pendingOrderType: orderType === "pending" ? pendingOrderType : undefined,
-          volume: parseFloat(volume),
-          openPrice: openPrice ? parseFloat(openPrice) : currentSellPrice,
-          stopLoss: undefined,
-          takeProfit: undefined,
-        })}
-        className="rounded-md p-3 bg-[#FF5555] hover:bg-[#FF5555]/90 cursor-pointer text-left"
+        onClick={async () => {
+          if (isLoading) return;
+          setPendingOrderSide('sell');
+          setIsLoading(true);
+          try {
+            onSell?.({
+              orderType,
+              pendingOrderType: orderType === "pending" ? pendingOrderType : undefined,
+              volume: parseFloat(volume),
+              openPrice: openPrice ? parseFloat(openPrice) : currentSellPrice,
+              stopLoss: undefined,
+              takeProfit: undefined,
+            });
+            setTimeout(() => {
+              setIsLoading(false);
+              setPendingOrderSide(null);
+            }, 1000);
+          } catch (err) {
+            setIsLoading(false);
+            setPendingOrderSide(null);
+          }
+        }}
+        disabled={isLoading}
+        className={cn(
+          "rounded-md p-3 bg-[#FF5555] hover:bg-[#FF5555]/90 cursor-pointer text-left relative overflow-hidden transition-all text-white",
+          isLoading && "opacity-80"
+        )}
       >
+        {isLoading && pendingOrderSide === 'sell' && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/20 backdrop-blur-[1px] z-10">
+            <div className="flex gap-1">
+              {[0, 1, 2].map((i) => (
+                <div
+                  key={i}
+                  className="w-1.5 h-1.5 bg-white rounded-full opacity-80"
+                />
+              ))}
+            </div>
+          </div>
+        )}
         <div className="text-xs text-white/80 mb-1">Sell</div>
         <div className="price-font text-white font-bold text-sm leading-tight">
           {Math.floor(currentSellPrice).toLocaleString()}
@@ -312,16 +343,46 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
       </button>
 
       <button
-        onClick={() => onBuy?.({
-          orderType,
-          pendingOrderType: orderType === "pending" ? pendingOrderType : undefined,
-          volume: parseFloat(volume),
-          openPrice: openPrice ? parseFloat(openPrice) : currentBuyPrice,
-          stopLoss: undefined,
-          takeProfit: undefined,
-        })}
-        className="rounded-md p-3 bg-[#4A9EFF] hover:bg-[#4A9EFF]/90 cursor-pointer text-right"
+        onClick={async () => {
+          if (isLoading) return;
+          setPendingOrderSide('buy');
+          setIsLoading(true);
+          try {
+            onBuy?.({
+              orderType,
+              pendingOrderType: orderType === "pending" ? pendingOrderType : undefined,
+              volume: parseFloat(volume),
+              openPrice: openPrice ? parseFloat(openPrice) : currentBuyPrice,
+              stopLoss: undefined,
+              takeProfit: undefined,
+            });
+            setTimeout(() => {
+              setIsLoading(false);
+              setPendingOrderSide(null);
+            }, 1000);
+          } catch (err) {
+            setIsLoading(false);
+            setPendingOrderSide(null);
+          }
+        }}
+        disabled={isLoading}
+        className={cn(
+          "rounded-md p-3 bg-[#4A9EFF] hover:bg-[#4A9EFF]/90 cursor-pointer text-right relative overflow-hidden transition-all text-white",
+          isLoading && "opacity-80"
+        )}
       >
+        {isLoading && pendingOrderSide === 'buy' && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/20 backdrop-blur-[1px] z-10">
+            <div className="flex gap-1">
+              {[0, 1, 2].map((i) => (
+                <div
+                  key={i}
+                  className="w-1.5 h-1.5 bg-white rounded-full opacity-80"
+                />
+              ))}
+            </div>
+          </div>
+        )}
         <div className="text-xs text-white/80 mb-1">Buy</div>
         <div className="price-font text-white font-bold text-sm leading-tight">
           {Math.floor(currentBuyPrice).toLocaleString()}
@@ -339,13 +400,13 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
   // Render buy/sell price buttons with spread overlay - bordered for regular/risk calculator
   // In regular form, clicking these buttons sets pendingOrderSide to show confirmation
   const renderPriceButtonsBordered = (readOnly: boolean = false, showConfirmation: boolean = false) => {
-    const finalVolume = formType === "risk-calculator" && calculateRiskBasedVolume !== null 
-      ? calculateRiskBasedVolume 
+    const finalVolume = formType === "risk-calculator" && calculateRiskBasedVolume !== null
+      ? calculateRiskBasedVolume
       : (parseFloat(volume) || 0.01)
-    
+
     let finalStopLoss: number | undefined = undefined
     let finalTakeProfit: number | undefined = undefined
-    
+
     if (formType === "risk-calculator") {
       finalStopLoss = calculatedStopLossPrice ?? undefined
       finalTakeProfit = calculatedTakeProfitPrice ?? undefined
@@ -366,7 +427,7 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
           }
         }
       }
-      
+
       if (takeProfit) {
         if (takeProfitMode === "price") {
           finalTakeProfit = parseFloat(takeProfit)
@@ -383,11 +444,11 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
         }
       }
     }
-    
-    const finalOpenPrice = orderType !== "market" && openPrice 
-      ? parseFloat(openPrice) 
+
+    const finalOpenPrice = orderType !== "market" && openPrice
+      ? parseFloat(openPrice)
       : undefined
-    
+
     return (
       <div className="relative grid grid-cols-2 gap-3">
         <button
@@ -482,10 +543,10 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
     const vol = parseFloat(volume) || 0
     const price = orderType === "limit" && openPrice ? parseFloat(openPrice) : currentBuyPrice
     const symbolUpper = (symbol || '').toUpperCase()
-    
+
     let contractSize = 100000
     let pipValue = 0.0001
-    
+
     if (symbolUpper.includes('XAU') || symbolUpper.includes('XAG')) {
       contractSize = 100
       pipValue = 0.01
@@ -496,11 +557,11 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
       contractSize = 100000
       pipValue = symbolUpper.includes('JPY') ? 0.01 : 0.0001
     }
-    
+
     const leverageStr = String(currentBalance?.leverage || "1:400")
     const leverageMatch = leverageStr.match(/:?(\d+)/)
     const leverage = leverageMatch ? parseInt(leverageMatch[1], 10) : 400
-    
+
     const margin = (vol * contractSize * price) / leverage
     const tradeValue = vol * contractSize * price
     const fees = tradeValue * 0.001
@@ -510,7 +571,7 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
     const volumeInUnits = vol * contractSize
     const volumeInUSD = tradeValue
     const credit = currentBalance?.credit || 0
-    
+
     return {
       fees,
       leverage: `1:${leverage}`,
@@ -523,7 +584,7 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
       credit
     }
   }, [volume, currentBuyPrice, openPrice, orderType, symbol, currentBalance])
-  
+
   // Render financial details section
   const renderFinancialDetails = () => (
     <div className="space-y-2 pt-2 border-t border-white/10">
@@ -536,7 +597,7 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
           </Tooltip>
         </div>
       </div>
-      
+
       <div className="flex items-center justify-between text-xs">
         <span className="text-white/60">Leverage:</span>
         <div className="flex items-center gap-1">
@@ -546,12 +607,12 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
           </Tooltip>
         </div>
       </div>
-      
+
       <div className="flex items-center justify-between text-xs">
         <span className="text-white/60">Margin:</span>
         <span className="text-white price-font">{calculateFinancialMetrics.margin.toFixed(2)} USD</span>
       </div>
-      
+
       {showMoreDetails && (
         <>
           <div className="flex items-center justify-between text-xs">
@@ -563,7 +624,7 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
               </Tooltip>
             </div>
           </div>
-          
+
           <div className="flex items-center justify-between text-xs">
             <span className="text-white/60">Swap Short:</span>
             <div className="flex items-center gap-1">
@@ -573,29 +634,29 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
               </Tooltip>
             </div>
           </div>
-          
+
           <div className="flex items-center justify-between text-xs">
             <span className="text-white/60">Pip Value:</span>
             <span className="text-white price-font">{calculateFinancialMetrics.pipValue.toFixed(2)} USD</span>
           </div>
-          
+
           <div className="flex items-center justify-between text-xs">
             <span className="text-white/60">Volume in units:</span>
             <span className="text-white price-font">{calculateFinancialMetrics.volumeInUnits.toFixed(2)} {symbol?.toUpperCase().includes('BTC') ? 'BTC' : symbol?.toUpperCase().includes('ETH') ? 'ETH' : symbol?.toUpperCase().includes('XAU') ? 'oz' : ''}</span>
           </div>
-          
+
           <div className="flex items-center justify-between text-xs">
             <span className="text-white/60">Volume in USD:</span>
             <span className="text-white price-font">{calculateFinancialMetrics.volumeInUSD.toFixed(2)} USD</span>
           </div>
-          
+
           <div className="flex items-center justify-between text-xs">
             <span className="text-white/60">Credit:</span>
             <span className="text-white price-font">{calculateFinancialMetrics.credit.toFixed(2)} USD</span>
           </div>
         </>
       )}
-      
+
       <button
         onClick={() => setShowMoreDetails(!showMoreDetails)}
         className="w-full flex items-center justify-center gap-1 text-xs text-white/60 hover:text-white/80 pt-1"
@@ -955,8 +1016,8 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
                             const isBuy = pendingOrderSide === 'buy'
                             const calculatedPrice = calculatePriceFromPips(pips, isBuy, true)
                             if (calculatedPrice !== null) {
-                              const priceDiff = isBuy 
-                                ? currentBuyPrice - calculatedPrice 
+                              const priceDiff = isBuy
+                                ? currentBuyPrice - calculatedPrice
                                 : calculatedPrice - currentSellPrice
                               const pipValue = pips * getPipValuePerLot * (parseFloat(volume) || 0.01)
                               return `-${Math.abs(pipValue).toFixed(2)} USD`
@@ -1020,10 +1081,12 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
                     )}
                   </div>
                 )}
-                
+
                 <div className="flex flex-col gap-2 pt-2">
                   <button
-                    onClick={() => {
+                    disabled={isLoading}
+                    onClick={async () => {
+                      if (isLoading) return;
                       const handler = pendingOrderSide === 'buy' ? onBuy : onSell
                       if (!handler) return
                       const finalVolume = parseFloat(volume) || 0.01
@@ -1033,9 +1096,9 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
                       }
                       let finalStopLoss: number | undefined = undefined
                       let finalTakeProfit: number | undefined = undefined
-                      
+
                       const isBuy = pendingOrderSide === 'buy'
-                      
+
                       if (stopLossMode === "price") {
                         finalStopLoss = stopLoss ? parseFloat(stopLoss) : undefined
                       } else if (stopLossMode === "pips" && stopLoss) {
@@ -1047,7 +1110,7 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
                           }
                         }
                       }
-                      
+
                       if (takeProfitMode === "price") {
                         finalTakeProfit = takeProfit ? parseFloat(takeProfit) : undefined
                       } else if (takeProfitMode === "pips" && takeProfit) {
@@ -1059,7 +1122,7 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
                           }
                         }
                       }
-                      
+
                       // For pending orders, validate that openPrice is provided
                       if (orderType === 'pending' && !openPrice) {
                         alert('Please enter an open price for pending orders')
@@ -1070,28 +1133,55 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
                         orderType,
                         pendingOrderType: orderType === "pending" ? pendingOrderType : undefined,
                         volume: finalVolume,
-                        openPrice: orderType === 'market' 
+                        openPrice: orderType === 'market'
                           ? (pendingOrderSide === 'buy' ? currentBuyPrice : currentSellPrice)
                           : (openPrice ? parseFloat(openPrice) : undefined),
                         stopLoss: finalStopLoss,
                         takeProfit: finalTakeProfit,
                       }
-                      handler(orderData)
-                      setPendingOrderSide(null)
+
+                      setIsLoading(true);
+                      try {
+                        handler(orderData);
+                        setTimeout(() => {
+                          setIsLoading(false);
+                          setPendingOrderSide(null);
+                        }, 1000);
+                      } catch (err) {
+                        setIsLoading(false);
+                        setPendingOrderSide(null);
+                      }
                     }}
-                    className={`w-full ${pendingOrderSide === 'buy' ? 'bg-[#4A9EFF] hover:bg-[#4A9EFF]/90' : 'bg-[#FF5555] hover:bg-[#FF5555]/90'} text-white font-semibold py-3 px-4 rounded-md transition-colors flex flex-col items-center justify-center`}
+                    className={cn(
+                      "w-full font-semibold py-3 px-4 rounded-md transition-all flex flex-col items-center justify-center relative overflow-hidden text-white",
+                      pendingOrderSide === 'buy' ? 'bg-[#4A9EFF] hover:bg-[#4A9EFF]/90' : 'bg-[#FF5555] hover:bg-[#FF5555]/90',
+                      isLoading && "opacity-80"
+                    )}
                   >
+                    {isLoading && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/20 backdrop-blur-[1px] z-10 focus:outline-none">
+                        <div className="flex gap-1">
+                          {[0, 1, 2].map((i) => (
+                            <div
+                              key={i}
+                              className="w-1.5 h-1.5 bg-white rounded-full opacity-80"
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    )}
                     <span className="text-sm">Confirm {pendingOrderSide === 'buy' ? 'Buy' : 'Sell'}</span>
                     <span className="text-xs opacity-90">{volume} lots</span>
                   </button>
                   <button
                     onClick={() => setPendingOrderSide(null)}
-                    className="w-full bg-[#2a2f36] hover:bg-[#363c45] text-white font-medium py-2.5 px-4 rounded-md text-sm transition-colors"
+                    disabled={isLoading}
+                    className="w-full bg-[#2a2f36] hover:bg-[#363c45] text-white font-medium py-2.5 px-4 rounded-md text-sm transition-colors disabled:opacity-50"
                   >
                     Cancel
                   </button>
                 </div>
-                
+
                 {/* Financial Details - Show below confirmation buttons */}
                 {renderFinancialDetails()}
               </>
@@ -1103,7 +1193,7 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
         {formType === "risk-calculator" && (
           <>
             {renderPriceButtonsBordered(false)}
-            
+
             <Tabs value={orderType} onValueChange={(value: string) => setOrderType(value as "market" | "limit" | "pending")}>
               <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="market">Market</TabsTrigger>
@@ -1262,7 +1352,7 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
                 </div>
               )}
             </div>
-            
+
             {renderFinancialDetails()}
           </>
         )}
