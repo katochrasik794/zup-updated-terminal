@@ -51,17 +51,6 @@ export default function TradingTerminal() {
     enabled: !!currentAccountId,
   });
 
-  // Debug logging
-  useEffect(() => {
-    if (currentAccountId) {
-      console.log('[TradingTerminal] Positions state:', {
-        accountId: currentAccountId,
-        positionsCount: rawPositions.length,
-        isLoading: isPositionsLoading,
-        error: positionsError,
-      });
-    }
-  }, [currentAccountId, rawPositions, isPositionsLoading, positionsError]);
 
   // Format positions for BottomPanel display
   const openPositions = useMemo(() => {
@@ -148,15 +137,6 @@ export default function TradingTerminal() {
       const symbol = pos.symbol || '';
       const flag = symbol.toLowerCase().replace('/', '');
       
-      // For closed trades, volume is already processed in formatPosition (in lots)
-      // Log to see what volume we're getting
-      console.log(`[TradingTerminal] Closed position volume:`, {
-        ticket: pos.ticket,
-        symbol: pos.symbol,
-        rawVolume: pos.volume,
-        volumeType: typeof pos.volume
-      });
-      
       // Closed trades volume is already in lots from formatPosition, use as-is
       // No division needed (unlike open positions which need /10000)
       return {
@@ -188,7 +168,6 @@ export default function TradingTerminal() {
 
   const handleClosePosition = async (position: any) => {
     if (!currentAccountId) {
-      console.error('[TradingTerminal] No account selected');
       return;
     }
 
@@ -196,7 +175,6 @@ export default function TradingTerminal() {
       // Extract position ID from the position object
       const positionId = position.ticket || position.id || position.positionId;
       if (!positionId) {
-        console.error('[TradingTerminal] No position ID found');
         return;
       }
 
@@ -208,20 +186,16 @@ export default function TradingTerminal() {
 
       const response = await positionsApi.closePosition(params);
       if (response.success) {
-        console.log('[TradingTerminal] Position closed successfully:', positionId);
         // Show toast notification
         setClosedToast(position);
-      } else {
-        console.error('[TradingTerminal] Failed to close position:', response.message);
       }
     } catch (error) {
-      console.error('[TradingTerminal] Error closing position:', error);
+      // Silent fail
     }
   }
 
   const handleCloseGroup = async (symbol: string) => {
     if (!currentAccountId) {
-      console.error('[TradingTerminal] No account selected');
       return;
     }
 
@@ -230,7 +204,6 @@ export default function TradingTerminal() {
       const symbolPositions = openPositions.filter((pos: any) => pos.symbol === symbol);
       
       if (symbolPositions.length === 0) {
-        console.log('[TradingTerminal] No positions found for symbol:', symbol);
         return;
       }
 
@@ -246,19 +219,14 @@ export default function TradingTerminal() {
         });
       });
 
-      const results = await Promise.allSettled(closePromises);
-      const successful = results.filter(r => r.status === 'fulfilled' && r.value.success).length;
-      const failed = results.length - successful;
-
-      console.log('[TradingTerminal] Close group completed:', { symbol, successful, failed });
+      await Promise.allSettled(closePromises);
     } catch (error) {
-      console.error('[TradingTerminal] Error closing group:', error);
+      // Silent fail
     }
   }
 
   const handleCloseAll = async (option: string) => {
     if (!currentAccountId) {
-      console.error('[TradingTerminal] No account selected');
       return;
     }
 
@@ -284,7 +252,6 @@ export default function TradingTerminal() {
       // 'all' option uses all positions (no filtering)
 
       if (positionsToClose.length === 0) {
-        console.log('[TradingTerminal] No positions to close for option:', option);
         return;
       }
 
@@ -302,23 +269,19 @@ export default function TradingTerminal() {
 
       const results = await Promise.allSettled(closePromises);
       const successful = results.filter(r => r.status === 'fulfilled' && r.value.success).length;
-      const failed = results.length - successful;
-
-      console.log('[TradingTerminal] Close all completed:', { option, successful, failed, total: positionsToClose.length });
 
       if (successful > 0) {
         // Show notification for the first closed position
         setClosedToast(positionsToClose[0]);
       }
     } catch (error) {
-      console.error('[TradingTerminal] Error closing all positions:', error);
+      // Silent fail
     }
   }
 
   // Order placement handlers
   const handleBuyOrder = async (orderData: any) => {
     if (!currentAccountId) {
-      console.error('[TradingTerminal] No account selected');
       return;
     }
 
@@ -338,7 +301,6 @@ export default function TradingTerminal() {
         
         const response = await ordersApi.placeMarketOrder(params);
         if (response.success) {
-          console.log('[TradingTerminal] Buy market order placed:', response.data);
           // Show toast notification
           const apiData = response.data || {};
           setOrderToast({
@@ -349,8 +311,6 @@ export default function TradingTerminal() {
             orderType: 'market',
             profit: apiData.Profit || apiData.profit || null,
           });
-        } else {
-          console.error('[TradingTerminal] Failed to place buy market order:', response.message);
         }
       } else if (orderData.orderType === 'pending' || orderData.orderType === 'limit') {
         // Place pending order
@@ -367,7 +327,6 @@ export default function TradingTerminal() {
         
         const response = await ordersApi.placePendingOrder(params);
         if (response.success) {
-          console.log('[TradingTerminal] Buy pending order placed:', response.data);
           // Show toast notification
           const apiData = response.data || {};
           setOrderToast({
@@ -378,18 +337,15 @@ export default function TradingTerminal() {
             orderType: orderData.orderType === 'stop' ? 'stop' : 'limit',
             profit: null, // Pending orders don't have profit yet
           });
-        } else {
-          console.error('[TradingTerminal] Failed to place buy pending order:', response.message);
         }
       }
     } catch (error) {
-      console.error('[TradingTerminal] Error placing buy order:', error);
+      // Silent fail
     }
   };
 
   const handleSellOrder = async (orderData: any) => {
     if (!currentAccountId) {
-      console.error('[TradingTerminal] No account selected');
       return;
     }
 
@@ -409,7 +365,6 @@ export default function TradingTerminal() {
         
         const response = await ordersApi.placeMarketOrder(params);
         if (response.success) {
-          console.log('[TradingTerminal] Sell market order placed:', response.data);
           // Show toast notification
           const apiData = response.data || {};
           setOrderToast({
@@ -420,8 +375,6 @@ export default function TradingTerminal() {
             orderType: 'market',
             profit: apiData.Profit || apiData.profit || null,
           });
-        } else {
-          console.error('[TradingTerminal] Failed to place sell market order:', response.message);
         }
       } else if (orderData.orderType === 'pending' || orderData.orderType === 'limit') {
         // Place pending order
@@ -438,7 +391,6 @@ export default function TradingTerminal() {
         
         const response = await ordersApi.placePendingOrder(params);
         if (response.success) {
-          console.log('[TradingTerminal] Sell pending order placed:', response.data);
           // Show toast notification
           const apiData = response.data || {};
           setOrderToast({
@@ -449,12 +401,10 @@ export default function TradingTerminal() {
             orderType: orderData.orderType === 'stop' ? 'stop' : 'limit',
             profit: null, // Pending orders don't have profit yet
           });
-        } else {
-          console.error('[TradingTerminal] Failed to place sell pending order:', response.message);
         }
       }
     } catch (error) {
-      console.error('[TradingTerminal] Error placing sell order:', error);
+      // Silent fail
     }
   };
 
