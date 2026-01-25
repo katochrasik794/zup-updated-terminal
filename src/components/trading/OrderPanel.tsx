@@ -407,7 +407,7 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
               const orderData: OrderData = {
                 orderType,
                 volume: finalVolume,
-                openPrice: finalOpenPrice,
+                openPrice: orderType === 'market' ? currentSellPrice : finalOpenPrice,
                 stopLoss: finalStopLoss,
                 takeProfit: finalTakeProfit,
               }
@@ -442,7 +442,7 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
                 orderType,
                 pendingOrderType: orderType === "pending" ? pendingOrderType : undefined,
                 volume: finalVolume,
-                openPrice: finalOpenPrice,
+                openPrice: orderType === 'market' ? currentBuyPrice : finalOpenPrice,
                 stopLoss: finalStopLoss,
                 takeProfit: finalTakeProfit,
               }
@@ -1053,7 +1053,9 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
                         orderType,
                         pendingOrderType: orderType === "pending" ? pendingOrderType : undefined,
                         volume: finalVolume,
-                        openPrice: orderType !== "market" && openPrice ? parseFloat(openPrice) : undefined,
+                        openPrice: orderType === 'market' 
+                          ? (pendingOrderSide === 'buy' ? currentBuyPrice : currentSellPrice)
+                          : (openPrice ? parseFloat(openPrice) : undefined),
                         stopLoss: finalStopLoss,
                         takeProfit: finalTakeProfit,
                       }

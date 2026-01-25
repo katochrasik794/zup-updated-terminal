@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef, useCallback } from 'react'
+import { useEffect, useState, useRef, useCallback, useMemo } from 'react'
 import { GiNetworkBars } from "react-icons/gi";
 import CloseAllPositionsDropdown from "../modals/CloseAllPositionsDropdown";
 import { usePrivacy } from '../../context/PrivacyContext';
@@ -45,11 +45,18 @@ export default function StatusBar({ openPositions = [], onCloseAll }: any) {
   }, [fetchBalance]);
 
   // Map values
-  const equity = data?.Equity ?? 0;
-  const balance = data?.Balance ?? 0;
-  const margin = data?.Margin ?? 0;
-  const freeMargin = data?.MarginFree ?? 0;
-  const marginLevel = data?.MarginLevel ?? 0;
+  const equity = data?.Equity ?? data?.equity ?? 0;
+  const balance = data?.Balance ?? data?.balance ?? 0;
+  const margin = data?.Margin ?? data?.margin ?? data?.MarginUsed ?? data?.marginUsed ?? 0;
+  
+  // Calculate Free Margin: Always calculate as Equity - Margin (standard MT5 formula)
+  const freeMargin = useMemo(() => {
+    const eq = Number(equity) || 0;
+    const mg = Number(margin) || 0;
+    return parseFloat((eq - mg).toFixed(2));
+  }, [equity, margin]);
+  
+  const marginLevel = data?.MarginLevel ?? data?.marginLevel ?? 0;
   
   // Calculate P/L from open positions (same as CloseAllPositionsDropdown)
   // Sum up all position P/L values
