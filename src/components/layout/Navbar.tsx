@@ -107,18 +107,21 @@ export default function Navbar({ logoLarge, logoSmall }: NavbarProps) {
 
   // Direct fetch for selected account
   const fetchCurrentBalance = useCallback(async () => {
-    if (!currentAccountId) return;
+    // Robust check for account identity
+    if (!currentAccountId || currentAccountId === 'undefined' || currentAccountId === 'null') {
+      return;
+    }
+
     try {
       const token = localStorage.getItem('token');
-      
+
       if (!token) {
-        console.warn('[Navbar] No token found in localStorage');
         return;
       }
 
       const response = await fetch(`http://localhost:5000/api/accounts/${currentAccountId}/profile`, {
         cache: 'no-store',
-        headers: { 
+        headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
@@ -126,14 +129,7 @@ export default function Navbar({ logoLarge, logoSmall }: NavbarProps) {
       });
 
       if (!response.ok) {
-        if (response.status === 401) {
-          console.error('[Navbar] Unauthorized - token may be invalid or expired');
-          // Optionally clear token and redirect to login
-          // localStorage.removeItem('token');
-          // window.location.href = '/login';
-        } else {
-          console.error('[Navbar] Fetch failed with status:', response.status, response.statusText);
-        }
+        // Silently handle errors
         return;
       }
 
@@ -142,7 +138,7 @@ export default function Navbar({ logoLarge, logoSmall }: NavbarProps) {
         setCurrentData(result.data);
       }
     } catch (err) {
-      console.error('[Navbar] Fetch Current Error:', err);
+      // Gracefully catch network errors like "Failed to fetch"
     }
   }, [currentAccountId]);
 
@@ -268,7 +264,7 @@ export default function Navbar({ logoLarge, logoSmall }: NavbarProps) {
   }, []); // Empty deps - only run once
 
   return (
-    <nav className="bg-background flex-shrink-0 border border-gray-800">
+    <nav className="bg-background flex-shrink-0 border-t border-x border-gray-800">
       <div className="flex items-center h-14 px-2">
         {/* Logo */}
         <div className="px-2 flex-shrink-0">

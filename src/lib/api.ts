@@ -13,13 +13,13 @@ const getBackendUrl = () => {
   if (process.env.NEXT_PUBLIC_BACKEND_API_URL) {
     return process.env.NEXT_PUBLIC_BACKEND_API_URL;
   }
-  
+
   // Check if NEXT_PUBLIC_API_BASE_URL is set and is localhost (not metaapi)
   const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
   if (apiBaseUrl && (apiBaseUrl.includes('localhost') || apiBaseUrl.includes('127.0.0.1'))) {
     return apiBaseUrl;
   }
-  
+
   // Default to localhost:5000
   return 'http://localhost:5000';
 };
@@ -42,6 +42,7 @@ export interface ApiResponse<T = any> {
   user?: T;
   token?: string;
   errors?: string[];
+  [key: string]: any; // Allow for other fields like 'positions', 'pendingOrders'
 }
 
 class ApiClient {
@@ -56,7 +57,7 @@ class ApiClient {
    */
   getToken(): string | null {
     if (typeof window === 'undefined') return null;
-    
+
     // Try to get from localStorage first
     const token = localStorage.getItem('token');
     if (token) return token;
@@ -89,7 +90,7 @@ class ApiClient {
     options: RequestInit = {}
   ): Promise<ApiResponse<T>> {
     const token = this.getToken();
-    
+
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
       ...options.headers,
@@ -102,7 +103,7 @@ class ApiClient {
     try {
       const url = `${this.baseURL}${endpoint}`;
       console.log(`[API Client] Making request to: ${url}`);
-      
+
       const response = await fetch(url, {
         ...options,
         headers,

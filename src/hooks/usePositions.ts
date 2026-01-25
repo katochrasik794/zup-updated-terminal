@@ -58,17 +58,17 @@ const formatPosition = (pos: any, isClosedTrade: boolean = false): Position => {
   };
 
   // For closed trades from tradehistory, use OrderId or DealId as ticket
-  const ticketId = isClosedTrade 
+  const ticketId = isClosedTrade
     ? (pos.OrderId ?? pos.orderId ?? pos.DealId ?? pos.dealId ?? pos.PositionId ?? pos.PositionID ?? pos.Ticket ?? pos.ticket ?? pos.Id ?? pos.id ?? generateStableId())
     : (pos.PositionId ?? pos.PositionID ?? pos.Ticket ?? pos.ticket ?? pos.Id ?? pos.id ?? generateStableId());
   const id = String(ticketId);
 
   // Get Type field for order type mapping (for pending orders)
   const orderType = pos.Type ?? pos.type ?? pos.OrderType ?? pos.orderType;
-  
+
   // Map order types: 0=Buy, 1=Sell, 2=Buy Limit, 3=Sell Limit, 4=Buy Stop, 5=Sell Stop
   let mappedType: 'Buy' | 'Sell' | 'Buy Limit' | 'Sell Limit' | 'Buy Stop' | 'Sell Stop' | 'Hedged';
-  
+
   if (typeof orderType === 'number') {
     switch (orderType) {
       case 0:
@@ -92,13 +92,13 @@ const formatPosition = (pos: any, isClosedTrade: boolean = false): Position => {
       default:
         // Fallback to Action-based logic for open positions
         const action = pos.Action ?? pos.action;
-        const isBuy = action === 0 || action === 'Buy' || orderType === 0 || orderType === 'Buy';
+        const isBuy = String(action) === '0' || action === 'Buy' || String(orderType) === '0' || orderType === 'Buy';
         mappedType = isBuy ? 'Buy' : 'Sell';
     }
   } else {
     // Fallback to Action-based logic for open positions
     const action = pos.Action ?? pos.action;
-    const isBuy = action === 0 || action === 'Buy' || orderType === 0 || orderType === 'Buy';
+    const isBuy = String(action) === '0' || action === 'Buy' || String(orderType) === '0' || orderType === 'Buy';
     mappedType = isBuy ? 'Buy' : 'Sell';
   }
 
@@ -108,7 +108,7 @@ const formatPosition = (pos: any, isClosedTrade: boolean = false): Position => {
     // TradeHistory API uses VolumeLots (in lots) or Volume
     const volumeLots = pos.VolumeLots ?? pos.volumeLots;
     const rawVolume = pos.Volume ?? pos.volume ?? 0;
-    
+
     // Log volume fields for debugging
     if (pos.OrderId || pos.orderId || pos.DealId || pos.dealId) {
       console.log(`[formatPosition] Closed trade volume fields:`, {
@@ -120,7 +120,7 @@ const formatPosition = (pos: any, isClosedTrade: boolean = false): Position => {
         allKeys: Object.keys(pos).filter(k => k.toLowerCase().includes('volume'))
       });
     }
-    
+
     if (volumeLots !== undefined && volumeLots !== null) {
       volume = Number(volumeLots);
       console.log(`[formatPosition] Using VolumeLots: ${volumeLots} -> ${volume}`);
@@ -152,16 +152,16 @@ const formatPosition = (pos: any, isClosedTrade: boolean = false): Position => {
 
   // Check if this is a pending order (Type 2-5: Buy Limit, Sell Limit, Buy Stop, Sell Stop)
   const isPendingOrder = typeof orderType === 'number' && orderType >= 2 && orderType <= 5;
-  
+
   // For closed trades, Price is the close price, OpenPrice is the entry price
   // For pending orders, use PriceOrder instead of PriceOpen
   // For open positions, use PriceOpen
   const openPrice = isClosedTrade
     ? Number(pos.OpenPrice ?? pos.openPrice ?? pos.PriceOpen ?? pos.priceOpen ?? 0)
     : isPendingOrder
-    ? Number(pos.PriceOrder ?? pos.priceOrder ?? pos.PriceOpen ?? pos.priceOpen ?? pos.OpenPrice ?? pos.openPrice ?? 0)
-    : Number(pos.PriceOpen ?? pos.priceOpen ?? pos.OpenPrice ?? pos.openPrice ?? 0);
-  
+      ? Number(pos.PriceOrder ?? pos.priceOrder ?? pos.PriceOpen ?? pos.priceOpen ?? pos.OpenPrice ?? pos.openPrice ?? 0)
+      : Number(pos.PriceOpen ?? pos.priceOpen ?? pos.OpenPrice ?? pos.openPrice ?? 0);
+
   const currentPrice = isClosedTrade
     ? Number(pos.Price ?? pos.price ?? pos.ClosePrice ?? pos.closePrice ?? 0) // Close price for closed trades
     : Number(pos.PriceCurrent ?? pos.priceCurrent ?? pos.CurrentPrice ?? pos.currentPrice ?? 0);
@@ -210,17 +210,17 @@ const formatPosition = (pos: any, isClosedTrade: boolean = false): Position => {
 // Format positions array
 const formatPositions = (data: any, isClosedTrades: boolean = false): Position[] => {
   if (!data) return [];
-  
+
   if (Array.isArray(data)) {
     return data.map((pos: any) => formatPosition(pos, isClosedTrades));
   }
-  
+
   if (data && typeof data === 'object') {
     const nested = data.positions || data.Positions || data.Data || data.data || data.Result || data.Items || data.items || data.trades || data.Trades;
     if (Array.isArray(nested)) {
       return nested.map((pos: any) => formatPosition(pos, isClosedTrades));
     }
-    
+
     if (nested && typeof nested === 'object') {
       const deeper = nested.Positions || nested.positions || nested.Items || nested.items || nested.trades || nested.Trades;
       if (Array.isArray(deeper)) {
@@ -228,7 +228,7 @@ const formatPositions = (data: any, isClosedTrades: boolean = false): Position[]
       }
     }
   }
-  
+
   return [];
 };
 
@@ -242,7 +242,7 @@ export function usePositions({ accountId, enabled = true }: UsePositionsProps): 
   const [closedPositions, setClosedPositions] = useState<Position[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
+
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const isMountedRef = useRef(true);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -282,11 +282,11 @@ export function usePositions({ accountId, enabled = true }: UsePositionsProps): 
         const positionsArray = response.positions || response.data || [];
         const pendingArray = response.pendingOrders || [];
         const closedArray = response.closedPositions || [];
-        
+
         const formattedPositions = formatPositions(positionsArray, false);
         const formattedPending = formatPositions(pendingArray, false);
         const formattedClosed = formatPositions(closedArray, true); // Mark as closed trades for proper formatting
-        
+
         if (isMountedRef.current) {
           setPositions(formattedPositions);
           setPendingOrders(formattedPending);
@@ -300,11 +300,18 @@ export function usePositions({ accountId, enabled = true }: UsePositionsProps): 
         // Request was cancelled, ignore
         return;
       }
-      
+
       console.error('[usePositions] Error fetching positions:', err);
       if (isMountedRef.current) {
+        // If account not found, don't show a blocking error, just set error state
         setError(err.message || 'Failed to fetch positions');
-        // Don't clear positions on error, keep last known state
+
+        // If it's a specific "not found" error, we might want to clear positions
+        if (err.message && err.message.includes('not found')) {
+          setPositions([]);
+          setPendingOrders([]);
+          setClosedPositions([]);
+        }
       }
     } finally {
       if (isMountedRef.current) {

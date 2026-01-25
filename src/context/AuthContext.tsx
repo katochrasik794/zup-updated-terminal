@@ -71,16 +71,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (email: string, password: string) => {
     const response = await authApi.login(email, password);
-    
+
     if (response.success && response.token) {
       // Store token in localStorage for client-side access
       apiClient.setToken(response.token);
-      
+
       // Also set a cookie for middleware (non-httpOnly, accessible to client)
       if (typeof document !== 'undefined') {
         document.cookie = `token=${response.token}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax`;
       }
-      
+
       if (response.user) {
         setUser(response.user);
       } else {
@@ -94,10 +94,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const register = async (email: string, password: string, name?: string, phone?: string) => {
     const response = await authApi.register(email, password, name, phone);
-    
+
     if (response.success && response.token) {
       apiClient.setToken(response.token);
-      
+
       if (response.user) {
         setUser(response.user);
       } else {
@@ -109,17 +109,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = async () => {
-    try {
-      await authApi.logout();
-    } catch (error) {
-      console.error('Logout error:', error);
-    } finally {
-      apiClient.clearToken();
+    // 1. Optimistically clear local state immediately
+    apiClient.clearToken();
+
+    // Clear account-related storage to prevent "Account not found" errors for new users
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('defaultMt5Account');
+      localStorage.removeItem('accountId');
+
       // Clear cookie
-      if (typeof document !== 'undefined') {
-        document.cookie = 'token=; path=/; max-age=0';
-      }
-      setUser(null);
+      document.cookie = 'token=; path=/; max-age=0';
+    }
+
+    // Clear user state
+    setUser(null);
+
+    // 2. Fire and forget the logout request to the server (don't block UI)
+    try {
+      authApi.logout().catch(err => console.error('[AuthContext] BG Logout Error:', err));
+    } catch (error) {
+      // Ignore background errors
     }
   };
 

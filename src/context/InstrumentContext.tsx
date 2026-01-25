@@ -75,9 +75,12 @@ export function InstrumentProvider({ children }: { children: React.ReactNode }) 
         // Initial render with cached data (and merged favorites)
         if (initialData.length > 0) {
             setInstruments(initialData)
+            // If we have cached data, don't set loading state to avoid blocking UI
+            // We still fetch in background
+            setIsLoading(false)
+        } else {
+            setIsLoading(true)
         }
-
-        setIsLoading(true)
         setError(null)
 
         try {

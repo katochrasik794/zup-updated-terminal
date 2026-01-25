@@ -21,15 +21,11 @@ export default function AccountDropdown({ isOpen, onClose }) {
   const [showLoader, setShowLoader] = useState(false);
   const hasLoadedOnce = useRef(false);
 
-  // Trigger loader for 1.5s ONLY if we haven't loaded data yet
+  // Trigger loader ONLY if we haven't loaded data yet
   useEffect(() => {
     if (isOpen && !hasLoadedOnce.current) {
-      setShowLoader(true);
-      const timer = setTimeout(() => {
-        setShowLoader(false);
-        hasLoadedOnce.current = true;
-      }, 1500);
-      return () => clearTimeout(timer);
+      // Logic for background loading if needed, but no artificial delay
+      hasLoadedOnce.current = true;
     }
   }, [isOpen]);
 
@@ -96,30 +92,13 @@ export default function AccountDropdown({ isOpen, onClose }) {
   }, [fetchListBalances]);
 
   const handleAccountSelect = async (accountId: string) => {
-    setCurrentAccountId(accountId);
-    
-    // Authenticate with MetaAPI to get access token
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5000/api/accounts/${accountId}/metaapi-login`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
+    // 1. Persist to localStorage immediately
+    localStorage.setItem('defaultMt5Account', accountId);
+    localStorage.setItem('accountId', accountId);
 
-      if (response.ok) {
-        const result = await response.json();
-        if (result.success && result.data?.accessToken) {
-          // Store token in localStorage for this account
-          localStorage.setItem(`metaapi_token_${accountId}`, result.data.accessToken);
-          console.log(`[AccountDropdown] MetaAPI token obtained for account ${accountId}`);
-        }
-      }
-    } catch (err) {
-      console.error(`[AccountDropdown] Failed to get MetaAPI token:`, err);
-    }
+    // 2. Perform a HARD RELOAD with the new accountId in the URL
+    // This ensures total re-initialization of DOM and all context layers
+    window.location.href = `/terminal?accountId=${accountId}`;
   }
 
   const handleManageAccounts = () => {

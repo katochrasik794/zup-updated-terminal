@@ -43,10 +43,10 @@ export default function LoginPage() {
 
       if (autoLogin === 'true' && token && clientId) {
         setIsLoading(true)
-        
+
         // Get accountId from URL params if present
         const accountId = params.get('accountId')
-        
+
         try {
           const response = await fetch(`${API_BASE_URL}/api/auth/sso-login`, {
             method: "POST",
@@ -73,15 +73,15 @@ export default function LoginPage() {
                 localStorage.setItem('userEmail', data.user.email)
               }
             }
-            
+
             // Store accountId if provided (highest priority)
             if (accountId) {
               sessionStorage.setItem('defaultMt5Account', accountId)
               localStorage.setItem('defaultMt5Account', accountId)
             }
-            
+
             // Redirect to terminal on successful login (preserve accountId in URL)
-            const terminalUrl = accountId 
+            const terminalUrl = accountId
               ? `/terminal?accountId=${encodeURIComponent(accountId)}`
               : "/terminal"
             window.location.href = terminalUrl
@@ -171,8 +171,8 @@ export default function LoginPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: 'include',
-        body: JSON.stringify({ 
-          email: signUpEmail, 
+        body: JSON.stringify({
+          email: signUpEmail,
           password: signUpPassword,
           name: signUpName,
           phone: signUpPhone
@@ -203,18 +203,17 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
-      <header className="border-b border-white/8 bg-[#01040D]">
+      <header className="bg-[#01040D]">
         <div className="container mx-auto px-6 py-4">
           <Link href="/" className="inline-flex items-center gap-3">
-            <Image 
-              src="/logo-full.png" 
-              alt="Zuperior logo" 
-              width={60} 
-              height={60} 
-              className="rounded-sm object-contain" 
-              priority 
+            <Image
+              src="/logo-full.png"
+              alt="Zuperior logo"
+              width={100}
+              height={200}
+              className="rounded-sm object-contain"
+              priority
             />
-            <h1 className="text-2xl font-bold gradient-text">Zuperior</h1>
           </Link>
         </div>
       </header>
@@ -236,213 +235,73 @@ export default function LoginPage() {
               </div>
 
               <Tabs defaultValue="signin" className="w-full">
-            <TabsList className="w-full mb-8 h-12">
-              <TabsTrigger value="signin" className="flex-1 text-base">Sign in</TabsTrigger>
-              <TabsTrigger value="signup" className="flex-1 text-base">Create an account</TabsTrigger>
-            </TabsList>
+                <TabsList className="w-full mb-8 h-12">
+                  <TabsTrigger value="signin" className="flex-1 text-base">Sign in</TabsTrigger>
+                </TabsList>
 
-            {/* Error Message */}
-            {error && (
-              <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-sm text-red-400">
-                {error}
-              </div>
-            )}
-
-            {/* Sign In Form */}
-            <TabsContent value="signin" className="space-y-6">
-              <form onSubmit={handleSignIn} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="signin-email">Your email address</Label>
-                  <Input
-                    id="signin-email"
-                    type="email"
-                    value={signInEmail}
-                    onChange={(e) => setSignInEmail(e.target.value)}
-                    placeholder="Enter your email"
-                    required
-                    disabled={isLoading}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="signin-password">Password</Label>
-                  <div className="relative">
-                    <Input
-                      id="signin-password"
-                      type={showPassword ? "text" : "password"}
-                      value={signInPassword}
-                      onChange={(e) => setSignInPassword(e.target.value)}
-                      placeholder="Enter your password"
-                      required
-                      disabled={isLoading}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/60 transition-colors"
-                      disabled={isLoading}
-                    >
-                      {showPassword ? (
-                        <EyeOff className="h-4 w-4" />
-                      ) : (
-                        <Eye className="h-4 w-4" />
-                      )}
-                    </button>
+                {/* Error Message */}
+                {error && (
+                  <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-sm text-red-400">
+                    {error}
                   </div>
-                </div>
+                )}
 
-                <Button type="submit" className="!w-full" size="lg" disabled={isLoading}>
-                  {isLoading ? "Signing in..." : "Continue"}
-                </Button>
+                {/* Sign In Form */}
+                <TabsContent value="signin" className="space-y-6">
+                  <form onSubmit={handleSignIn} className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="signin-email">Your email address</Label>
+                      <Input
+                        id="signin-email"
+                        type="email"
+                        value={signInEmail}
+                        onChange={(e) => setSignInEmail(e.target.value)}
+                        placeholder="Enter your email"
+                        required
+                        disabled={isLoading}
+                      />
+                    </div>
 
-                <div className="text-center">
-                  <Link href="/forgot-password" className="text-sm text-primary hover:text-primary/80 transition-colors">
-                    I forgot my password
-                  </Link>
-                </div>
-              </form>
-            </TabsContent>
-
-            {/* Sign Up Form */}
-            <TabsContent value="signup" className="space-y-6">
-              <form onSubmit={handleSignUp} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="signup-name">Your name (optional)</Label>
-                  <Input
-                    id="signup-name"
-                    type="text"
-                    value={signUpName}
-                    onChange={(e) => setSignUpName(e.target.value)}
-                    placeholder="Enter your name"
-                    disabled={isLoading}
-                  />
-                </div>
-
-              <div className="space-y-2">
-                  <Label htmlFor="signup-email">Your email address</Label>
-                  <Input
-                    id="signup-email"
-                    type="email"
-                    value={signUpEmail}
-                    onChange={(e) => setSignUpEmail(e.target.value)}
-                    placeholder="Enter your email"
-                    required
-                    disabled={isLoading}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="signup-phone">Phone number (optional)</Label>
-                  <Input
-                    id="signup-phone"
-                    type="tel"
-                    value={signUpPhone}
-                    onChange={(e) => setSignUpPhone(e.target.value)}
-                    placeholder="Enter your phone number"
-                    disabled={isLoading}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="signup-password">Password</Label>
-                  <div className="relative">
-                    <Input
-                      id="signup-password"
-                      type={showPassword ? "text" : "password"}
-                      value={signUpPassword}
-                      onChange={(e) => setSignUpPassword(e.target.value)}
-                      placeholder="Enter your password"
-                      required
-                      disabled={isLoading}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/60 transition-colors"
-                      disabled={isLoading}
-                    >
-                      {showPassword ? (
-                        <EyeOff className="h-4 w-4" />
-                      ) : (
-                        <Eye className="h-4 w-4" />
-                      )}
-                    </button>
-                  </div>
-
-                  {/* Password Requirements */}
-                  {signUpPassword && (
-                    <div className="space-y-2 mt-3">
-                      <div className="flex items-center gap-2 text-xs">
-                        <CheckCircle2 className={cn("h-3.5 w-3.5", hasMinLength ? "text-success" : "text-white/20")} />
-                        <span className={cn(hasMinLength ? "text-white/80" : "text-white/40")}>
-                          Between 8-15 characters
-                        </span>
-                        <span className="ml-auto text-white/40">{passwordScore}</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-xs">
-                        <CheckCircle2 className={cn("h-3.5 w-3.5", hasUpperAndLower ? "text-success" : "text-white/20")} />
-                        <span className={cn(hasUpperAndLower ? "text-white/80" : "text-white/40")}>
-                          At least one upper and one lower case letter
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2 text-xs">
-                        <CheckCircle2 className={cn("h-3.5 w-3.5", hasNumber ? "text-success" : "text-white/20")} />
-                        <span className={cn(hasNumber ? "text-white/80" : "text-white/40")}>
-                          At least one number
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2 text-xs">
-                        <CheckCircle2 className={cn("h-3.5 w-3.5", hasSpecialChar ? "text-success" : "text-white/20")} />
-                        <span className={cn(hasSpecialChar ? "text-white/80" : "text-white/40")}>
-                          At least one special character
-                        </span>
+                    <div className="space-y-2">
+                      <Label htmlFor="signin-password">Password</Label>
+                      <div className="relative">
+                        <Input
+                          id="signin-password"
+                          type={showPassword ? "text" : "password"}
+                          value={signInPassword}
+                          onChange={(e) => setSignInPassword(e.target.value)}
+                          placeholder="Enter your password"
+                          required
+                          disabled={isLoading}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/60 transition-colors"
+                          disabled={isLoading}
+                        >
+                          {showPassword ? (
+                            <EyeOff className="h-4 w-4" />
+                          ) : (
+                            <Eye className="h-4 w-4" />
+                          )}
+                        </button>
                       </div>
                     </div>
-                  )}
-                </div>
 
-                <details className="group">
-                  <summary className="text-sm text-white/60 cursor-pointer hover:text-white/80 transition-colors list-none flex items-center gap-2">
-                    <span>Partner code (optional)</span>
-                    <svg className="h-4 w-4 transition-transform group-open:rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </summary>
-                  <div className="mt-2">
-                    <Input placeholder="Enter partner code" />
-                  </div>
-                </details>
+                    <Button type="submit" className="!w-full" size="lg" disabled={isLoading}>
+                      {isLoading ? "Signing in..." : "Continue"}
+                    </Button>
 
-                <div className="flex items-start gap-2 pt-2">
-                  <Checkbox
-                    id="terms"
-                    checked={agreeToTerms}
-                    onCheckedChange={(checked) => setAgreeToTerms(checked as boolean)}
-                    disabled={isLoading}
-                  />
-                  <label htmlFor="terms" className="text-sm text-white/80 leading-tight cursor-pointer">
-                    I declare and confirm that I am not a citizen or resident of the US for tax purposes.
-                  </label>
-                </div>
+                    <div className="text-center">
+                      <Link href="/forgot-password" className="text-sm text-primary hover:text-primary/80 transition-colors">
+                        I forgot my password
+                      </Link>
+                    </div>
+                  </form>
+                </TabsContent>
 
-                <Button 
-                  type="submit" 
-                  className="!w-full" 
-                  size="lg" 
-                  disabled={!agreeToTerms || isLoading || passwordScore < 4}
-                >
-                  {isLoading ? "Creating account..." : "Continue"}
-                </Button>
-
-                <p className="text-xs text-center text-white/60">
-                  By proceeding, you confirm that you have read and agree to the{" "}
-                  <Link href="/privacy" className="text-primary hover:text-primary/80">
-                    Privacy Policy
-                  </Link>
-                </p>
-              </form>
-            </TabsContent>
-          </Tabs>
+              </Tabs>
             </>
           )}
         </div>

@@ -59,12 +59,21 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
   const currentBalance = useMemo(() => (currentAccountId ? balances[currentAccountId] || null : null), [currentAccountId, balances])
   const currentAccount = useMemo(() => (currentAccountId ? mt5Accounts.find(acc => acc.accountId === currentAccountId) || null : null), [currentAccountId, mt5Accounts])
 
-  // Load current account from localStorage on mount
+  // Load current account from localStorage or URL params on mount
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const savedAccountId = localStorage.getItem('defaultMt5Account') || localStorage.getItem('accountId')
-      if (savedAccountId) {
+      const params = new URLSearchParams(window.location.search);
+      const urlAccountId = params.get('accountId');
+      const savedAccountId = urlAccountId || localStorage.getItem('defaultMt5Account') || localStorage.getItem('accountId')
+
+      if (savedAccountId && savedAccountId !== 'undefined' && savedAccountId !== 'null') {
         setCurrentAccountIdState(savedAccountId)
+      } else {
+        // Clear invalid IDs
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('defaultMt5Account');
+          localStorage.removeItem('accountId');
+        }
       }
     }
   }, [])
@@ -91,15 +100,20 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
         setMt5Accounts(accounts)
         setDefaultAccountId(defaultId)
 
-        // Set current account if not already set
-        if (!currentAccountId) {
-          const savedAccountId = typeof window !== 'undefined'
-            ? (localStorage.getItem('defaultMt5Account') || localStorage.getItem('accountId'))
-            : null
+        // Set current account if not already set or invalid
+        const savedAccountId = typeof window !== 'undefined'
+          ? (localStorage.getItem('defaultMt5Account') || localStorage.getItem('accountId'))
+          : null
 
-          if (savedAccountId && accounts.some(acc => acc.accountId === savedAccountId)) {
+        const isValidSavedId = savedAccountId &&
+          savedAccountId !== 'undefined' &&
+          savedAccountId !== 'null' &&
+          accounts.some(acc => acc.accountId === savedAccountId);
+
+        if (!currentAccountId || !accounts.some(acc => acc.accountId === currentAccountId)) {
+          if (isValidSavedId) {
             setCurrentAccountIdState(savedAccountId)
-          } else if (defaultId) {
+          } else if (defaultId && accounts.some(acc => acc.accountId === defaultId)) {
             setCurrentAccountIdState(defaultId)
           } else if (accounts.length > 0) {
             setCurrentAccountIdState(accounts[0].accountId)
@@ -123,26 +137,19 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
     if (!isAuthLoading && isAuthenticated) {
       fetchAccounts()
     } else if (!isAuthLoading && !isAuthenticated) {
-      // User not authenticated, clear accounts
+      // User not authenticated, clear accounts and current selection
       setMt5Accounts([])
+      setCurrentAccountIdState(null)
       setIsLoading(false)
     }
   }, [fetchAccounts, isAuthenticated, isAuthLoading])
 
   const setCurrentAccountId = useCallback((accountId: string | null) => {
-    // Show loading immediately
-    setIsAccountSwitching(true)
-
     setCurrentAccountIdState(accountId)
     if (accountId && typeof window !== 'undefined') {
       localStorage.setItem('defaultMt5Account', accountId)
       localStorage.setItem('accountId', accountId)
     }
-
-    // Hide loading after a short delay to allow UI updates
-    setTimeout(() => {
-      setIsAccountSwitching(false)
-    }, 300)
   }, [])
 
   const refreshAccounts = useCallback(async () => {
@@ -158,7 +165,7 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
 
     try {
       const response = await apiClient.post(`/api/accounts/${accountId}/metaapi-login`);
-      
+
       if (response.success && response.data?.accessToken) {
         const token = response.data.accessToken;
         setMetaApiTokens(prev => ({ ...prev, [accountId]: token }));
