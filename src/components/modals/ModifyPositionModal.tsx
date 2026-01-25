@@ -23,39 +23,83 @@ const ModifyPositionModal = () => {
   // Reset state when position changes or modal opens
   useEffect(() => {
     if (isOpen && position) {
-      setTpValue(position?.tp === 'Add' ? '' : position?.tp || '');
-      setSlValue(position?.sl === 'Add' ? '' : position?.sl || '');
+      // Parse TP value, removing commas if present
+      // Only set value if it's already set, otherwise leave empty
+      let tpValueStr = '';
+      if (position?.tp && position?.tp !== 'Add' && position?.tp !== 'Not Set') {
+        // Remove commas from existing TP value
+        tpValueStr = String(position.tp).replace(/,/g, '');
+      }
+      
+      // Parse SL value, removing commas if present
+      // Only set value if it's already set, otherwise leave empty
+      let slValueStr = '';
+      if (position?.sl && position?.sl !== 'Add' && position?.sl !== 'Not Set') {
+        // Remove commas from existing SL value
+        slValueStr = String(position.sl).replace(/,/g, '');
+      }
+      
+      setTpValue(tpValueStr);
+      setSlValue(slValueStr);
       setPartialVolume(position?.volume || '');
     }
   }, [isOpen, position]);
 
-  // Calculate estimated P/L when TP/SL changes
+  // Calculate estimated P/L when TP/SL changes (only for open positions, not pending orders)
   useEffect(() => {
     if (!position) return;
 
-    const currentPrice = parseFloat(position.currentPrice || position.price || 0);
-    const openPrice = parseFloat(position.openPrice || position.avg_price || position.price || 0);
+    // Check if this is a pending order
+    const isPendingOrder = position.type === 'Buy Limit' || position.type === 'Sell Limit' || 
+                           position.type === 'Buy Stop' || position.type === 'Sell Stop';
+    
+    // Don't calculate P/L for pending orders
+    if (isPendingOrder) {
+      setEstimatedPL(null);
+      return;
+    }
+
+    // Parse prices, removing commas and formatting
+    const currentPriceStr = String(position.currentPrice || position.price || '0').replace(/,/g, '');
+    const openPriceStr = String(position.openPrice || position.avg_price || position.price || '0').replace(/,/g, '');
+    const currentPrice = parseFloat(currentPriceStr) || 0;
+    const openPrice = parseFloat(openPriceStr) || 0;
     const volume = parseFloat(position.volume || position.qty || 0);
     const isBuy = position.type === 'Buy' || position.side === 1;
+    const symbol = (position.symbol || '').toUpperCase();
+
+    // Get contract size based on symbol type
+    let contractSize: number;
+    if (symbol.includes('XAU') || symbol.includes('XAG')) {
+      contractSize = 100; // Metals: 1 lot = 100 oz
+    } else if (symbol.includes('BTC') || symbol.includes('ETH')) {
+      contractSize = 1; // Crypto: 1 lot = 1 unit
+    } else {
+      contractSize = 100000; // Forex: 1 lot = 100,000 units
+    }
 
     // Calculate current P/L
     let priceDiff = isBuy ? (currentPrice - openPrice) : (openPrice - currentPrice);
-    let currentPL = priceDiff * volume * 100; // Assuming 1 lot = 100 units
+    let currentPL = priceDiff * volume * contractSize;
 
     // If TP is set and would be hit, calculate P/L at TP
-    const tp = parseFloat(tpValue);
-    if (tp && !isNaN(tp)) {
+    // Remove commas from tpValue before parsing
+    const tpValueClean = String(tpValue || '').replace(/,/g, '');
+    const tp = parseFloat(tpValueClean);
+    if (tp && !isNaN(tp) && tp > 0) {
       const tpDiff = isBuy ? (tp - openPrice) : (openPrice - tp);
-      const tpPL = tpDiff * volume * 100;
+      const tpPL = tpDiff * volume * contractSize;
       setEstimatedPL(tpPL);
       return;
     }
 
     // If SL is set and would be hit, calculate P/L at SL
-    const sl = parseFloat(slValue);
-    if (sl && !isNaN(sl)) {
+    // Remove commas from slValue before parsing
+    const slValueClean = String(slValue || '').replace(/,/g, '');
+    const sl = parseFloat(slValueClean);
+    if (sl && !isNaN(sl) && sl > 0) {
       const slDiff = isBuy ? (sl - openPrice) : (openPrice - sl);
-      const slPL = slDiff * volume * 100;
+      const slPL = slDiff * volume * contractSize;
       setEstimatedPL(slPL);
       return;
     }
@@ -73,18 +117,85 @@ const ModifyPositionModal = () => {
   };
 
   const adjustValue = (setter, currentValue, delta, decimals = 2) => {
-    const baseVal = parseFloat(currentValue) || 0;
-    const newVal = (baseVal + delta).toFixed(decimals);
+    // Get current price from position, removing commas
+    const currentPriceStr = String(position.currentPrice || position.price || '0').replace(/,/g, '');
+    const currentPrice = parseFloat(currentPriceStr) || 0;
+    
+    // If currentValue is empty, "Not set", "Add", or 0, use current price as base
+    // Also remove commas from currentValue before parsing
+    const isEmpty = !currentValue || currentValue === '' || currentValue === 'Not set' || currentValue === 'Add' || currentValue === '0';
+    const currentValueClean = String(currentValue || '').replace(/,/g, '');
+    const baseVal = isEmpty ? currentPrice : (parseFloat(currentValueClean) || currentPrice);
+    
+    // Calculate appropriate delta based on price magnitude
+    // For prices around 88,000, we need a delta of 100, not 0.1
+    let adjustedDelta: number;
+    if (baseVal >= 10000) {
+      adjustedDelta = 100; // For prices >= 10,000 (e.g., BTCUSD)
+    } else if (baseVal >= 1000) {
+      adjustedDelta = 10; // For prices >= 1,000
+    } else if (baseVal >= 100) {
+      adjustedDelta = 1; // For prices >= 100
+    } else if (baseVal >= 10) {
+      adjustedDelta = 0.1; // For prices >= 10
+    } else {
+      adjustedDelta = 0.01; // For prices < 10
+    }
+    
+    // Apply the sign from the original delta
+    adjustedDelta = adjustedDelta * (delta > 0 ? 1 : -1);
+    
+    // Apply delta and format
+    const newVal = (baseVal + adjustedDelta).toFixed(decimals);
     setter(newVal);
   };
 
-  const handleAction = () => {
+  const handleAction = async () => {
     if (activeTab === 'modify') {
-      requestModifyPosition({
-        id: position.id || position.ticket,
-        tp: tpValue,
-        sl: slValue
-      });
+      try {
+        // Use ticket for pending orders, id for open positions
+        const orderId = position.ticket || position.id;
+        
+        if (!orderId) {
+          console.error('ModifyPositionModal: No order ID found');
+          return;
+        }
+        
+        // Clean and parse TP/SL values, removing commas
+        let tp: number | undefined = undefined;
+        let sl: number | undefined = undefined;
+        
+        if (tpValue && tpValue !== '' && tpValue !== 'Not set' && tpValue !== 'Add') {
+          const tpClean = String(tpValue).replace(/,/g, '').trim();
+          const tpParsed = parseFloat(tpClean);
+          if (!isNaN(tpParsed) && tpParsed > 0 && isFinite(tpParsed)) {
+            tp = tpParsed;
+          }
+        }
+        
+        if (slValue && slValue !== '' && slValue !== 'Not set' && slValue !== 'Add') {
+          const slClean = String(slValue).replace(/,/g, '').trim();
+          const slParsed = parseFloat(slClean);
+          if (!isNaN(slParsed) && slParsed > 0 && isFinite(slParsed)) {
+            sl = slParsed;
+          }
+        }
+        
+        // Only proceed if at least one value is being modified
+        if (tp === undefined && sl === undefined) {
+          console.warn('ModifyPositionModal: No valid TP/SL values to modify');
+          onClose();
+          return;
+        }
+        
+        requestModifyPosition({
+          id: orderId,
+          tp: tp,
+          sl: sl
+        });
+      } catch (error) {
+        console.error('ModifyPositionModal: Error in handleAction', error);
+      }
     }
     // Add logic for partial close / close by if needed
     onClose();

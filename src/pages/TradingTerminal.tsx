@@ -13,7 +13,7 @@ import { useSidebar } from '../context/SidebarContext'
 import { useAccount } from '../context/AccountContext'
 import { useTrading } from '../context/TradingContext'
 import { usePositions, Position } from '../hooks/usePositions'
-import { ordersApi, positionsApi, PlaceMarketOrderParams, PlacePendingOrderParams, ClosePositionParams, CloseAllParams } from '../lib/api'
+import { ordersApi, positionsApi, PlaceMarketOrderParams, PlacePendingOrderParams, ClosePositionParams, CloseAllParams, ModifyPendingOrderParams, ModifyPositionParams } from '../lib/api'
 
 import { ImperativePanelHandle } from 'react-resizable-panels'
 
@@ -23,7 +23,7 @@ import OrderPlacedToast from '../components/ui/OrderPlacedToast'
 export default function TradingTerminal() {
   const { isSidebarExpanded, setIsSidebarExpanded } = useSidebar();
   const { currentAccountId, currentBalance } = useAccount();
-  const { symbol } = useTrading();
+  const { symbol, lastModification } = useTrading();
   const leftPanelRef = useRef<ImperativePanelHandle>(null)
   const [closedToast, setClosedToast] = useState(null)
   const [orderToast, setOrderToast] = useState(null)
@@ -45,7 +45,8 @@ export default function TradingTerminal() {
     pendingOrders: rawPendingOrders,
     closedPositions: rawClosedPositions,
     isLoading: isPositionsLoading, 
-    error: positionsError 
+    error: positionsError,
+    refetch: refetchPositions
   } = usePositions({
     accountId: currentAccountId,
     enabled: !!currentAccountId,
@@ -69,8 +70,8 @@ export default function TradingTerminal() {
         volume: (pos.volume / 10000).toFixed(2), // Divide by 1000 and format to 2 decimal places
         openPrice: pos.openPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 }),
         currentPrice: pos.currentPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 }),
-        tp: pos.takeProfit && pos.takeProfit !== 0 ? pos.takeProfit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 }) : 'Not Set',
-        sl: pos.stopLoss && pos.stopLoss !== 0 ? pos.stopLoss.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 }) : 'Not Set',
+        tp: pos.takeProfit && pos.takeProfit !== 0 ? pos.takeProfit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 }) : 'Add',
+        sl: pos.stopLoss && pos.stopLoss !== 0 ? pos.stopLoss.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 }) : 'Add',
         ticket: pos.ticket.toString(),
         openTime: new Date(pos.openTime).toLocaleString('en-US', { 
           month: 'short', 
@@ -106,8 +107,8 @@ export default function TradingTerminal() {
         volume: (pos.volume / 100).toFixed(2), // Divide by 100 for pending orders
         openPrice: pos.openPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 }),
         currentPrice: pos.currentPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 }),
-        tp: pos.takeProfit && pos.takeProfit !== 0 ? pos.takeProfit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 }) : 'Not Set',
-        sl: pos.stopLoss && pos.stopLoss !== 0 ? pos.stopLoss.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 }) : 'Not Set',
+        tp: pos.takeProfit && pos.takeProfit !== 0 ? pos.takeProfit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 }) : 'Add',
+        sl: pos.stopLoss && pos.stopLoss !== 0 ? pos.stopLoss.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 }) : 'Add',
         ticket: pos.ticket.toString(),
         openTime: new Date(pos.openTime).toLocaleString('en-US', { 
           month: 'short', 
@@ -809,6 +810,138 @@ export default function TradingTerminal() {
       });
     }
   };
+
+  // Handle modify position/order requests
+  useEffect(() => {
+    if (!lastModification || !currentAccountId) return;
+
+    const handleModify = async () => {
+      try {
+        const { id, tp, sl } = lastModification;
+        
+        // Check if this is a pending order by checking if it exists in pendingOrders
+        const pendingOrder = rawPendingOrders.find((order: Position) => 
+          order.ticket.toString() === id.toString() || order.id === id
+        );
+
+        if (pendingOrder) {
+          // Modify pending order
+          const params: ModifyPendingOrderParams = {
+            accountId: currentAccountId,
+            orderId: id.toString(),
+            stopLoss: sl && sl !== '' && sl !== 'Not Set' && sl !== 'Add' ? parseFloat(sl) : undefined,
+            takeProfit: tp && tp !== '' && tp !== 'Not Set' && tp !== 'Add' ? parseFloat(tp) : undefined,
+          };
+
+          const response = await ordersApi.modifyPendingOrder(params);
+          
+            if (response.success) {
+              // Refresh pending orders to show updated TP/SL
+              refetchPositions();
+              
+              // Show success toast for modification
+              setOrderToast({
+                side: pendingOrder.type?.includes('Buy') ? 'buy' : 'sell',
+                symbol: pendingOrder.symbol || symbol || 'BTCUSD',
+                volume: (pendingOrder.volume / 100).toFixed(2),
+                price: null,
+                orderType: pendingOrder.type?.includes('Limit') ? 'limit' : 'stop',
+                profit: null,
+                isModified: true, // Flag to indicate this is a modification
+              });
+          } else {
+            // Show error toast
+            setOrderToast({
+              side: pendingOrder.type?.includes('Buy') ? 'buy' : 'sell',
+              symbol: pendingOrder.symbol || symbol || 'BTCUSD',
+              volume: (pendingOrder.volume / 100).toFixed(2),
+              price: null,
+              orderType: pendingOrder.type?.includes('Limit') ? 'limit' : 'stop',
+              profit: null,
+              error: response.message || 'Failed to modify pending order',
+            });
+          }
+        } else {
+          // Modify open position
+          const openPosition = rawPositions.find((pos: Position) => 
+            pos.ticket.toString() === id.toString() || pos.id === id
+          );
+
+          if (openPosition) {
+            // Clean and parse TP/SL values, removing commas
+            let stopLoss: number | undefined = undefined;
+            let takeProfit: number | undefined = undefined;
+            
+            if (sl && sl !== '' && sl !== 'Not Set' && sl !== 'Add') {
+              const slClean = String(sl).replace(/,/g, '');
+              const slParsed = parseFloat(slClean);
+              if (!isNaN(slParsed) && slParsed > 0) {
+                stopLoss = slParsed;
+              }
+            }
+            
+            if (tp && tp !== '' && tp !== 'Not Set' && tp !== 'Add') {
+              const tpClean = String(tp).replace(/,/g, '');
+              const tpParsed = parseFloat(tpClean);
+              if (!isNaN(tpParsed) && tpParsed > 0) {
+                takeProfit = tpParsed;
+              }
+            }
+            
+            const params: ModifyPositionParams = {
+              accountId: currentAccountId,
+              positionId: id.toString(),
+              stopLoss: stopLoss,
+              takeProfit: takeProfit,
+              comment: `Modify TP/SL via actions for ${openPosition.symbol || symbol || 'BTCUSD'}`,
+            };
+
+            const response = await positionsApi.modifyPosition(params);
+            
+            if (response.success) {
+              // Refresh positions to show updated TP/SL
+              refetchPositions();
+              
+              // Show success toast for modification
+              setOrderToast({
+                side: openPosition.type?.includes('Buy') || openPosition.type === 'Buy' ? 'buy' : 'sell',
+                symbol: openPosition.symbol || symbol || 'BTCUSD',
+                volume: (openPosition.volume / 10000).toFixed(2),
+                price: null,
+                orderType: 'market',
+                profit: null,
+                isModified: true, // Flag to indicate this is a modification
+              });
+            } else {
+              // Show error toast
+              setOrderToast({
+                side: openPosition.type?.includes('Buy') || openPosition.type === 'Buy' ? 'buy' : 'sell',
+                symbol: openPosition.symbol || symbol || 'BTCUSD',
+                volume: (openPosition.volume / 10000).toFixed(2),
+                price: null,
+                orderType: 'market',
+                profit: null,
+                error: response.message || 'Failed to modify position',
+              });
+            }
+          }
+        }
+      } catch (error: any) {
+        console.error('Error modifying order/position:', error);
+        setOrderToast({
+          side: 'buy',
+          symbol: symbol || 'BTCUSD',
+          volume: 0,
+          price: null,
+          orderType: 'market',
+          profit: null,
+          error: error?.message || 'Failed to modify order',
+        });
+      }
+    };
+
+    handleModify();
+  }, [lastModification, currentAccountId, rawPendingOrders, symbol]);
 
   // Resize the left panel when it expands or collapses
   useEffect(() => {

@@ -248,6 +248,14 @@ export interface CloseAllParams {
   accountId: string;
 }
 
+export interface ModifyPositionParams {
+  accountId: string;
+  positionId: string | number;
+  stopLoss?: number;
+  takeProfit?: number;
+  comment?: string;
+}
+
 export const positionsApi = {
   closePosition: (params: ClosePositionParams) =>
     apiClient.post(`/api/positions/${params.positionId}/close`, {
@@ -259,5 +267,13 @@ export const positionsApi = {
   closeAll: (params: CloseAllParams) =>
     apiClient.post('/api/positions/close-all', {
       accountId: params.accountId,
+    }),
+
+  modifyPosition: (params: ModifyPositionParams) =>
+    apiClient.put(`/api/positions/${params.positionId}/modify`, {
+      accountId: params.accountId,
+      stopLoss: params.stopLoss,
+      takeProfit: params.takeProfit,
+      comment: params.comment,
     }),
 };

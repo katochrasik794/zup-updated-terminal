@@ -7,8 +7,10 @@ import ModifyPositionModal from '../modals/ModifyPositionModal'
 import ColumnVisibilityPopup from '../modals/ColumnVisibilityPopup'
 import PositionClosedToast from '../ui/PositionClosedToast'
 import GroupClosePopup from './GroupClosePopup'
+import { useTrading } from '../../context/TradingContext'
 
 export default function BottomPanel({ openPositions = [], pendingPositions = [], closedPositions = [], onClosePosition, onCloseGroup, closedToast, setClosedToast, onCloseAll, onHide, isMinimized = false }: any) {
+  const { setModifyModalState } = useTrading()
   const [activeTab, setActiveTab] = useState('Open')
   const [isGrouped, setIsGrouped] = useState(true)
   const [expandedGroups, setExpandedGroups] = useState({})
@@ -162,44 +164,52 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
         return <span className="text-white">{position.currentPrice || '-'}</span>
       case 'closePrice':
         return <span className="text-white">{position.closePrice || position.currentPrice || '-'}</span>
-      case 'tp':
+      case 'tp': {
         if (isGroupedView) {
           return <span className="text-[#8b9096]">...</span>
         }
         // Check if TP is set (not 'Add', not 0, not empty, not null, not undefined)
         const tpValue = position.tp;
         const hasTP = tpValue && tpValue !== 'Add' && tpValue !== '0' && tpValue !== 0 && Number(tpValue) !== 0;
-        const displayTP = hasTP ? tpValue : 'Not Set';
+        // For pending orders and open positions, show "Modify" or "Add" instead of "Not Set"
+        const isPendingOrder = position.type === 'Buy Limit' || position.type === 'Sell Limit' || position.type === 'Buy Stop' || position.type === 'Sell Stop';
+        const displayTP = hasTP ? tpValue : 'Add';
         return (
           <span
             className="text-[#8b9096] cursor-pointer hover:text-white hover:underline decoration-dashed decoration-1 underline-offset-2"
             onClick={(e) => {
               e.stopPropagation()
-              setEditingPosition(position)
+              // Use TradingContext modal for both pending orders and open positions
+              setModifyModalState({ isOpen: true, position })
             }}
           >
             {displayTP}
           </span>
         )
-      case 'sl':
+      }
+      case 'sl': {
         if (isGroupedView) {
           return <span className="text-[#8b9096]">...</span>
         }
         // Check if SL is set (not 'Add', not 0, not empty, not null, not undefined)
         const slValue = position.sl;
         const hasSL = slValue && slValue !== 'Add' && slValue !== '0' && slValue !== 0 && Number(slValue) !== 0;
-        const displaySL = hasSL ? slValue : 'Not Set';
+        // For pending orders and open positions, show "Modify" or "Add" instead of "Not Set"
+        const isPendingOrder = position.type === 'Buy Limit' || position.type === 'Sell Limit' || position.type === 'Buy Stop' || position.type === 'Sell Stop';
+        const displaySL = hasSL ? slValue : 'Add';
         return (
           <span
             className="text-[#8b9096] cursor-pointer hover:text-white hover:underline decoration-dashed decoration-1 underline-offset-2"
             onClick={(e) => {
               e.stopPropagation()
-              setEditingPosition(position)
+              // Use TradingContext modal for both pending orders and open positions
+              setModifyModalState({ isOpen: true, position })
             }}
           >
             {displaySL}
           </span>
         )
+      }
       case 'ticket':
         return <span className="text-white">{!isGroupedView ? position.ticket : ''}</span>
       case 'openTime':
