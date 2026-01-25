@@ -44,7 +44,7 @@ const formatPosition = (pos: any, isClosedTrade: boolean = false): Position => {
   const generateStableId = () => {
     const s = pos.Symbol || pos.symbol || 'unknown';
     const action = pos.Action || pos.action;
-    const t = (action === 0 || action === 'Buy' || pos.Type === 0 || pos.type === 0 || pos.Type === 'Buy' || pos.type === 'Buy') ? 'Buy' : 'Sell';
+    const t = (String(action) === '0' || action === 'Buy' || String(pos.Type) === '0' || pos.type === 0 || String(pos.Type) === 'Buy' || pos.type === 'Buy') ? 'Buy' : 'Sell';
     const time = pos.TimeCreate || pos.timeCreate || pos.TimeSetup || pos.timeSetup || pos.OpenTime || pos.openTime || pos.CloseTime || pos.closeTime || '0';
     const price = pos.PriceOpen ?? pos.priceOpen ?? pos.OpenPrice ?? pos.openPrice ?? pos.Price ?? pos.price ?? '0';
     const str = `${s}-${t}-${time}-${price}`;
@@ -92,13 +92,13 @@ const formatPosition = (pos: any, isClosedTrade: boolean = false): Position => {
       default:
         // Fallback to Action-based logic for open positions
         const action = pos.Action ?? pos.action;
-        const isBuy = String(action) === '0' || action === 'Buy' || String(orderType) === '0' || orderType === 'Buy';
+        const isBuy = String(action) === '0' || String(action) === 'Buy' || String(orderType) === '0' || String(orderType) === 'Buy';
         mappedType = isBuy ? 'Buy' : 'Sell';
     }
   } else {
     // Fallback to Action-based logic for open positions
     const action = pos.Action ?? pos.action;
-    const isBuy = String(action) === '0' || action === 'Buy' || String(orderType) === '0' || orderType === 'Buy';
+    const isBuy = String(action) === '0' || String(action) === 'Buy' || String(orderType) === '0' || String(orderType) === 'Buy';
     mappedType = isBuy ? 'Buy' : 'Sell';
   }
 

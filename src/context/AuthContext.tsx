@@ -48,9 +48,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       console.log('[AuthContext] Checking authentication with token...');
-      const response = await authApi.getCurrentUser();
+      const response = await authApi.getCurrentUser() as any;
       if (response.success && response.user) {
-        console.log('[AuthContext] Authentication successful, user:', response.user.email);
+        console.log('[AuthContext] Authentication successful, user:', (response.user as any).email);
         setUser(response.user);
       } else {
         console.warn('[AuthContext] Authentication failed, clearing token');
@@ -70,7 +70,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const login = async (email: string, password: string) => {
-    const response = await authApi.login(email, password);
+    const response = await authApi.login(email, password) as any;
 
     if (response.success && response.token) {
       // Store token in localStorage for client-side access
@@ -93,7 +93,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const register = async (email: string, password: string, name?: string, phone?: string) => {
-    const response = await authApi.register(email, password, name, phone);
+    const response = await authApi.register(email, password, name, phone) as any;
 
     if (response.success && response.token) {
       apiClient.setToken(response.token);
@@ -134,7 +134,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const refreshUser = async () => {
     try {
-      const response = await authApi.getCurrentUser();
+      const response = await authApi.getCurrentUser() as any;
       if (response.success && response.user) {
         setUser(response.user);
       }

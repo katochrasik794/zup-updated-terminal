@@ -6,7 +6,7 @@ const throttle = (func, delay) => {
   let lastExecTime = 0
   return function (...args) {
     const currentTime = Date.now()
-    
+
     if (currentTime - lastExecTime > delay) {
       func.apply(this, args)
       lastExecTime = currentTime
@@ -23,15 +23,15 @@ const throttle = (func, delay) => {
 export const useHorizontalResize = (initialWidth = 60, minWidth = 30, maxWidth = 80) => {
   const [width, setWidth] = useState(initialWidth)
   const [isResizing, setIsResizing] = useState(false)
-  const containerRef = useRef(null)
+  const containerRef = useRef<HTMLDivElement>(null)
 
   const handleMouseMove = useCallback(
     throttle((e) => {
       if (!isResizing || !containerRef.current) return
-      
+
       const containerRect = containerRef.current.getBoundingClientRect()
       const newWidth = ((e.clientX - containerRect.left) / containerRect.width) * 100
-      
+
       if (newWidth >= minWidth && newWidth <= maxWidth) {
         setWidth(newWidth)
       }
@@ -78,15 +78,15 @@ export const useHorizontalResize = (initialWidth = 60, minWidth = 30, maxWidth =
 export const useVerticalResize = (initialHeight = 70, minHeight = 40, maxHeight = 85) => {
   const [height, setHeight] = useState(initialHeight)
   const [isResizing, setIsResizing] = useState(false)
-  const containerRef = useRef(null)
+  const containerRef = useRef<HTMLDivElement>(null)
 
   const handleMouseMove = useCallback(
     throttle((e) => {
       if (!isResizing || !containerRef.current) return
-      
+
       const containerRect = containerRef.current.getBoundingClientRect()
       const newHeight = ((e.clientY - containerRect.top) / containerRect.height) * 100
-      
+
       if (newHeight >= minHeight && newHeight <= maxHeight) {
         setHeight(newHeight)
       }
@@ -133,15 +133,15 @@ export const useVerticalResize = (initialHeight = 70, minHeight = 40, maxHeight 
 export const usePixelResize = (initialWidth = 230, minWidth = 200, maxWidth = 600) => {
   const [width, setWidth] = useState(initialWidth)
   const [isResizing, setIsResizing] = useState(false)
-  const containerRef = useRef(null)
+  const containerRef = useRef<HTMLDivElement>(null)
 
   const handleMouseMove = useCallback(
     throttle((e) => {
       if (!isResizing || !containerRef.current) return
-      
+
       const containerRect = containerRef.current.getBoundingClientRect()
       const newWidth = e.clientX - containerRect.left
-      
+
       if (newWidth >= minWidth && newWidth <= maxWidth) {
         setWidth(newWidth)
       }

@@ -2,24 +2,24 @@
 
 import { useRef, useEffect, useState, useMemo, useCallback } from 'react'
 import { ChevronLeft } from 'lucide-react'
-import LeftSidebar from '../components/layout/LeftSidebar'
-import ChartSection from '../components/layout/ChartSection'
-import OrderPanel from '../components/trading/OrderPanel'
-import BottomPanel from '../components/panels/BottomPanel'
-import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '../components/ui/resizable'
-import StatusBar from '../components/layout/StatusBar'
+import LeftSidebar from '@/components/layout/LeftSidebar'
+import ChartSection from '@/components/layout/ChartSection'
+import OrderPanel from '@/components/trading/OrderPanel'
+import BottomPanel from '@/components/panels/BottomPanel'
+import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable'
+import StatusBar from '@/components/layout/StatusBar'
 
-import { useSidebar } from '../context/SidebarContext'
-import { useAccount } from '../context/AccountContext'
-import { useTrading } from '../context/TradingContext'
-import { usePositions, Position } from '../hooks/usePositions'
-import { ordersApi, positionsApi, PlaceMarketOrderParams, PlacePendingOrderParams, ClosePositionParams, CloseAllParams, ModifyPendingOrderParams, ModifyPositionParams } from '../lib/api'
-import { closePositionDirect, placeMarketOrderDirect, placePendingOrderDirect } from '../lib/metaapi'
+import { useSidebar } from '@/context/SidebarContext'
+import { useAccount } from '@/context/AccountContext'
+import { useTrading } from '@/context/TradingContext'
+import { usePositions, Position } from '@/hooks/usePositions'
+import { ordersApi, positionsApi, PlaceMarketOrderParams, PlacePendingOrderParams, ClosePositionParams, CloseAllParams, ModifyPendingOrderParams, ModifyPositionParams } from '@/lib/api'
+import { closePositionDirect, placeMarketOrderDirect, placePendingOrderDirect } from '@/lib/metaapi'
 
 import { ImperativePanelHandle } from 'react-resizable-panels'
 
-import ModifyPositionModal from '../components/modals/ModifyPositionModal'
-import OrderPlacedToast from '../components/ui/OrderPlacedToast'
+import ModifyPositionModal from '@/components/modals/ModifyPositionModal'
+import OrderPlacedToast from '@/components/ui/OrderPlacedToast'
 
 export default function TradingTerminal() {
   const { isSidebarExpanded, setIsSidebarExpanded } = useSidebar();

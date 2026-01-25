@@ -1,7 +1,8 @@
+import { ComponentProps } from "react"
 import { PiDotsThreeOutlineVerticalFill } from "react-icons/pi"
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels"
 
-function ResizablePanelGroup({ className, ...props }) {
+function ResizablePanelGroup({ className, ...props }: ComponentProps<typeof PanelGroup>) {
   return (
     <PanelGroup
       className={`flex h-full w-full data-[panel-group-direction=vertical]:flex-col ${className || ''}`}
@@ -10,7 +11,7 @@ function ResizablePanelGroup({ className, ...props }) {
   )
 }
 
-function ResizablePanel({ className, ...props }) {
+function ResizablePanel({ className, ...props }: ComponentProps<typeof Panel>) {
   return <Panel className={className} {...props} />
 }
 

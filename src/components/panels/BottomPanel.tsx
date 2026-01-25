@@ -11,10 +11,10 @@ import { useTrading } from '../../context/TradingContext'
 
 export default function BottomPanel({ openPositions = [], pendingPositions = [], closedPositions = [], onClosePosition, onCloseGroup, closedToast, setClosedToast, onCloseAll, onHide, isMinimized = false }: any) {
   const { setModifyModalState } = useTrading()
-  const [activeTab, setActiveTab] = useState('Open')
+  const [activeTab, setActiveTab] = useState<'Open' | 'Pending' | 'Closed'>('Open')
   const [isGrouped, setIsGrouped] = useState(true)
-  const [expandedGroups, setExpandedGroups] = useState({})
-  const [editingPosition, setEditingPosition] = useState(null)
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({})
+  const [editingPosition, setEditingPosition] = useState<any>(null)
   const [isColumnPopupOpen, setIsColumnPopupOpen] = useState(false)
 
   // Memoize toast close handler to prevent timer reset
@@ -22,10 +22,10 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
     setClosedToast(null);
   }, [setClosedToast]);
 
-  const [groupPopup, setGroupPopup] = useState({ isOpen: false, symbol: null, position: null })
+  const [groupPopup, setGroupPopup] = useState<{ isOpen: boolean, symbol: string | null, position: { top: number, left: number } | null }>({ isOpen: false, symbol: null, position: null })
   const settingsButtonRef = useRef(null)
 
-  const [visibleColumns, setVisibleColumns] = useState({
+  const [visibleColumns, setVisibleColumns] = useState<Record<string, boolean>>({
     type: true,
     volume: true,
     openPrice: true,
@@ -45,19 +45,19 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
     'type', 'volume', 'openPrice', 'currentPrice', 'closePrice', 'tp', 'sl', 'ticket', 'openTime', 'swap', 'commission', 'marketCloses'
   ])
 
-  const toggleColumn = (id) => {
+  const toggleColumn = (id: string) => {
     setVisibleColumns(prev => ({
       ...prev,
       [id]: !prev[id]
     }))
   }
 
-  const tabs = ['Open', 'Pending', 'Closed']
+  const tabs: ('Open' | 'Pending' | 'Closed')[] = ['Open', 'Pending', 'Closed']
 
 
 
   // Group positions by symbol
-  const groupedPositions = Object.values(openPositions.reduce((acc, pos) => {
+  const groupedPositions: any[] = Object.values(openPositions.reduce((acc: any, pos: any) => {
     if (!acc[pos.symbol]) {
       acc[pos.symbol] = {
         ...pos,
@@ -84,7 +84,7 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
     acc[pos.symbol].totalCommission += parseFloat(pos.commission || 0)
     acc[pos.symbol].positions.push(pos)
     return acc
-  }, {  })).map((group: any) => {
+  }, {})).map((group: any) => {
     // Show "Hedged" if there are both buy and sell positions (regardless of volume equality)
     const isHedged = group.totalBuyVolume > 0 && group.totalSellVolume > 0;
     // Set plColor based on totalPL (green for positive, red for negative)
@@ -367,13 +367,13 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
                       if (colId === 'closePrice') return null; // Hide closePrice in Open/Pending tabs
                     }
                     // For Pending tab, show currentPrice even if it's set to false in visibleColumns
-                    const shouldShow = activeTab === 'Pending' && colId === 'currentPrice' 
-                      ? true 
+                    const shouldShow = activeTab === 'Pending' && colId === 'currentPrice'
+                      ? true
                       : visibleColumns[colId];
                     return shouldShow && (
                       <th key={colId} className={`px-3 py-[3px] font-normal whitespace-nowrap text-${columnDefs[colId].align}`}>
                         {activeTab === 'Pending' && colId === 'openPrice' ? 'Order Price' : columnDefs[colId].label}
-                    </th>
+                      </th>
                     );
                   })}
 
@@ -413,32 +413,32 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
                       {/* Dynamic Columns */}
                       {columnOrder.map(colId => {
                         // Hide swap, commission, and ticket (Position) columns for Pending tab
-                        if (activeTab === 'Pending' && (colId === 'swap' || colId === 'commission' || colId === 'ticket')) {
+                        if ((activeTab as string) === 'Pending' && (colId === 'swap' || colId === 'commission' || colId === 'ticket')) {
                           return null;
                         }
                         // Show closePrice only in Closed tab, hide currentPrice in Closed tab
-                        if (activeTab === 'Closed') {
+                        if ((activeTab as string) === 'Closed') {
                           if (colId === 'currentPrice') return null; // Hide currentPrice in Closed tab
                           if (colId === 'closePrice' && !visibleColumns[colId]) return null; // Show closePrice if visible
                         } else {
                           if (colId === 'closePrice') return null; // Hide closePrice in Open/Pending tabs
                         }
                         // For Pending tab, show currentPrice even if it's set to false in visibleColumns
-                        const shouldShow = activeTab === 'Pending' && colId === 'currentPrice' 
-                          ? true 
+                        const shouldShow = (activeTab as string) === 'Pending' && colId === 'currentPrice'
+                          ? true
                           : visibleColumns[colId];
                         return shouldShow && (
-                          <td key={colId} className={`px-3 py-1.5 whitespace-nowrap text-${columnDefs[colId].align}`}>
-                          {renderCell(colId, position, isGrouped)}
-                        </td>
+                          <td key={colId} className={`px-3 py-1.5 whitespace-nowrap text-${(columnDefs as any)[colId].align}`}>
+                            {renderCell(colId, position, isGrouped)}
+                          </td>
                         );
                       })}
 
                       {/* Sticky Columns Data - Hide P/L for Pending tab */}
-                      {activeTab !== 'Pending' && (
+                      {(activeTab as string) !== 'Pending' && (
                         <td className="px-3 py-1.5 text-right whitespace-nowrap sticky right-[90px] bg-[#02040d] group-hover:bg-[#1c252f] z-20 shadow-[-10px_0_10px_-5px_rgba(0,0,0,0.3)] border-b border-gray-800 w-[120px] min-w-[120px]">
-                        <span className={`font-medium ${position.plColor}`}>{position.pl}</span>
-                      </td>
+                          <span className={`font-medium ${position.plColor}`}>{position.pl}</span>
+                        </td>
                       )}
                       <td className="px-3 py-1.5 text-center whitespace-nowrap sticky right-0 bg-[#02040d] group-hover:bg-[#1c252f] z-20 border-b border-gray-800">
                         <div className="flex items-center justify-center gap-0.5">
@@ -450,7 +450,7 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
                                 className="text-[#8b9096]"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  setEditingPosition(position);
+                                  setModifyModalState({ isOpen: true, position });
                                 }}
                               >
                                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -516,32 +516,32 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
                                       {/* Dynamic Columns */}
                                       {columnOrder.map(colId => {
                                         // Hide swap, commission, and ticket (Position) columns for Pending tab
-                                        if (activeTab === 'Pending' && (colId === 'swap' || colId === 'commission' || colId === 'ticket')) {
+                                        if ((activeTab as string) === 'Pending' && (colId === 'swap' || colId === 'commission' || colId === 'ticket')) {
                                           return null;
                                         }
                                         // Show closePrice only in Closed tab, hide currentPrice in Closed tab
-                                        if (activeTab === 'Closed') {
+                                        if ((activeTab as string) === 'Closed') {
                                           if (colId === 'currentPrice') return null; // Hide currentPrice in Closed tab
                                           if (colId === 'closePrice' && !visibleColumns[colId]) return null; // Show closePrice if visible
                                         } else {
                                           if (colId === 'closePrice') return null; // Hide closePrice in Open/Pending tabs
                                         }
                                         // For Pending tab, show currentPrice even if it's set to false in visibleColumns
-                                        const shouldShow = activeTab === 'Pending' && colId === 'currentPrice' 
-                                          ? true 
+                                        const shouldShow = (activeTab as string) === 'Pending' && colId === 'currentPrice'
+                                          ? true
                                           : visibleColumns[colId];
                                         return shouldShow && (
-                                          <td key={colId} className={`px-3 py-1.5 whitespace-nowrap text-${columnDefs[colId].align}`}>
-                                          {renderCell(colId, subPos, false)}
-                                        </td>
+                                          <td key={colId} className={`px-3 py-1.5 whitespace-nowrap text-${(columnDefs as any)[colId].align}`}>
+                                            {renderCell(colId, subPos, false)}
+                                          </td>
                                         );
                                       })}
 
                                       {/* Sticky Columns Data - Hide P/L for Pending tab */}
-                                      {activeTab !== 'Pending' && (
+                                      {(activeTab as string) !== 'Pending' && (
                                         <td className="px-3 py-1.5 text-right whitespace-nowrap sticky right-[90px] bg-[#02040d] group-hover/sub:bg-[#1c252f] z-20 shadow-[-10px_0_10px_-5px_rgba(0,0,0,0.3)] border-b border-gray-800 w-[120px] min-w-[120px]">
-                                        <span className={`font-medium ${subPos.plColor}`}>{subPos.pl}</span>
-                                      </td>
+                                          <span className={`font-medium ${subPos.plColor}`}>{subPos.pl}</span>
+                                        </td>
                                       )}
                                       <td className="px-3 py-1.5 text-center whitespace-nowrap sticky right-0 bg-[#02040d] group-hover/sub:bg-[#1c252f] z-20 border-b border-gray-800">
                                         <div className="flex items-center justify-center gap-0.5">
@@ -551,7 +551,7 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
                                             className="text-[#8b9096]"
                                             onClick={(e) => {
                                               e.stopPropagation();
-                                              setEditingPosition(subPos);
+                                              setModifyModalState({ isOpen: true, position: subPos });
                                             }}
                                           >
                                             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -601,32 +601,32 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
                     {/* Dynamic Columns */}
                     {columnOrder.map(colId => {
                       // Hide swap, commission, and ticket (Position) columns for Pending tab
-                      if (activeTab === 'Pending' && (colId === 'swap' || colId === 'commission' || colId === 'ticket')) {
+                      if ((activeTab as string) === 'Pending' && (colId === 'swap' || colId === 'commission' || colId === 'ticket')) {
                         return null;
                       }
                       // Show closePrice only in Closed tab, hide currentPrice in Closed tab
-                      if (activeTab === 'Closed') {
+                      if ((activeTab as string) === 'Closed') {
                         if (colId === 'currentPrice') return null; // Hide currentPrice in Closed tab
                         if (colId === 'closePrice' && !visibleColumns[colId]) return null; // Show closePrice if visible
                       } else {
                         if (colId === 'closePrice') return null; // Hide closePrice in Open/Pending tabs
                       }
                       // For Pending tab, show currentPrice even if it's set to false in visibleColumns
-                      const shouldShow = activeTab === 'Pending' && colId === 'currentPrice' 
-                        ? true 
+                      const shouldShow = (activeTab as string) === 'Pending' && colId === 'currentPrice'
+                        ? true
                         : visibleColumns[colId];
                       return shouldShow && (
-                        <td key={colId} className={`px-3 py-1.5 whitespace-nowrap text-${columnDefs[colId].align}`}>
-                        {renderCell(colId, position, false)}
-                      </td>
+                        <td key={colId} className={`px-3 py-1.5 whitespace-nowrap text-${(columnDefs as any)[colId].align}`}>
+                          {renderCell(colId, position, false)}
+                        </td>
                       );
                     })}
 
                     {/* Sticky Columns Data - Hide P/L for Pending tab */}
-                    {activeTab !== 'Pending' && (
+                    {(activeTab as string) !== 'Pending' && (
                       <td className="px-3 py-1.5 text-right whitespace-nowrap sticky right-[90px] bg-[#02040d] group-hover:bg-[#1c252f] z-20 shadow-[-10px_0_10px_-5px_rgba(0,0,0,0.3)] border-b border-gray-800 w-[120px] min-w-[120px]">
-                      <span className={`font-medium ${position.plColor}`}>{position.pl}</span>
-                    </td>
+                        <span className={`font-medium ${position.plColor}`}>{position.pl}</span>
+                      </td>
                     )}
                     <td className="px-3 py-1.5 text-center whitespace-nowrap sticky right-0 bg-[#02040d] group-hover:bg-[#1c252f] z-20 border-b border-gray-800">
                       {/* Empty cell for closed positions */}
@@ -634,13 +634,13 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
                   </tr>
                 ))}
 
-                {activeTab === 'Pending' && (
+                {(activeTab as string) === 'Pending' && (
                   pendingPositions.length === 0 ? (
-                  <tr>
-                    <td colSpan="13" className="text-center py-16 text-[#8b9096]">
-                      No pending orders
-                    </td>
-                  </tr>
+                    <tr>
+                      <td colSpan={13} className="text-center py-16 text-[#8b9096]">
+                        No pending orders
+                      </td>
+                    </tr>
                   ) : (
                     pendingPositions.map((position, idx) => (
                       <tr
@@ -659,29 +659,29 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
                         {/* Dynamic Columns */}
                         {columnOrder.map(colId => {
                           // Hide swap, commission, and ticket (Position) columns for Pending tab
-                          if (activeTab === 'Pending' && (colId === 'swap' || colId === 'commission' || colId === 'ticket')) {
+                          if ((activeTab as string) === 'Pending' && (colId === 'swap' || colId === 'commission' || colId === 'ticket')) {
                             return null;
                           }
                           // Show closePrice only in Closed tab, hide currentPrice in Closed tab
-                          if (activeTab === 'Closed') {
+                          if ((activeTab as string) === 'Closed') {
                             if (colId === 'currentPrice') return null; // Hide currentPrice in Closed tab
                             if (colId === 'closePrice' && !visibleColumns[colId]) return null; // Show closePrice if visible
                           } else {
                             if (colId === 'closePrice') return null; // Hide closePrice in Open/Pending tabs
                           }
                           // For Pending tab, show currentPrice even if it's set to false in visibleColumns
-                          const shouldShow = activeTab === 'Pending' && colId === 'currentPrice' 
-                            ? true 
+                          const shouldShow = (activeTab as string) === 'Pending' && colId === 'currentPrice'
+                            ? true
                             : visibleColumns[colId];
                           return shouldShow && (
-                            <td key={colId} className={`px-3 py-1.5 whitespace-nowrap text-${columnDefs[colId].align}`}>
+                            <td key={colId} className={`px-3 py-1.5 whitespace-nowrap text-${(columnDefs as any)[colId].align}`}>
                               {renderCell(colId, position, false)}
                             </td>
                           );
                         })}
 
                         {/* Sticky Columns Data - Hide P/L for Pending tab */}
-                        {activeTab !== 'Pending' && (
+                        {(activeTab as string) !== 'Pending' && (
                           <td className="px-3 py-1.5 text-right whitespace-nowrap sticky right-[90px] bg-[#02040d] group-hover:bg-[#1c252f] z-20 shadow-[-10px_0_10px_-5px_rgba(0,0,0,0.3)] border-b border-gray-800 w-[120px] min-w-[120px]">
                             <span className={`font-medium ${position.plColor}`}>{position.pl}</span>
                           </td>
@@ -724,11 +724,7 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
             </table>
           </div>
 
-          <ModifyPositionModal
-            isOpen={!!editingPosition}
-            onClose={() => setEditingPosition(null)}
-            position={editingPosition}
-          />
+          <ModifyPositionModal />
           <ColumnVisibilityPopup
             isOpen={isColumnPopupOpen}
             onClose={() => setIsColumnPopupOpen(false)}

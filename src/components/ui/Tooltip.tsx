@@ -3,10 +3,10 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 
-export default function Tooltip({ children, text, className = '', placement = 'bottom' }) {
+export default function Tooltip({ children, text, className = '', placement = 'bottom' }: { children: React.ReactNode, text: string, className?: string, placement?: 'bottom' | 'top' | 'right' | 'left' }) {
   const [isVisible, setIsVisible] = useState(false)
   const [coords, setCoords] = useState({ top: 0, left: 0 })
-  const triggerRef = useRef(null)
+  const triggerRef = useRef<HTMLDivElement>(null)
 
   const updatePosition = () => {
     if (triggerRef.current) {

@@ -179,7 +179,7 @@ export default function FlagIcon({ symbol, type, className = "" }: FlagIconProps
     }
     return (
       <div className={`${baseClass} rounded-full overflow-hidden border-[1px] border-[#0b0e14]`}>
-        {React.cloneElement(baseElement as React.ReactElement, { className: 'w-full h-full' })}
+        {React.cloneElement(baseElement as React.ReactElement, { className: 'w-full h-full' } as any)}
       </div>
     );
   }

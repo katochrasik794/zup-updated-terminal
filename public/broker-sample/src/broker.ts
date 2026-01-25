@@ -54,7 +54,7 @@ interface AccountManagerData {
 }
 
 /** Defines an enumerated type which represents different types of bracket orders */
-const enum BracketType {
+enum BracketType {
 	StopLoss,
 	TakeProfit,
 	TrailingStop,

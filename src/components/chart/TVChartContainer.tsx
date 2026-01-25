@@ -13,11 +13,12 @@ declare global {
 }
 
 import { useTrading } from '../../context/TradingContext';
+import { RealtimeDataFeed } from './RealtimeDataFeed';
 
 export const TVChartContainer = () => {
     const containerRef = useRef<HTMLDivElement>(null);
     const brokerRef = useRef<any>(null);
-    const { lastOrder, setSymbol, setModifyModalState, lastModification } = useTrading();
+    const { lastOrder, symbol, setSymbol, setModifyModalState, lastModification } = useTrading();
 
     useEffect(() => {
         if (lastModification && brokerRef.current) {
@@ -91,6 +92,19 @@ export const TVChartContainer = () => {
 
     const widgetRef = useRef<any>(null); // To store the widget instance if needed
 
+    // Synergy with external symbol changes
+    useEffect(() => {
+        if (widgetRef.current && symbol) {
+            const currentSymbol = widgetRef.current.activeChart().symbol();
+            if (currentSymbol !== symbol) {
+                console.log(`[Chart] External symbol change detected: ${currentSymbol} -> ${symbol}`);
+                widgetRef.current.setSymbol(symbol, widgetRef.current.activeChart().resolution(), () => {
+                    console.log(`[Chart] Symbol updated to ${symbol}`);
+                });
+            }
+        }
+    }, [symbol]);
+
     useEffect(() => {
         const scripts = [
             '/charting_library/charting_library.standalone.js',
@@ -106,16 +120,13 @@ export const TVChartContainer = () => {
         let loadedCount = 0;
 
         const initWidget = () => {
-            if (!window.TradingView || !window.Datafeeds || !window.Brokers || !window.CustomDialogs) {
+            if (!window.TradingView || !window.Brokers || !window.CustomDialogs) {
                 console.error('TradingView libraries not loaded yet');
                 return;
             }
 
-            const datafeedUrl = "https://demo-feed-data.tradingview.com";
-            const datafeed = new window.Datafeeds.UDFCompatibleDatafeed(datafeedUrl, undefined, {
-                maxResponseLength: 1000,
-                expectedOrder: 'latestFirst',
-            });
+            // Use our custom RealtimeDataFeed
+            const datafeed = new RealtimeDataFeed();
 
             const onCancelOrderResultCallback = (result: any) => console.log('Cancel Order Result:', result);
             const onCloseOrderResultCallback = (result: any) => console.log('Close Order Result:', result);
@@ -146,8 +157,8 @@ export const TVChartContainer = () => {
             let createReversePositionButtonListener: any = null;
 
             const widgetOptions = {
-                symbol: 'AAPL',
-                interval: '1D',
+                symbol: symbol || 'BTCUSD',
+                interval: '5',
                 container: containerRef.current!,
                 datafeed: datafeed,
                 library_path: '/charting_library/',
@@ -278,6 +289,7 @@ export const TVChartContainer = () => {
             };
 
             const tvWidget = new window.TradingView.widget(widgetOptions);
+            widgetRef.current = tvWidget;
             window.tvWidget = tvWidget;
 
             tvWidget.onChartReady(() => {

@@ -12,13 +12,13 @@ const ColumnVisibilityPopup = ({
   setColumnOrder,
   columns, // Now passed as prop
   extraSection // Optional extra content (e.g. Appearance)
-}) => {
+}: any) => {
   const [draggedItemIndex, setDraggedItemIndex] = useState(null);
 
   if (!isOpen) return null;
 
   // Calculate position based on anchor
-  const style = {};
+  const style: React.CSSProperties = {};
   if (anchorRef?.current) {
     const rect = anchorRef.current.getBoundingClientRect();
     // Default to opening below, but check if space is limited

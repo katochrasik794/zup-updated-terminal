@@ -91,11 +91,11 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
       setIsLoading(true)
       setError(null)
 
-      const response = await apiClient.get('/api/accounts')
+      const response = await apiClient.get('/api/accounts') as any
 
       if (response.success && response.data) {
-        const accounts = response.data.accounts || []
-        const defaultId = response.data.defaultAccountId || null
+        const accounts = (response.data as any).accounts || []
+        const defaultId = (response.data as any).defaultAccountId || null
 
         setMt5Accounts(accounts)
         setDefaultAccountId(defaultId)
@@ -164,10 +164,10 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
-      const response = await apiClient.post(`/api/accounts/${accountId}/metaapi-login`);
+      const response = await apiClient.post(`/api/accounts/${accountId}/metaapi-login`) as any;
 
       if (response.success && response.data?.accessToken) {
-        const token = response.data.accessToken;
+        const token = (response.data as any).accessToken;
         setMetaApiTokens(prev => ({ ...prev, [accountId]: token }));
         return token;
       }

@@ -1,12 +1,12 @@
 "use client";
 import { useEffect, useRef, useState } from 'react'
 
-export default function CloseAllPositionsDropdown({ isOpen, onClose, onConfirm, positions, anchorRef }) {
-  const dropdownRef = useRef(null)
+export default function CloseAllPositionsDropdown({ isOpen, onClose, onConfirm, positions, anchorRef }: any) {
+  const dropdownRef = useRef<HTMLDivElement>(null)
   const [selectedOption, setSelectedOption] = useState('all')
 
   // Calculate stats
-  const stats = positions.reduce((acc, pos) => {
+  const stats = positions.reduce((acc: any, pos: any) => {
     const pl = parseFloat(pos.pl.replace('+', ''))
 
     // All
@@ -46,21 +46,22 @@ export default function CloseAllPositionsDropdown({ isOpen, onClose, onConfirm, 
     sell: { count: 0, pl: 0 }
   })
 
-  const formatPL = (val) => {
+  const formatPL = (val: number) => {
     if (val === 0) return '--'
     const sign = val > 0 ? '+' : ''
     return `${sign}${val.toFixed(2)}`
   }
 
-  const getColor = (val) => {
+  const getColor = (val: number) => {
     if (val === 0) return 'text-[#8b9096]'
     return val > 0 ? 'text-[#2ebd85]' : 'text-[#f6465d]'
   }
 
   useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target) &&
-        anchorRef.current && !anchorRef.current.contains(event.target)) {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (dropdownRef.current && !dropdownRef.current.contains(target) &&
+        anchorRef.current && !anchorRef.current.contains(target)) {
         onClose()
       }
     }
@@ -75,7 +76,7 @@ export default function CloseAllPositionsDropdown({ isOpen, onClose, onConfirm, 
   if (!isOpen) return null
 
   // Calculate position
-  const style = {}
+  const style: React.CSSProperties = {}
   if (anchorRef?.current) {
     const rect = anchorRef.current.getBoundingClientRect()
     style.bottom = `${window.innerHeight - rect.top + 8}px`

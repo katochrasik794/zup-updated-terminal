@@ -1,12 +1,13 @@
 "use client";
 import { useEffect, useRef } from 'react'
 
-export default function GroupClosePopup({ isOpen, onClose, onConfirm, position, symbol }) {
-  const popupRef = useRef(null)
+export default function GroupClosePopup({ isOpen, onClose, onConfirm, position, symbol }: { isOpen: boolean, onClose: () => void, onConfirm: () => void, position: { top: number, left: number } | null, symbol: string | null }) {
+  const popupRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (popupRef.current && !popupRef.current.contains(event.target)) {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (popupRef.current && !popupRef.current.contains(target)) {
         onClose()
       }
     }

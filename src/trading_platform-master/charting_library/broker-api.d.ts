@@ -18,7 +18,7 @@ declare enum DisconnectType {
 	Reconnect = 9,
 	FailedSignIn = 10
 }
-export declare const enum BottomWidgetBarMode {
+export declare enum BottomWidgetBarMode {
 	Minimized = "minimized",
 	Normal = "normal",
 	Maximized = "maximized"
@@ -27,7 +27,7 @@ export declare const enum BottomWidgetBarMode {
  * Enumeration of the built-in formatters for the Account Manager columns.
  * Refer to the [Value formatters](https://www.tradingview.com/charting-library-docs/latest/trading_terminal/account-manager/value-formatters) section for more information.
  */
-export declare const enum StandardFormatterName {
+export declare enum StandardFormatterName {
 	Date = "date",
 	DateOrDateTime = "dateOrDateTime",
 	Default = "default",
@@ -2518,8 +2518,8 @@ export interface TableFormatterInputs<T extends TableFormatterInputValues = Tabl
 	prevValues?: Partial<T extends [
 		...args: infer A
 	] ? [
-		...A
-	] : never>;
+			...A
+		] : never>;
 }
 export interface TextFieldMetaInfo extends CustomInputFieldMetaInfo {
 	/** @inheritDoc */
@@ -2698,4 +2698,4 @@ export type WatchedValueCallback<T> = (value: T) => void;
 
 export as namespace TradingView;
 
-export {};
+export { };
