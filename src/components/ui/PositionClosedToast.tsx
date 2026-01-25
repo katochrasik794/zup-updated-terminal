@@ -5,11 +5,13 @@ import ReactDOM from 'react-dom'
 
 export default function PositionClosedToast({ position, onClose }) {
   useEffect(() => {
+    if (!position) return;
+    
     const timer = setTimeout(() => {
       onClose()
     }, 5000)
     return () => clearTimeout(timer)
-  }, [onClose])
+  }, [position]) // Remove onClose from dependencies to prevent timer reset
 
   if (!position) return null
 

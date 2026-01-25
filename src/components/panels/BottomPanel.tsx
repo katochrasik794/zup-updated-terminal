@@ -1,5 +1,5 @@
 "use client";
-import { useState, useRef, Fragment } from 'react'
+import { useState, useRef, Fragment, useCallback } from 'react'
 import FlagIcon from '../ui/FlagIcon'
 import IconButton from '../ui/IconButton'
 import Tooltip from '../ui/Tooltip'
@@ -14,6 +14,11 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
   const [expandedGroups, setExpandedGroups] = useState({})
   const [editingPosition, setEditingPosition] = useState(null)
   const [isColumnPopupOpen, setIsColumnPopupOpen] = useState(false)
+
+  // Memoize toast close handler to prevent timer reset
+  const handleClosedToastClose = useCallback(() => {
+    setClosedToast(null);
+  }, [setClosedToast]);
 
   const [groupPopup, setGroupPopup] = useState({ isOpen: false, symbol: null, position: null })
   const settingsButtonRef = useRef(null)
@@ -727,7 +732,7 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
 
           <PositionClosedToast
             position={closedToast}
-            onClose={() => setClosedToast(null)}
+            onClose={handleClosedToastClose}
           />
 
           <GroupClosePopup

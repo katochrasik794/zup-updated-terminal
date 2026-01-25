@@ -236,3 +236,28 @@ export const ordersApi = {
       takeProfit: params.takeProfit,
     }),
 };
+
+export interface ClosePositionParams {
+  accountId: string;
+  positionId: string | number;
+  symbol?: string;
+  volume?: number;
+}
+
+export interface CloseAllParams {
+  accountId: string;
+}
+
+export const positionsApi = {
+  closePosition: (params: ClosePositionParams) =>
+    apiClient.post(`/api/positions/${params.positionId}/close`, {
+      accountId: params.accountId,
+      symbol: params.symbol,
+      volume: params.volume,
+    }),
+
+  closeAll: (params: CloseAllParams) =>
+    apiClient.post('/api/positions/close-all', {
+      accountId: params.accountId,
+    }),
+};

@@ -10,7 +10,7 @@ export default function OrderPlacedToast({ order, onClose }) {
       onClose()
     }, 5000)
     return () => clearTimeout(timer)
-  }, [order, onClose])
+  }, [order]) // Remove onClose from dependencies to prevent timer reset
 
   if (!order) return null
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useEffect, useState, useMemo } from 'react'
+import { useRef, useEffect, useState, useMemo, useCallback } from 'react'
 import { ChevronLeft } from 'lucide-react'
 import LeftSidebar from '../components/layout/LeftSidebar'
 import ChartSection from '../components/layout/ChartSection'
@@ -13,7 +13,7 @@ import { useSidebar } from '../context/SidebarContext'
 import { useAccount } from '../context/AccountContext'
 import { useTrading } from '../context/TradingContext'
 import { usePositions, Position } from '../hooks/usePositions'
-import { ordersApi, PlaceMarketOrderParams, PlacePendingOrderParams } from '../lib/api'
+import { ordersApi, positionsApi, PlaceMarketOrderParams, PlacePendingOrderParams, ClosePositionParams, CloseAllParams } from '../lib/api'
 
 import { ImperativePanelHandle } from 'react-resizable-panels'
 
@@ -29,6 +29,15 @@ export default function TradingTerminal() {
   const [orderToast, setOrderToast] = useState(null)
   const [isRightSidebarOpen, setIsRightSidebarOpen] = useState(true)
   const [isBottomPanelVisible, setIsBottomPanelVisible] = useState(true)
+
+  // Memoize toast close handlers to prevent timer resets
+  const handleOrderToastClose = useCallback(() => {
+    setOrderToast(null);
+  }, []);
+
+  const handleClosedToastClose = useCallback(() => {
+    setClosedToast(null);
+  }, []);
 
   // Fetch positions, pending orders, and closed positions using REST API hook
   const { 
@@ -177,22 +186,133 @@ export default function TradingTerminal() {
     });
   }, [rawClosedPositions]);
 
-  const handleClosePosition = (position: any) => {
-    setClosedToast(position)
-    // Position closing will be handled by the API/backend
-    // The positions will be updated automatically via polling
+  const handleClosePosition = async (position: any) => {
+    if (!currentAccountId) {
+      console.error('[TradingTerminal] No account selected');
+      return;
+    }
+
+    try {
+      // Extract position ID from the position object
+      const positionId = position.ticket || position.id || position.positionId;
+      if (!positionId) {
+        console.error('[TradingTerminal] No position ID found');
+        return;
+      }
+
+      const params: ClosePositionParams = {
+        accountId: currentAccountId,
+        positionId: positionId,
+        symbol: position.symbol,
+      };
+
+      const response = await positionsApi.closePosition(params);
+      if (response.success) {
+        console.log('[TradingTerminal] Position closed successfully:', positionId);
+        // Show toast notification
+        setClosedToast(position);
+      } else {
+        console.error('[TradingTerminal] Failed to close position:', response.message);
+      }
+    } catch (error) {
+      console.error('[TradingTerminal] Error closing position:', error);
+    }
   }
 
-  const handleCloseGroup = (symbol: string) => {
-    // Group closing will be handled by the API/backend
-    // The positions will be updated automatically via polling
+  const handleCloseGroup = async (symbol: string) => {
+    if (!currentAccountId) {
+      console.error('[TradingTerminal] No account selected');
+      return;
+    }
+
+    try {
+      // Get all positions for this symbol
+      const symbolPositions = openPositions.filter((pos: any) => pos.symbol === symbol);
+      
+      if (symbolPositions.length === 0) {
+        console.log('[TradingTerminal] No positions found for symbol:', symbol);
+        return;
+      }
+
+      // Close all positions for this symbol
+      const closePromises = symbolPositions.map((pos: any) => {
+        const positionId = pos.ticket || pos.id || pos.positionId;
+        if (!positionId) return Promise.resolve({ success: false });
+        
+        return positionsApi.closePosition({
+          accountId: currentAccountId,
+          positionId: positionId,
+          symbol: pos.symbol,
+        });
+      });
+
+      const results = await Promise.allSettled(closePromises);
+      const successful = results.filter(r => r.status === 'fulfilled' && r.value.success).length;
+      const failed = results.length - successful;
+
+      console.log('[TradingTerminal] Close group completed:', { symbol, successful, failed });
+    } catch (error) {
+      console.error('[TradingTerminal] Error closing group:', error);
+    }
   }
 
-  const handleCloseAll = (option: string) => {
-    // Position closing will be handled by the API/backend
-    // The positions will be updated automatically via polling
-    // This is a placeholder for future implementation
-    console.log('[TradingTerminal] Close all positions:', option);
+  const handleCloseAll = async (option: string) => {
+    if (!currentAccountId) {
+      console.error('[TradingTerminal] No account selected');
+      return;
+    }
+
+    try {
+      // Filter positions based on the selected option
+      let positionsToClose = [...openPositions];
+      
+      if (option === 'profitable') {
+        positionsToClose = openPositions.filter((pos: any) => {
+          const pl = parseFloat(pos.pl.replace('+', ''));
+          return pl > 0;
+        });
+      } else if (option === 'losing') {
+        positionsToClose = openPositions.filter((pos: any) => {
+          const pl = parseFloat(pos.pl.replace('+', ''));
+          return pl < 0;
+        });
+      } else if (option === 'buy') {
+        positionsToClose = openPositions.filter((pos: any) => pos.type === 'Buy');
+      } else if (option === 'sell') {
+        positionsToClose = openPositions.filter((pos: any) => pos.type === 'Sell');
+      }
+      // 'all' option uses all positions (no filtering)
+
+      if (positionsToClose.length === 0) {
+        console.log('[TradingTerminal] No positions to close for option:', option);
+        return;
+      }
+
+      // Close each position individually
+      const closePromises = positionsToClose.map((pos: any) => {
+        const positionId = pos.ticket || pos.id || pos.positionId;
+        if (!positionId) return Promise.resolve({ success: false });
+        
+        return positionsApi.closePosition({
+          accountId: currentAccountId,
+          positionId: positionId,
+          symbol: pos.symbol,
+        });
+      });
+
+      const results = await Promise.allSettled(closePromises);
+      const successful = results.filter(r => r.status === 'fulfilled' && r.value.success).length;
+      const failed = results.length - successful;
+
+      console.log('[TradingTerminal] Close all completed:', { option, successful, failed, total: positionsToClose.length });
+
+      if (successful > 0) {
+        // Show notification for the first closed position
+        setClosedToast(positionsToClose[0]);
+      }
+    } catch (error) {
+      console.error('[TradingTerminal] Error closing all positions:', error);
+    }
   }
 
   // Order placement handlers
@@ -459,7 +579,7 @@ export default function TradingTerminal() {
       <ModifyPositionModal />
       <OrderPlacedToast
         order={orderToast}
-        onClose={() => setOrderToast(null)}
+        onClose={handleOrderToastClose}
       />
     </>
   )
