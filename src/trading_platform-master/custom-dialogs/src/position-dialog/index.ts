@@ -49,10 +49,24 @@ export function createPositionDialog(broker: IBrokerTerminal, onResultCallback: 
 			throw new Error('should be implemented');
 		}
 
+		// Mark that we're updating from dialog to prevent infinite recursion
+		// Check if broker has the setUpdatingFromDialog method (BrokerDemo specific)
+		if ((broker as any).setUpdatingFromDialog) {
+			(broker as any).setUpdatingFromDialog(true);
+		}
+
 		broker.editPositionBrackets(positionId, brackets)
 			.then(() => {
+				// Reset the flag after update completes
+				if ((broker as any).setUpdatingFromDialog) {
+					(broker as any).setUpdatingFromDialog(false);
+				}
 				onResultCallback(true);
 			}).catch(() => {
+				// Reset the flag even on error
+				if ((broker as any).setUpdatingFromDialog) {
+					(broker as any).setUpdatingFromDialog(false);
+				}
 				onResultCallback(false);
 			});
 	});

@@ -52,6 +52,8 @@
 			var createCancelOrderButtonListener = null;
 			var createClosePositionButtonListener = null;
 			var createReversePositionButtonListener = null;
+			var brokerInstance = null;
+			var showPositionDialogFunc = null;
 
 			var onOrderResultCallback = function(result) {
 				orderResult.resolve(result);
@@ -61,8 +63,14 @@
 				}
 			};
 
+			var currentPositionPromiseResolve = null;
 			var onPositionResultCallback = function(result) {
-				positionResult.resolve(result);
+				if (currentPositionPromiseResolve) {
+					currentPositionPromiseResolve(result);
+					currentPositionPromiseResolve = null;
+				} else {
+					positionResult.resolve(result);
+				}
 				if (customPositionDialog !== null) {
 					customPositionDialog.style.display = 'none';
 					customPositionDialog.removeAttribute('data-symbol');
@@ -125,7 +133,7 @@
 					charts_storage_api_version: "1.1",
 					client_id: 'trading_platform_demo',
 					user_id: 'public_user',
-					theme: getParameterByName('theme'),
+					theme: getParameterByName('theme') || 'dark',
 
 					widgetbar: {
 						details: true,
@@ -151,6 +159,10 @@
 						createCancelOrderButtonListener = CustomDialogs.createCancelOrderButtonListenerFactory(broker);
 						createClosePositionButtonListener = CustomDialogs.createClosePositionButtonListenerFactory(broker);
 						createReversePositionButtonListener = CustomDialogs.createReversePositionButtonListenerFactory(broker);
+						
+						// Store broker instance for later callback setup
+						brokerInstance = broker;
+						
 						return broker;
 					},
 					broker_config: {
@@ -174,7 +186,11 @@
 							showPositionDialog: function(position, brackets, focus) {
 								CustomDialogs.showPositionDialog(customPositionDialog, position, brackets);
 								// NOTE: This promise should be resolved with true/false only
-								return positionResult.promise;
+								// Create a new promise for this dialog call
+								var newPositionResult = createDeferredPromise();
+								// Store the resolve function so onPositionResultCallback can use it
+								currentPositionPromiseResolve = newPositionResult.resolve;
+								return newPositionResult.promise;
 							},
 							showCancelOrderDialog: function(order) {
 								if (createCancelOrderButtonListener === null) {
@@ -212,6 +228,35 @@
 						},
 					},
 				});
+				
+				// Set up the showPositionDialog callback on the broker after widget is created
+				// This allows the broker to intercept editPositionBrackets calls and open the dialog
+				// Use setTimeout to ensure widget is fully initialized
+				setTimeout(function() {
+					if (brokerInstance) {
+						console.log('[Trading Platform] Setting up position dialog callback on broker instance');
+						
+						if (typeof brokerInstance.setShowPositionDialogCallback === 'function') {
+							// Use the same showPositionDialog function from customUI
+							showPositionDialogFunc = function(position, brackets, focus) {
+								console.log('[Trading Platform] Intercepted editPositionBrackets, opening dialog', position, brackets);
+								CustomDialogs.showPositionDialog(customPositionDialog, position, brackets);
+								// Create a new promise for this dialog call
+								var newPositionResult = createDeferredPromise();
+								// Store the resolve function so onPositionResultCallback can use it
+								currentPositionPromiseResolve = newPositionResult.resolve;
+								return newPositionResult.promise;
+							};
+							brokerInstance.setShowPositionDialogCallback(showPositionDialogFunc);
+							console.log('[Trading Platform] Position dialog callback set successfully');
+						} else {
+							console.error('[Trading Platform] Broker instance does not have setShowPositionDialogCallback method');
+							console.log('[Trading Platform] Broker instance:', brokerInstance);
+						}
+					} else {
+						console.error('[Trading Platform] Broker instance is null');
+					}
+				}, 100);
 			};
 
 			window.addEventListener('DOMContentLoaded', initOnReady, false);
