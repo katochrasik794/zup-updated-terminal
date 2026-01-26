@@ -7,7 +7,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "build:trading-bundles": "node scripts/build-trading-bundles.cjs",
+    "postinstall": "npm run build:trading-bundles"
   },
   "dependencies": {
     "@microsoft/signalr": "^10.0.0",

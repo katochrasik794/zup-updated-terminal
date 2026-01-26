@@ -3,14 +3,14 @@
  * Each Account Manager page is a table, where each column is an `AccountManagerColumnBase` object.
  * These objects are used in the `accountManagerInfo` method which builds the Account Manager.
  */
-import { OrderStatusFilter, CommonAccountManagerColumnId, } from '../../charting_library/broker-api';
+import { OrderStatusFilter, StandardFormatterName, CommonAccountManagerColumnId, } from '../../charting_library/broker-api';
 /**
  * Column structure for the "Orders" page
  */
 export const ordersPageColumns = [
     {
         label: 'Symbol',
-        formatter: "symbol" /* StandardFormatterName.Symbol */,
+        formatter: StandardFormatterName.Symbol,
         id: CommonAccountManagerColumnId.Symbol,
         dataFields: ['symbol', 'symbol', 'message'],
     },
@@ -18,13 +18,13 @@ export const ordersPageColumns = [
         label: 'Side',
         id: 'side',
         dataFields: ['side'],
-        formatter: "side" /* StandardFormatterName.Side */,
+        formatter: StandardFormatterName.Side,
     },
     {
         label: 'Type',
         id: 'type',
         dataFields: ['type', 'parentId', 'stopType'],
-        formatter: "type" /* StandardFormatterName.Type */,
+        formatter: StandardFormatterName.Type,
     },
     {
         label: 'Qty',
@@ -32,28 +32,28 @@ export const ordersPageColumns = [
         id: 'qty',
         dataFields: ['qty'],
         help: 'Size in lots',
-        formatter: "formatQuantity" /* StandardFormatterName.FormatQuantity */,
+        formatter: StandardFormatterName.FormatQuantity,
     },
     {
         label: 'Limit Price',
         alignment: 'right',
         id: 'limitPrice',
         dataFields: ['limitPrice'],
-        formatter: "formatPrice" /* StandardFormatterName.FormatPrice */,
+        formatter: StandardFormatterName.FormatPrice,
     },
     {
         label: 'Stop Price',
         alignment: 'right',
         id: 'stopPrice',
         dataFields: ['stopPrice'],
-        formatter: "formatPrice" /* StandardFormatterName.FormatPrice */,
+        formatter: StandardFormatterName.FormatPrice,
     },
     {
         label: 'Last',
         alignment: 'right',
         id: 'last',
         dataFields: ['last'],
-        formatter: "formatPriceForexSup" /* StandardFormatterName.FormatPriceForexSup */,
+        formatter: StandardFormatterName.FormatPriceForexSup,
         highlightDiff: true,
     },
     {
@@ -65,7 +65,7 @@ export const ordersPageColumns = [
         label: 'Status',
         id: 'status',
         dataFields: ['status'],
-        formatter: "status" /* StandardFormatterName.Status */,
+        formatter: StandardFormatterName.Status,
         supportedStatusFilters: [OrderStatusFilter.All],
     },
     {
@@ -80,7 +80,7 @@ export const ordersPageColumns = [
 export const positionsPageColumns = [
     {
         label: 'Symbol',
-        formatter: "symbol" /* StandardFormatterName.Symbol */,
+        formatter: StandardFormatterName.Symbol,
         id: CommonAccountManagerColumnId.Symbol,
         dataFields: ['symbol', 'symbol', 'message'],
     },
@@ -88,7 +88,7 @@ export const positionsPageColumns = [
         label: 'Side',
         id: 'side',
         dataFields: ['side'],
-        formatter: "side" /* StandardFormatterName.Side */,
+        formatter: StandardFormatterName.Side,
     },
     {
         label: 'Qty',
@@ -96,21 +96,21 @@ export const positionsPageColumns = [
         id: 'qty',
         dataFields: ['qty'],
         help: 'Size in lots',
-        formatter: "formatQuantity" /* StandardFormatterName.FormatQuantity */,
+        formatter: StandardFormatterName.FormatQuantity,
     },
     {
         label: 'Avg Fill Price',
         alignment: 'right',
         id: 'avgPrice',
         dataFields: ['avgPrice'],
-        formatter: "formatPrice" /* StandardFormatterName.FormatPrice */,
+        formatter: StandardFormatterName.FormatPrice,
     },
     {
         label: 'Last',
         alignment: 'right',
         id: 'last',
         dataFields: ['last'],
-        formatter: "formatPriceForexSup" /* StandardFormatterName.FormatPriceForexSup */,
+        formatter: StandardFormatterName.FormatPriceForexSup,
         highlightDiff: true,
     },
     {
@@ -118,21 +118,21 @@ export const positionsPageColumns = [
         alignment: 'right',
         id: 'pl',
         dataFields: ['pl'],
-        formatter: "profit" /* StandardFormatterName.Profit */,
+        formatter: StandardFormatterName.Profit,
     },
     {
         label: 'Stop Loss',
         alignment: 'right',
         id: 'stopLoss',
         dataFields: ['stopLoss'],
-        formatter: "formatPrice" /* StandardFormatterName.FormatPrice */,
+        formatter: StandardFormatterName.FormatPrice,
     },
     {
         label: 'Take Profit',
         alignment: 'right',
         id: 'takeProfit',
         dataFields: ['takeProfit'],
-        formatter: "formatPrice" /* StandardFormatterName.FormatPrice */,
+        formatter: StandardFormatterName.FormatPrice,
     },
 ];
 /**
@@ -151,14 +151,14 @@ export const accountSummaryColumns = [
         alignment: 'right',
         id: 'balance',
         dataFields: ['balance'],
-        formatter: "fixed" /* StandardFormatterName.Fixed */,
+        formatter: StandardFormatterName.Fixed,
     },
     {
         label: 'Open PL',
         alignment: 'right',
         id: 'pl',
         dataFields: ['pl'],
-        formatter: "profit" /* StandardFormatterName.Profit */,
+        formatter: StandardFormatterName.Profit,
         notSortable: true,
     },
     {
@@ -166,7 +166,7 @@ export const accountSummaryColumns = [
         alignment: 'right',
         id: 'equity',
         dataFields: ['equity'],
-        formatter: "fixed" /* StandardFormatterName.Fixed */,
+        formatter: StandardFormatterName.Fixed,
         notSortable: true,
     },
 ];
