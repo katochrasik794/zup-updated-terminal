@@ -125,7 +125,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // 2. Fire and forget the logout request to the server (don't block UI)
     try {
-      authApi.logout().catch(err =>);
+      authApi.logout().catch(() => {});
     } catch (error) {
       // Ignore background errors
     }

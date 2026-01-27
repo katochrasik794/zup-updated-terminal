@@ -153,15 +153,6 @@ export default function AccountDropdown({ isOpen, onClose }) {
             { label: 'Credit', value: credit },
             { label: 'Total P/L, USD', value: profitLoss, color: profitLoss >= 0 ? 'text-[#00ffaa]' : 'text-[#f6465d]', isPL: true }
           ].map((item, idx) => {
-            // Debug: Log P/L item
-            if (item.isPL && isOpen) {
-                label: item.label,
-                value: item.value,
-                profitLoss,
-                currentData: currentData,
-                hasProfit: !!currentData?.Profit
-              });
-            }
             // Handle P/L rendering with proper loading states
             let displayValue: string | React.ReactNode;
             if (item.isLeverage) {

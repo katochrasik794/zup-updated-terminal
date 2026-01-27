@@ -10,6 +10,7 @@ import {
 	Execution,
 	IBrokerConnectionAdapterHost,
 	IDelegate,
+	IndividualPosition,
 	InstrumentInfo,
 	IsTradableResult,
 	IWatchedValue,
@@ -161,10 +162,11 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 					}
 				}
 			} catch (error) {
-				// Error notifying position - silently handle
+				console.error('[ZuperiorBroker] Error notifying position:', error, p);
 			}
 		});
 
+		console.log(`[ZuperiorBroker] Notified TradingView: ${this._positions.length} positions, ${regularOrders.length} orders, ${bracketOrders.length} brackets`);
 	}
 
 	private async _startPolling() {
@@ -198,9 +200,11 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 
 			// Check if response exists
 			if (!response) {
+				console.warn('[ZuperiorBroker] No response from API');
 				return;
 			}
 
+			console.log('[ZuperiorBroker] API response:', {
 				success: response?.success,
 				positionsCount: response?.positions?.length || response?.data?.positions?.length || 0,
 				pendingOrdersCount: response?.pendingOrders?.length || response?.data?.pendingOrders?.length || 0,
@@ -226,12 +230,16 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 
 				const pendingArray = Array.isArray(pendingSource) ? pendingSource : [];
 
+				console.log(`[ZuperiorBroker] Raw data - positions: ${positionsArray.length}, orders: ${pendingArray.length}`);
 
 				// Debug: Log raw position data to see what fields are available
 				if (positionsArray.length > 0) {
+					console.log(`[ZuperiorBroker] Raw position data (first position):`, positionsArray[0]);
+					console.log(`[ZuperiorBroker] All keys in first position:`, Object.keys(positionsArray[0] || {}));
 					// Check for TP/SL in various formats
 					const firstPos = positionsArray[0];
 					if (firstPos) {
+						console.log(`[ZuperiorBroker] TP/SL check:`, {
 							takeProfit: firstPos.takeProfit,
 							TakeProfit: firstPos.TakeProfit,
 							TP: firstPos.TP,
@@ -250,6 +258,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 						try {
 							return this._mapApiPositionToTVPosition(pos);
 						} catch (error) {
+							console.error('[ZuperiorBroker] Error mapping position:', error, pos);
 							return null;
 						}
 					})
@@ -260,10 +269,12 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 					.map((order: any) => {
 						try {
 							if (!order || typeof order !== 'object') {
+								console.warn('[ZuperiorBroker] Invalid order object:', order);
 								return null;
 							}
 							return this._mapApiOrderToTVOrder(order);
 						} catch (error) {
+							console.error('[ZuperiorBroker] Error mapping order:', error, order);
 							return null;
 						}
 					})
@@ -297,7 +308,9 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 							try {
 								const tpBracket = this._createTakeProfitBracket(p);
 								bracketOrders.push(tpBracket);
+								console.log(`[ZuperiorBroker] Created TP bracket order: ${tpBracket.id} for position ${p.id}, limitPrice: ${tpBracket.limitPrice}`);
 							} catch (error) {
+								console.error('[ZuperiorBroker] Error creating TP bracket:', error);
 							}
 						}
 
@@ -306,7 +319,9 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 							try {
 								const slBracket = this._createStopLossBracket(p);
 								bracketOrders.push(slBracket);
+								console.log(`[ZuperiorBroker] Created SL bracket order: ${slBracket.id} for position ${p.id}, stopPrice: ${slBracket.stopPrice}`);
 							} catch (error) {
+								console.error('[ZuperiorBroker] Error creating SL bracket:', error);
 							}
 						}
 					});
@@ -334,6 +349,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 
 					// Debug: Log stored positions to verify TP/SL are preserved
 					if (tvPositions.length > 0) {
+						console.log(`[ZuperiorBroker] Stored positions with TP/SL:`, tvPositions.map(p => ({
 							id: p.id,
 							symbol: p.symbol,
 							takeProfit: p.takeProfit,
@@ -341,12 +357,14 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 						})));
 					}
 				} else {
+					console.warn('[ZuperiorBroker] Cannot update positions - arrays not valid');
 				}
 
 				if (Array.isArray(this._orders) && Array.isArray(allOrders)) {
 					this._orders.length = 0;
 					this._orders.push(...allOrders);
 				} else {
+					console.warn('[ZuperiorBroker] Cannot update orders - arrays not valid');
 				}
 
 				// Update orderById map
@@ -364,6 +382,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 				// CRITICAL: Update positions FIRST with brackets, THEN create bracket orders
 				// This order is required for TradingView to show TP/SL buttons on trade lines
 				if (this._isWidgetReady) {
+					console.log(`[ZuperiorBroker] Widget ready, notifying TradingView: ${bracketOrders.length} brackets, ${tvOrders.length} orders, ${tvPositions.length} positions`);
 
 					// Step 1: Create clean positions and update internal state BEFORE calling positionUpdate
 					// CRITICAL: Store clean positions in _positionById and _positions BEFORE calling positionUpdate
@@ -376,23 +395,29 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 							try {
 								// Validate position object before sending to TradingView
 								if (!p || typeof p !== 'object') {
+									console.warn('[ZuperiorBroker] Invalid position object:', p);
 									return;
 								}
 
 								// Ensure all required fields are present and valid
 								if (!p.id || typeof p.id !== 'string') {
+									console.warn('[ZuperiorBroker] Position missing valid id:', p);
 									return;
 								}
 								if (!p.symbol || typeof p.symbol !== 'string') {
+									console.warn('[ZuperiorBroker] Position missing valid symbol:', p);
 									return;
 								}
 								if (typeof p.qty !== 'number' || p.qty <= 0 || !isFinite(p.qty)) {
+									console.warn('[ZuperiorBroker] Position missing valid qty:', p);
 									return;
 								}
 								if (typeof p.side !== 'number' || (p.side !== Side.Buy && p.side !== Side.Sell)) {
+									console.warn('[ZuperiorBroker] Position missing valid side:', p);
 									return;
 								}
 								if (typeof p.avgPrice !== 'number' || p.avgPrice <= 0 || !isFinite(p.avgPrice)) {
+									console.warn('[ZuperiorBroker] Position missing valid avgPrice:', p);
 									return;
 								}
 
@@ -403,6 +428,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 								cleanPositions.push(cleanPosition);
 								positionMap[cleanPosition.id] = cleanPosition;
 							} catch (error) {
+								console.error('[ZuperiorBroker] Error creating clean position:', error, p);
 							}
 						});
 					}
@@ -420,6 +446,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 								// Verify bracket fields are present before sending
 								const hasTakeProfit = 'takeProfit' in cleanPosition;
 								const hasStopLoss = 'stopLoss' in cleanPosition;
+								console.log(`[ZuperiorBroker] Step 1: Sending position with brackets:`, {
 									id: cleanPosition.id,
 									symbol: cleanPosition.symbol,
 									takeProfit: cleanPosition.takeProfit,
@@ -436,9 +463,11 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 									this._host.plUpdate(cleanPosition.symbol, (cleanPosition as any).pl);
 								}
 							} catch (error) {
+								console.error('[ZuperiorBroker] Error updating position:', error, cleanPosition);
 							}
 						});
 					} else {
+						console.log(`[ZuperiorBroker] No positions to send (count: ${tvPositions.length})`);
 					}
 
 					// Step 2: Create bracket orders AFTER positions are updated
@@ -447,6 +476,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 						bracketOrders.forEach(bracket => {
 							try {
 								if (bracket && this._host && typeof this._host.orderUpdate === 'function') {
+									console.log(`[ZuperiorBroker] Step 2: Sending bracket order:`, {
 										id: bracket.id,
 										symbol: bracket.symbol,
 										type: bracket.type,
@@ -457,9 +487,11 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 									this._host.orderUpdate(bracket);
 								}
 							} catch (error) {
+								console.error('[ZuperiorBroker] Error updating bracket order:', error, bracket);
 							}
 						});
 					} else {
+						console.log(`[ZuperiorBroker] No bracket orders to send (count: ${bracketOrders.length})`);
 					}
 
 					// Step 3: Update pending orders
@@ -470,13 +502,16 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 									this._host.orderUpdate(o);
 								}
 							} catch (error) {
+								console.error('[ZuperiorBroker] Error updating order:', error, o);
 							}
 						});
 					}
 				}
 
+				console.log(`[ZuperiorBroker] Updated ${tvPositions.length} positions, ${tvOrders.length} pending orders, ${bracketOrders.length} bracket orders`);
 			}
 		} catch (error) {
+			console.error('[ZuperiorBroker] Error fetching positions/orders:', error);
 		}
 	}
 
@@ -529,10 +564,12 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 		const symbol = (apiPos.symbol || apiPos.Symbol || '').toUpperCase();
 
 		if (!symbol || !id || volume <= 0 || openPrice <= 0) {
+			console.warn('[ZuperiorBroker] Invalid position data:', { id, symbol, rawVolume, volume, openPrice });
 		}
 
 		// Ensure all required fields are valid before creating position
 		if (!id || !symbol || volume <= 0 || openPrice <= 0) {
+			console.warn('[ZuperiorBroker] Cannot create position - missing required fields:', { id, symbol, volume, openPrice });
 			// Return a minimal valid position to avoid crashes, but it will be filtered out
 			return {
 				id: id || 'invalid',
@@ -583,6 +620,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 		const stopLoss = Number.isFinite(stopLossNum) && stopLossNum > 0 ? stopLossNum : undefined;
 
 		// Debug logging to see what we're getting from API - log for ALL positions to help debug
+		console.log(`[ZuperiorBroker] TP/SL extraction for position ${id}:`, {
 			takeProfitRaw,
 			takeProfit,
 			takeProfitNum,
@@ -640,6 +678,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 		try {
 			openTimeMs = new Date(openTime).getTime();
 		} catch (e) {
+			console.warn('[ZuperiorBroker] Failed to parse openTime:', openTime);
 		}
 		(position as any).openTimeInMs = openTimeMs;
 
@@ -657,6 +696,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 
 		// Final verification - log if values are missing but should be there
 		if (takeProfitRaw !== undefined && takeProfitRaw !== null && takeProfit === undefined) {
+			console.warn(`[ZuperiorBroker] TP value lost during extraction for position ${id}:`, {
 				raw: takeProfitRaw,
 				parsed: takeProfitNum,
 				isFinite: Number.isFinite(takeProfitNum),
@@ -664,6 +704,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			});
 		}
 		if (stopLossRaw !== undefined && stopLossRaw !== null && stopLoss === undefined) {
+			console.warn(`[ZuperiorBroker] SL value lost during extraction for position ${id}:`, {
 				raw: stopLossRaw,
 				parsed: stopLossNum,
 				isFinite: Number.isFinite(stopLossNum),
@@ -752,6 +793,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 	public async orders(): Promise<Order[]> {
 		// Ensure _orders is always an array before calling slice()
 		if (!Array.isArray(this._orders)) {
+			console.warn('[ZuperiorBroker] _orders is not an array, returning empty array');
 			return Promise.resolve([]);
 		}
 
@@ -809,6 +851,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			});
 		}
 
+		console.log(`[ZuperiorBroker] orders() called, returning ${orders.length} orders (including brackets)`);
 		return Promise.resolve(orders);
 	}
 
@@ -822,6 +865,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 
 	// CRITICAL: Add modifyOrder method for draggable TP/SL
 	public async modifyOrder(order: Order, _confirmId?: string): Promise<void> {
+		console.log('[ZuperiorBroker] modifyOrder called:', order);
 
 		// Get the original order
 		const originalOrder = this._orderById[order.id];
@@ -873,6 +917,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 	public async positions(): Promise<Position[]> {
 		// Ensure _positions is always an array before calling slice()
 		if (!Array.isArray(this._positions)) {
+			console.warn('[ZuperiorBroker] _positions is not an array, returning empty array');
 			return Promise.resolve([]);
 		}
 
@@ -884,7 +929,9 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			return clean;
 		});
 
+		console.log(`[ZuperiorBroker] positions() called, returning ${positions.length} positions`);
 		if (positions.length > 0) {
+			console.log('[ZuperiorBroker] Sample position for Account Manager:', {
 				id: positions[0].id,
 				symbol: positions[0].symbol,
 				qty: positions[0].qty,
@@ -902,6 +949,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 	public async individualPositions(): Promise<Position[]> {
 		// Return individual positions (same as positions() since we don't use netting)
 		const positions = await this.positions();
+		console.log(`[ZuperiorBroker] individualPositions() called, returning ${positions.length} individual positions`);
 		return positions;
 	}
 
@@ -910,6 +958,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 	}
 
 	public async placeOrder(preOrder: PreOrder): Promise<PlaceOrderResult> {
+		console.log('[ZuperiorBroker] placeOrder called:', preOrder);
 
 		if (!this._accountId) {
 			throw new Error('No account ID');
@@ -917,8 +966,10 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 
 		try {
 			const token = apiClient.getToken();
-			// Use apiClient's getBaseURL() method which re-evaluates environment variables at runtime
-			const baseURL = apiClient.getBaseURL();
+			const baseURL = process.env.NEXT_PUBLIC_BACKEND_API_URL ||
+				(process.env.NEXT_PUBLIC_API_BASE_URL && process.env.NEXT_PUBLIC_API_BASE_URL.includes('localhost')
+					? process.env.NEXT_PUBLIC_API_BASE_URL
+					: 'http://localhost:5000');
 
 			// Map TV PreOrder to backend payload
 			// TV PreOrder: { symbol, qty, side (1/-1), type (1=Limit, 2=Market, 3=Stop), limitPrice, stopPrice, takeProfit, stopLoss }
@@ -969,6 +1020,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 				};
 			}
 
+			console.log(`[ZuperiorBroker] Sending order to backend (${endpoint}):`, payload);
 
 			const response = await fetch(`${baseURL}${endpoint}`, {
 				method: 'POST',
@@ -985,12 +1037,14 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			}
 
 			const result = await response.json();
+			console.log('[ZuperiorBroker] Order placed successfully:', result);
 
 			// Refresh data
 			this._fetchPositionsAndOrders();
 
 			return { orderId: result.orderId || result.id || 'unknown' };
 		} catch (error) {
+			console.error('[ZuperiorBroker] Error placing order:', error);
 			throw error;
 		}
 	}
@@ -1005,8 +1059,11 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 		try {
 			// Call API to cancel order - use fetch directly since we need DELETE with body
 			const token = apiClient.getToken();
-			// Use apiClient's getBaseURL() method which re-evaluates environment variables at runtime
-			const baseURL = apiClient.getBaseURL();
+			// Get base URL from environment or default to localhost:5000
+			const baseURL = process.env.NEXT_PUBLIC_BACKEND_API_URL ||
+				(process.env.NEXT_PUBLIC_API_BASE_URL && process.env.NEXT_PUBLIC_API_BASE_URL.includes('localhost')
+					? process.env.NEXT_PUBLIC_API_BASE_URL
+					: 'http://localhost:5000');
 
 			const response = await fetch(`${baseURL}/api/trading/pending/order/${orderId}`, {
 				method: 'DELETE',
@@ -1034,6 +1091,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			// Refresh positions/orders
 			await this._fetchPositionsAndOrders();
 		} catch (error) {
+			console.error('[ZuperiorBroker] Error canceling order:', error);
 			throw error;
 		}
 	}
@@ -1051,8 +1109,10 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			}
 
 			const token = apiClient.getToken();
-			// Use apiClient's getBaseURL() method which re-evaluates environment variables at runtime
-			const baseURL = apiClient.getBaseURL();
+			const baseURL = process.env.NEXT_PUBLIC_BACKEND_API_URL ||
+				(process.env.NEXT_PUBLIC_API_BASE_URL && process.env.NEXT_PUBLIC_API_BASE_URL.includes('localhost')
+					? process.env.NEXT_PUBLIC_API_BASE_URL
+					: 'http://localhost:5000');
 
 			const response = await fetch(`${baseURL}/api/trading/close`, {
 				method: 'POST',
@@ -1082,11 +1142,13 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			// Refresh positions/orders
 			await this._fetchPositionsAndOrders();
 		} catch (error) {
+			console.error('[ZuperiorBroker] Error closing position:', error);
 			throw error;
 		}
 	}
 
 	public async editPositionBrackets(positionId: string, modifiedBrackets: Brackets): Promise<void> {
+		console.log('[ZuperiorBroker] editPositionBrackets called:', {
 			positionId,
 			brackets: {
 				stopLoss: modifiedBrackets.stopLoss !== undefined ? modifiedBrackets.stopLoss : 'undefined',
@@ -1132,18 +1194,22 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 				// Only TP is being modified - preserve current SL
 				if (position.stopLoss !== undefined && position.stopLoss !== null) {
 					finalStopLoss = Number(position.stopLoss);
+					console.log('[ZuperiorBroker] Preserving existing SL:', finalStopLoss);
 				}
 			} else if (takeProfitValue === undefined && stopLossValue !== undefined) {
 				// Only SL is being modified - preserve current TP
 				if (position.takeProfit !== undefined && position.takeProfit !== null) {
 					finalTakeProfit = Number(position.takeProfit);
+					console.log('[ZuperiorBroker] Preserving existing TP:', finalTakeProfit);
 				}
 			}
 
 			// Call API to update position
 			const token = apiClient.getToken();
-			// Use apiClient's getBaseURL() method which re-evaluates environment variables at runtime
-			const baseURL = apiClient.getBaseURL();
+			const baseURL = process.env.NEXT_PUBLIC_BACKEND_API_URL ||
+				(process.env.NEXT_PUBLIC_API_BASE_URL && process.env.NEXT_PUBLIC_API_BASE_URL.includes('localhost')
+					? process.env.NEXT_PUBLIC_API_BASE_URL
+					: 'http://localhost:5000');
 
 			// Use the correct endpoint for modifying positions found in backend routes
 			const response = await fetch(`${baseURL}/api/positions/${positionId}/modify`, {
@@ -1264,11 +1330,13 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			// Refresh positions/orders to sync with backend
 			await this._fetchPositionsAndOrders();
 		} catch (error) {
+			console.error('[ZuperiorBroker] Error editing position brackets:', error);
 			throw error;
 		}
 	}
 
 	public async editIndividualPositionBrackets(positionId: string, modifiedBrackets: Brackets, customFields?: any): Promise<void> {
+		console.log('[ZuperiorBroker] editIndividualPositionBrackets called:', {
 			positionId,
 			brackets: {
 				stopLoss: modifiedBrackets.stopLoss !== undefined ? modifiedBrackets.stopLoss : 'undefined',
@@ -1306,7 +1374,10 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 
 			// Call backend API
 			const token = apiClient.getToken();
-			const baseURL = apiClient.getBaseURL();
+			const baseURL = process.env.NEXT_PUBLIC_BACKEND_API_URL ||
+				(process.env.NEXT_PUBLIC_API_BASE_URL && process.env.NEXT_PUBLIC_API_BASE_URL.includes('localhost')
+					? process.env.NEXT_PUBLIC_API_BASE_URL
+					: 'http://localhost:5000');
 
 			const response = await fetch(`${baseURL}/api/positions/${positionId}/modify`, {
 				method: 'PUT',
@@ -1332,7 +1403,18 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			this._positionById[positionId] = position;
 
 			// CRITICAL: Call individualPositionUpdate (not positionUpdate) for individual positions
-			if (this._host && typeof this._host.positionUpdate === 'function') {
+			if (this._host && typeof this._host.individualPositionUpdate === 'function') {
+				const cleanPosition = this._createCleanPosition(position);
+				// Convert Position to IndividualPosition by adding required date and price fields
+				// IndividualPosition requires: id, date (number), symbol, qty, side, price (number)
+				const individualPosition = {
+					...cleanPosition,
+					date: (position as any).openTime ? new Date((position as any).openTime).getTime() : Date.now(),
+					price: cleanPosition.avgPrice,
+				} as any; // Type assertion needed as IndividualPosition extends Position with additional fields
+				this._host.individualPositionUpdate(individualPosition);
+			} else if (this._host && typeof this._host.positionUpdate === 'function') {
+				// Fallback to positionUpdate if individualPositionUpdate not available
 				const cleanPosition = this._createCleanPosition(position);
 				this._host.positionUpdate(cleanPosition);
 			}
@@ -1400,6 +1482,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			}
 
 		} catch (error) {
+			console.error('[ZuperiorBroker] Error editing individual position brackets:', error);
 			throw error;
 		}
 	}
@@ -1441,6 +1524,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 				throw new Error('ordersPageColumns is not available');
 			}
 		} catch (error) {
+			console.warn('[ZuperiorBroker] Error loading order columns, using fallback:', error);
 			// Fallback minimal columns if import fails
 			orderCols = [
 				{ label: 'Symbol', id: 'symbol', dataFields: ['symbol'], formatter: 'symbol' },
@@ -1468,6 +1552,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 				throw new Error('positionsPageColumns is not available');
 			}
 		} catch (error) {
+			console.warn('[ZuperiorBroker] Error loading position columns, using fallback:', error);
 			// Fallback minimal columns if import fails
 			positionCols = [
 				{ label: 'Symbol', id: 'symbol', dataFields: ['symbol'], formatter: 'symbol' },
@@ -1529,6 +1614,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 		// REMOVED: Custom and Button columns as requested
 		// No custom columns will be added to match the open positions table
 
+		console.log('[ZuperiorBroker] accountManagerInfo:', {
 			orderColumnsCount: accountInfo.orderColumns.length,
 			positionColumnsCount: accountInfo.positionColumns?.length || 0,
 			pagesCount: accountInfo.pages.length,
@@ -1669,6 +1755,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 	// syncFromLiveState - Main method to sync positions/orders from parent component
 	// ============================================================================
 	public syncFromLiveState(openPositions: any[], pendingOrders: any[]): void {
+		console.log('[ZuperiorBroker] syncFromLiveState called:', {
 			positionsCount: (openPositions || []).length,
 			ordersCount: (pendingOrders || []).length,
 		});
@@ -1708,6 +1795,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 
 				// Debug logging to see what we're getting from API
 				if (id && (takeProfitRaw !== undefined || stopLossRaw !== undefined)) {
+					console.log(`[ZuperiorBroker] syncFromLiveState TP/SL extraction for position ${id}:`, {
 						takeProfitRaw,
 						takeProfit,
 						stopLossRaw,
@@ -1812,12 +1900,14 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 
 				// Validate bracket values are numbers
 				if (position.stopLoss !== undefined && typeof position.stopLoss !== 'number') {
+					console.warn('[ZuperiorBroker] stopLoss is not a number, converting:', position.stopLoss);
 					position.stopLoss = Number(position.stopLoss);
 					if (!Number.isFinite(position.stopLoss) || position.stopLoss <= 0) {
 						position.stopLoss = undefined;
 					}
 				}
 				if (position.takeProfit !== undefined && typeof position.takeProfit !== 'number') {
+					console.warn('[ZuperiorBroker] takeProfit is not a number, converting:', position.takeProfit);
 					position.takeProfit = Number(position.takeProfit);
 					if (!Number.isFinite(position.takeProfit) || position.takeProfit <= 0) {
 						position.takeProfit = undefined;
@@ -1835,6 +1925,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 					this._positionById[id] = cleanPosition;
 
 					// Debug: Log profit value after creating clean position
+					console.log('[ZuperiorBroker] Position profit after clean:', {
 						id: cleanPosition.id,
 						cleanProfit: (cleanPosition as any).pl,
 						profitType: typeof (cleanPosition as any).pl,
@@ -1844,8 +1935,10 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 					safeHostCall(this._host, 'positionUpdate', cleanPosition);
 					if ((cleanPosition as any).pl !== undefined && (cleanPosition as any).pl !== null) {
 						const plValue = Number((cleanPosition as any).pl);
+						console.log('[ZuperiorBroker] Calling plUpdate with profit:', plValue);
 						safeHostCall(this._host, 'plUpdate', cleanPosition.symbol, plValue);
 					}
+					console.log('[ZuperiorBroker] Position updated with brackets:', {
 						id: cleanPosition.id,
 						symbol: cleanPosition.symbol,
 						takeProfit: cleanPosition.takeProfit,
@@ -1859,38 +1952,22 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 					if (cleanPosition.takeProfit !== undefined && cleanPosition.takeProfit > 0) {
 						try {
 							const tpBracket = this._createTakeProfitBracket(cleanPosition);
-							// Update status and parentType AFTER creation (matching reference pattern in _updatePositionsBracket)
-							(tpBracket as any).status = OrderStatus.Working;
-							(tpBracket as any).parentType = ParentType.Position;
 							this._orderById[tpBracket.id] = tpBracket;
-							// Use _updateOrder to match reference pattern (it also updates parent entity)
-							this._updateOrder(tpBracket);
+							safeHostCall(this._host, 'orderUpdate', tpBracket);
+							console.log('[ZuperiorBroker] Created TP bracket order:', tpBracket.id, 'limitPrice:', tpBracket.limitPrice);
 						} catch (error) {
+							console.error('[ZuperiorBroker] Error creating TP bracket:', error);
 						}
 					}
 
 					if (cleanPosition.stopLoss !== undefined && cleanPosition.stopLoss > 0) {
 						try {
-							// CRITICAL: Ensure stopPrice is set on position - reference uses entity.stopPrice for price field
-							(cleanPosition as any).stopPrice = cleanPosition.stopLoss;
-
 							const slBracket = this._createStopLossBracket(cleanPosition);
-
-							// Update status and parentType AFTER creation (matching reference pattern in _updatePositionsBracket)
-							(slBracket as any).status = OrderStatus.Working;
-							(slBracket as any).parentType = ParentType.Position;
-
-							// CRITICAL FIX: Ensure price is ALWAYS a valid number - TradingView needs this for notifications and chart line
-							// Even if entity.stopPrice was set, double-check and ensure price is valid
-							if ((slBracket as any).price === undefined || (slBracket as any).price === null || !Number.isFinite((slBracket as any).price)) {
-								(slBracket as any).price = slBracket.stopPrice;
-							}
-
-							// Store bracket and update - ALWAYS update, matching reference pattern
 							this._orderById[slBracket.id] = slBracket;
-							// Use _updateOrder to match reference pattern (it also updates parent entity)
-							this._updateOrder(slBracket);
+							safeHostCall(this._host, 'orderUpdate', slBracket);
+							console.log('[ZuperiorBroker] Created SL bracket order:', slBracket.id, 'stopPrice:', slBracket.stopPrice);
 						} catch (error) {
+							console.error('[ZuperiorBroker] Error creating SL bracket:', error);
 						}
 					}
 				}
@@ -1947,7 +2024,9 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			this._orders.length = 0;
 			this._orders.push(...Object.values(this._orderById));
 
+			console.log(`[ZuperiorBroker] syncFromLiveState completed: ${this._positions.length} positions, ${this._orders.length} orders`);
 		} catch (error) {
+			console.error('[ZuperiorBroker] Error in syncFromLiveState:', error);
 		}
 	}
 
@@ -2021,186 +2100,194 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 	}
 
 	private _getTakeProfitBracket(entity: Position | Order): Order | undefined {
-		return this._getBrackets(entity.id).find((bracket: Order) => bracket.limitPrice !== undefined);
-	}
+	return this._getBrackets(entity.id).find((bracket: Order) => bracket.limitPrice !== undefined);
+}
 
 	private _getStopLossBracket(entity: Position | Order): Order | undefined {
-		return this._getBrackets(entity.id).find((bracket: Order) => bracket.stopPrice !== undefined);
-	}
+	return this._getBrackets(entity.id).find((bracket: Order) => bracket.stopPrice !== undefined);
+}
 
 	private _updateOrder(order: Order): void {
-		const hasOrderAlready = Boolean(this._orderById[order.id]);
+	const hasOrderAlready = Boolean(this._orderById[order.id]);
 
-		if (hasOrderAlready) {
-			Object.assign(this._orderById[order.id], order);
-		} else {
-			this._orderById[order.id] = order;
-		}
+	if(hasOrderAlready) {
+		Object.assign(this._orderById[order.id], order);
+	} else {
+		this._orderById[order.id] = order;
+	}
 
 		// Update orders array
 		const orderIndex = this._orders.findIndex(o => o.id === order.id);
-		if (orderIndex >= 0) {
-			this._orders[orderIndex] = order;
-		} else {
-			this._orders.push(order);
+	if(orderIndex >= 0) {
+	this._orders[orderIndex] = order;
+} else {
+	this._orders.push(order);
+}
+
+// Notify TradingView
+if (this._host && typeof this._host.orderUpdate === 'function') {
+	this._host.orderUpdate(order);
+}
+
+// Update parent entity's brackets if applicable
+if (order.parentId !== undefined) {
+	const entity = order.parentType === ParentType.Position
+		? this._positionById[order.parentId]
+		: this._orderById[order.parentId];
+
+	if (entity === undefined) {
+		return;
+	}
+
+	// Update take-profit
+	if (order.limitPrice !== undefined) {
+		(entity as any).takeProfit = order.status !== OrderStatus.Canceled
+			? order.limitPrice
+			: undefined;
+	}
+
+	// Update stop-loss
+	if (order.stopPrice !== undefined) {
+		(entity as any).stopLoss = order.status !== OrderStatus.Canceled
+			? order.stopPrice
+			: undefined;
+	}
+
+	// If parent is a position, update it
+	if (order.parentType === ParentType.Position && entity) {
+		if (this._host && typeof this._host.positionUpdate === 'function') {
+			const cleanPosition = this._createCleanPosition(entity as Position);
+			// Update _positionById with clean position before calling positionUpdate
+			this._positionById[cleanPosition.id] = cleanPosition;
+			this._host.positionUpdate(cleanPosition);
 		}
-
-		// Notify TradingView
-		if (this._host && typeof this._host.orderUpdate === 'function') {
-			this._host.orderUpdate(order);
-		}
-
-		// Update parent entity's brackets if applicable
-		if (order.parentId !== undefined) {
-			const entity = order.parentType === ParentType.Position
-				? this._positionById[order.parentId]
-				: this._orderById[order.parentId];
-
-			if (entity === undefined) {
-				return;
-			}
-
-			// Update take-profit
-			if (order.limitPrice !== undefined) {
-				(entity as any).takeProfit = order.status !== OrderStatus.Canceled
-					? order.limitPrice
-					: undefined;
-			}
-
-			// Update stop-loss
-			if (order.stopPrice !== undefined) {
-				(entity as any).stopLoss = order.status !== OrderStatus.Canceled
-					? order.stopPrice
-					: undefined;
-			}
-
-			// If parent is a position, update it
-			if (order.parentType === ParentType.Position && entity) {
-				if (this._host && typeof this._host.positionUpdate === 'function') {
-					const cleanPosition = this._createCleanPosition(entity as Position);
-					// Update _positionById with clean position before calling positionUpdate
-					this._positionById[cleanPosition.id] = cleanPosition;
-					this._host.positionUpdate(cleanPosition);
-				}
-			}
-		}
+	}
+}
 	}
 
 	private _setCanceledStatusAndUpdate(order: Order): void {
-		order.status = OrderStatus.Canceled;
-		this._updateOrder(order);
-	}
+	order.status = OrderStatus.Canceled;
+	this._updateOrder(order);
+}
 
 	private _updatePositionsBracket(params: {
-		parent: Position;
-		bracket: Order | undefined;
-		bracketType: 0 | 1; // 0 = StopLoss, 1 = TakeProfit
-		newPrice: number | undefined;
-	}): void {
-		const { parent, bracket, bracketType, newPrice } = params;
+	parent: Position;
+	bracket: Order | undefined;
+	bracketType: 0 | 1; // 0 = StopLoss, 1 = TakeProfit
+	newPrice: number | undefined;
+}): void {
+	const { parent, bracket, bracketType, newPrice } = params;
 
-		// Check if bracket should be canceled
-		const shouldCancelBracket = bracket !== undefined && newPrice === undefined;
-		if (shouldCancelBracket) {
-			this._setCanceledStatusAndUpdate(bracket);
+	// Check if bracket should be canceled
+	const shouldCancelBracket = bracket !== undefined && newPrice === undefined;
+	if(shouldCancelBracket) {
+		this._setCanceledStatusAndUpdate(bracket);
+		return;
+	}
+
+		if(newPrice === undefined) {
+	return;
+}
+
+const shouldCreateNewBracket = bracket === undefined;
+
+// Handle Take Profit
+if (bracketType === 1) {
+	if (shouldCreateNewBracket) {
+		// Set parent.takeProfit BEFORE creating bracket
+		parent.takeProfit = newPrice;
+		const takeProfitBracket = this._createTakeProfitBracket(parent);
+		takeProfitBracket.status = OrderStatus.Working;
+		takeProfitBracket.parentType = ParentType.Position;
+
+		if (!takeProfitBracket.symbol || takeProfitBracket.symbol.trim() === '') {
+			console.error('[ZuperiorBroker] Cannot create TP bracket - invalid symbol');
 			return;
 		}
 
-		if (newPrice === undefined) {
+		try {
+			this._updateOrder(takeProfitBracket);
+			// Update parent position after bracket is created
+			if (this._host && typeof this._host.positionUpdate === 'function') {
+				const cleanPosition = this._createCleanPosition(parent);
+				// Update _positionById with clean position before calling positionUpdate
+				this._positionById[cleanPosition.id] = cleanPosition;
+				this._host.positionUpdate(cleanPosition);
+			}
+		} catch (error) {
+			console.error('[ZuperiorBroker] Error creating TP bracket:', error);
+		}
+		return;
+	}
+
+	// Update existing bracket
+	bracket.limitPrice = newPrice;
+	// Also update parent position's takeProfit to match
+	parent.takeProfit = newPrice;
+	if (!bracket.symbol || bracket.symbol.trim() === '') {
+		console.error('[ZuperiorBroker] Cannot update TP bracket - invalid symbol');
+		return;
+	}
+
+	try {
+		this._updateOrder(bracket);
+		// Update parent position after bracket is updated
+		if (this._host && typeof this._host.positionUpdate === 'function') {
+			const cleanPosition = this._createCleanPosition(parent);
+			// Update _positionById with clean position before calling positionUpdate
+			this._positionById[cleanPosition.id] = cleanPosition;
+			this._host.positionUpdate(cleanPosition);
+		}
+	} catch (error) {
+		console.error('[ZuperiorBroker] Error updating TP bracket:', error);
+	}
+	return;
+}
+
+// Handle Stop Loss
+if (bracketType === 0) {
+	if (shouldCreateNewBracket) {
+		// Set parent.stopLoss BEFORE creating bracket
+		parent.stopLoss = newPrice;
+		const stopLossBracket = this._createStopLossBracket(parent);
+		stopLossBracket.status = OrderStatus.Working;
+		stopLossBracket.parentType = ParentType.Position;
+
+		if (!stopLossBracket.symbol || stopLossBracket.symbol.trim() === '') {
+			console.error('[ZuperiorBroker] Cannot create SL bracket - invalid symbol');
 			return;
 		}
 
-		const shouldCreateNewBracket = bracket === undefined;
-
-		// Handle Take Profit
-		if (bracketType === 1) {
-			if (shouldCreateNewBracket) {
-				// Set parent.takeProfit BEFORE creating bracket
-				parent.takeProfit = newPrice;
-				const takeProfitBracket = this._createTakeProfitBracket(parent);
-				takeProfitBracket.status = OrderStatus.Working;
-				takeProfitBracket.parentType = ParentType.Position;
-
-				if (!takeProfitBracket.symbol || takeProfitBracket.symbol.trim() === '') {
-					return;
-				}
-
-				try {
-					this._updateOrder(takeProfitBracket);
-					// Update parent position after bracket is created
-					if (this._host && typeof this._host.positionUpdate === 'function') {
-						const cleanPosition = this._createCleanPosition(parent);
-						// Update _positionById with clean position before calling positionUpdate
-						this._positionById[cleanPosition.id] = cleanPosition;
-						this._host.positionUpdate(cleanPosition);
-					}
-				} catch (error) {
-				}
-				return;
-			}
-
-			// Update existing bracket
-			bracket.limitPrice = newPrice;
-			// Also update parent position's takeProfit to match
-			parent.takeProfit = newPrice;
-			if (!bracket.symbol || bracket.symbol.trim() === '') {
-				return;
-			}
-
-			try {
-				this._updateOrder(bracket);
-				// Update parent position after bracket is updated
-				if (this._host && typeof this._host.positionUpdate === 'function') {
-					const cleanPosition = this._createCleanPosition(parent);
-					// Update _positionById with clean position before calling positionUpdate
-					this._positionById[cleanPosition.id] = cleanPosition;
-					this._host.positionUpdate(cleanPosition);
-				}
-			} catch (error) {
-			}
-			return;
+		try {
+			this._updateOrder(stopLossBracket);
+		} catch (error) {
+			console.error('[ZuperiorBroker] Error creating SL bracket:', error);
 		}
+		return;
+	}
 
-		// Handle Stop Loss
-		if (bracketType === 0) {
-			if (shouldCreateNewBracket) {
-				// Set parent.stopLoss BEFORE creating bracket
-				parent.stopLoss = newPrice;
-				const stopLossBracket = this._createStopLossBracket(parent);
-				stopLossBracket.status = OrderStatus.Working;
-				stopLossBracket.parentType = ParentType.Position;
+	// Update existing bracket
+	bracket.stopPrice = newPrice;
+	// Also update parent position's stopLoss to match
+	parent.stopLoss = newPrice;
+	if (!bracket.symbol || bracket.symbol.trim() === '') {
+		console.error('[ZuperiorBroker] Cannot update SL bracket - invalid symbol');
+		return;
+	}
 
-				if (!stopLossBracket.symbol || stopLossBracket.symbol.trim() === '') {
-					return;
-				}
-
-				try {
-					this._updateOrder(stopLossBracket);
-				} catch (error) {
-				}
-				return;
-			}
-
-			// Update existing bracket
-			bracket.stopPrice = newPrice;
-			// Also update parent position's stopLoss to match
-			parent.stopLoss = newPrice;
-			if (!bracket.symbol || bracket.symbol.trim() === '') {
-				return;
-			}
-
-			try {
-				this._updateOrder(bracket);
-				// Update parent position after bracket is updated
-				if (this._host && typeof this._host.positionUpdate === 'function') {
-					const cleanPosition = this._createCleanPosition(parent);
-					// Update _positionById with clean position before calling positionUpdate
-					this._positionById[cleanPosition.id] = cleanPosition;
-					this._host.positionUpdate(cleanPosition);
-				}
-			} catch (error) {
-			}
-			return;
+	try {
+		this._updateOrder(bracket);
+		// Update parent position after bracket is updated
+		if (this._host && typeof this._host.positionUpdate === 'function') {
+			const cleanPosition = this._createCleanPosition(parent);
+			// Update _positionById with clean position before calling positionUpdate
+			this._positionById[cleanPosition.id] = cleanPosition;
+			this._host.positionUpdate(cleanPosition);
 		}
+	} catch (error) {
+		console.error('[ZuperiorBroker] Error updating SL bracket:', error);
+	}
+	return;
+}
 	}
 }

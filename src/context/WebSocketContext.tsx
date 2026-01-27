@@ -86,7 +86,6 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
             // The WebSocket is used for real-time price updates, but order placement uses REST APIs
             // Only log once to avoid console spam
             if (wsRef.current?.readyState !== WebSocket.CLOSED && !(wsRef.current as any)?.hasErrorLogged) {
-');
                 if (wsRef.current) {
                     (wsRef.current as any).hasErrorLogged = true;
                 }

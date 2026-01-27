@@ -2087,13 +2087,6 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 
 		return bracket;
 	}
-	if(Number.isFinite(profitValue)) {
-	(bracket as any).pl = profitValue;
-}
-		}
-
-return bracket;
-	}
 
 	private _getBrackets(parentId: string): Order[] {
 	return Object.values(this._orderById).filter(
