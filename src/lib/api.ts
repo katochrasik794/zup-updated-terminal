@@ -52,9 +52,18 @@ export interface ApiResponse<T = any> {
   success: boolean;
   message?: string;
   data?: T;
-  user?: T;
+  user?: {
+    name?: string;
+    email?: string;
+    id?: string;
+    [key: string]: any;
+  };
   token?: string;
   errors?: string[];
+  mt5Account?: {
+    accountId?: string;
+    [key: string]: any;
+  };
   [key: string]: any; // Allow for other fields like 'positions', 'pendingOrders'
 }
 
