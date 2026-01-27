@@ -1,0 +1,148 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+    <title>TradingView Trading Platform with Custom Dialogs</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,minimum-scale=1.0">
+    
+    <link rel="stylesheet" type="text/css" href="custom-dialogs/dist/bundle.css">
+    <script type="text/javascript" src="charting_library/charting_library.standalone.js"></script>
+    <script type="text/javascript" src="datafeeds/udf/dist/bundle.js"></script>
+    <script type="text/javascript" src="broker-sample/dist/bundle.js"></script>
+    <script type="text/javascript" src="custom-dialogs/dist/bundle.js"></script>
+
+    <script type="text/javascript">
+        function createDeferredPromise() {
+            var resolveFn, rejectFn;
+            var promise = new Promise(function(resolve, reject) {
+                resolveFn = resolve;
+                rejectFn = reject;
+            });
+            return { promise: promise, reject: rejectFn, resolve: resolveFn };
+        }
+
+        var orderResult = createDeferredPromise();
+        var positionResult = createDeferredPromise();
+        var cancelOrderResult = createDeferredPromise();
+        var closePositionResult = createDeferredPromise();
+        var reversePositionResult = createDeferredPromise();
+
+        var customOrderDialog = null;
+        var customPositionDialog = null;
+        var customCancelOrderDialog = null;
+        var customClosePositionDialog = null;
+        var customReversePositionDialog = null;
+
+        function initOnReady() {
+            var datafeed = new Datafeeds.UDFCompatibleDatafeed("https://demo-feed-data.tradingview.com", undefined, {
+                maxResponseLength: 1000,
+                expectedOrder: 'latestFirst',
+            });
+
+            customCancelOrderDialog = CustomDialogs.createCancelOrderDialog(function(result) {
+                cancelOrderResult.resolve(result);
+                if (customCancelOrderDialog !== null) {
+                    customCancelOrderDialog.style.display = 'none';
+                }
+            });
+
+            customClosePositionDialog = CustomDialogs.createClosePositionDialog(function(result) {
+                closePositionResult.resolve(result);
+                if (customClosePositionDialog !== null) {
+                    customClosePositionDialog.style.display = 'none';
+                }
+            });
+
+            customReversePositionDialog = CustomDialogs.createReversePositionDialog(function(result) {
+                reversePositionResult.resolve(result);
+                if (customReversePositionDialog !== null) {
+                    customReversePositionDialog.style.display = 'none';
+                }
+            });
+
+            var widget = window.tvWidget = new TradingView.widget({
+                fullscreen: true,
+                symbol: 'AAPL',
+                interval: '1D',
+                container: "tv_chart_container",
+                datafeed: datafeed,
+                library_path: "charting_library/",
+                locale: "en",
+                disabled_features: ["use_localstorage_for_settings", "order_panel"],
+                enabled_features: ["study_templates", 'dom_widget'],
+                charts_storage_url: 'https://saveload.tradingview.com',
+                charts_storage_api_version: "1.1",
+                client_id: 'trading_platform_demo',
+                user_id: 'public_user',
+                
+                widgetbar: {
+                    details: true,
+                    news: true,
+                    watchlist: true,
+                    datawindow: true,
+                    watchlist_settings: {
+                        default_symbols: ["MSFT", "IBM", "AAPL"]
+                    }
+                },
+
+                broker_factory: function(host) {
+                    var broker = new Brokers.BrokerDemo(host, datafeed);
+                    customOrderDialog = CustomDialogs.createOrderDialog(broker, function(result) {
+                        orderResult.resolve(result);
+                        if (customOrderDialog !== null) {
+                            customOrderDialog.style.display = 'none';
+                        }
+                    });
+                    customPositionDialog = CustomDialogs.createPositionDialog(broker, function(result) {
+                        positionResult.resolve(result);
+                        if (customPositionDialog !== null) {
+                            customPositionDialog.style.display = 'none';
+                        }
+                    });
+                    return broker;
+                },
+                broker_config: {
+                    configFlags: {
+                        supportNativeReversePosition: true,
+                        supportClosePosition: true,
+                        supportPLUpdate: true,
+                        supportLevel2Data: false,
+                        showQuantityInsteadOfAmount: true,
+                        supportPositions: true,
+                        supportPositionBrackets: true,
+                        supportOrdersHistory: false,
+                    },
+                    durations: [{ name: 'DAY', value: 'DAY' }, { name: 'GTT', value: 'GTT' }],
+                    customUI: {
+                        showOrderDialog: function(order, focus) {
+                            CustomDialogs.showOrderDialog(customOrderDialog, order);
+                            return orderResult.promise;
+                        },
+                        showPositionDialog: function(position, brackets, focus) {
+                            CustomDialogs.showPositionDialog(customPositionDialog, position, brackets);
+                            return positionResult.promise;
+                        },
+                        showCancelOrderDialog: function(order) {
+                            CustomDialogs.showCancelOrderDialog(customCancelOrderDialog, null, order);
+                            return cancelOrderResult.promise;
+                        },
+                        showClosePositionDialog: function(position) {
+                            CustomDialogs.showClosePositionDialog(customClosePositionDialog, null, position);
+                            return closePositionResult.promise;
+                        },
+                        showReversePositionDialog: function(position) {
+                            CustomDialogs.showReversePositionDialog(customReversePositionDialog, null, position);
+                            return reversePositionResult.promise;
+                        }
+                    },
+                },
+            });
+        };
+
+        window.addEventListener('DOMContentLoaded', initOnReady, false);
+    </script>
+</head>
+
+<body style="margin:0px;">
+    <div id="tv_chart_container"></div>
+</body>
+</html>

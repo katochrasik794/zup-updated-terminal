@@ -95,6 +95,27 @@ const formatPosition = (pos: any, isClosedTrade: boolean = false): Position => {
         const isBuy = String(action) === '0' || String(action) === 'Buy' || String(orderType) === '0' || String(orderType) === 'Buy';
         mappedType = isBuy ? 'Buy' : 'Sell';
     }
+  } else if (typeof orderType === 'string') {
+    // Handle string-based type mapping
+    const typeStr = orderType.toString();
+    if (typeStr === 'Buy' || typeStr === '0') {
+      mappedType = 'Buy';
+    } else if (typeStr === 'Sell' || typeStr === '1') {
+      mappedType = 'Sell';
+    } else if (typeStr === 'Buy Limit' || typeStr === '2') {
+      mappedType = 'Buy Limit';
+    } else if (typeStr === 'Sell Limit' || typeStr === '3') {
+      mappedType = 'Sell Limit';
+    } else if (typeStr === 'Buy Stop' || typeStr === '4') {
+      mappedType = 'Buy Stop';
+    } else if (typeStr === 'Sell Stop' || typeStr === '5') {
+      mappedType = 'Sell Stop';
+    } else {
+      // Fallback to Action-based logic
+      const action = pos.Action ?? pos.action;
+      const isBuy = String(action) === '0' || String(action) === 'Buy';
+      mappedType = isBuy ? 'Buy' : 'Sell';
+    }
   } else {
     // Fallback to Action-based logic for open positions
     const action = pos.Action ?? pos.action;

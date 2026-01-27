@@ -60,23 +60,23 @@ declare enum StopType {
 	TrailingStop = 1,
 	GuaranteedStop = 2
 }
-export declare enum BottomWidgetBarMode {
+export declare const enum BottomWidgetBarMode {
 	Minimized = "minimized",
 	Normal = "normal",
 	Maximized = "maximized"
 }
-export declare enum PaneSize {
+export declare const enum PaneSize {
 	Tiny = "tiny",
 	Small = "small",
 	Medium = "medium",
 	Large = "large"
 }
-export declare enum PropertyKeyType {
+export declare const enum PropertyKeyType {
 	DefaultsKey = 1,
 	StateKey = 2,
 	TemplateKey = 4
 }
-export declare enum SearchInitiationPoint {
+export declare const enum SearchInitiationPoint {
 	SymbolSearch = "symbolSearch",
 	Watchlist = "watchlist",
 	Compare = "compare",

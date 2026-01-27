@@ -16,36 +16,13 @@ import { useTrading } from '../../context/TradingContext';
 import { useAccount } from '../../context/AccountContext';
 import { RealtimeDataFeed } from './RealtimeDataFeed';
 import { ZuperiorBroker } from './ZuperiorBroker';
-import { usePositions } from '@/hooks/usePositions';
-
-declare global {
-    interface Window {
-        TradingView: any;
-        Datafeeds: any;
-        Brokers: any;
-        CustomDialogs: any;
-        tvWidget: any;
-        __ZUPERIOR_CHART_BROKER__?: any;
-        __OPEN_MODIFY_POSITION_MODAL__?: (position: any, initialBrackets?: { stopLoss?: number, takeProfit?: number }) => void;
-    }
-}
 
 export const TVChartContainer = () => {
     const containerRef = useRef<HTMLDivElement>(null);
     const brokerRef = useRef<any>(null);
-    const { lastOrder, symbol, setSymbol, setModifyModalState, lastModification } = useTrading();
+    const { lastOrder, symbol, setSymbol, setModifyModalState, lastModification, modifyModalState } = useTrading();
     const { currentAccountId } = useAccount();
-    const [isLoading, setIsLoading] = React.useState(true);
-    const [loadingProgress, setLoadingProgress] = React.useState(0);
-
-    // Fetch positions and orders for syncing to broker
-    const {
-        positions: rawPositions,
-        pendingOrders: rawPendingOrders,
-    } = usePositions({
-        accountId: currentAccountId,
-        enabled: !!currentAccountId,
-    });
+    const modifyModalPromiseResolve = useRef<((value: boolean) => void) | null>(null);
 
     useEffect(() => {
         if (lastModification && brokerRef.current) {
@@ -72,6 +49,24 @@ export const TVChartContainer = () => {
             }
         }
     }, [lastModification]);
+
+    useEffect(() => {
+        if (!modifyModalState.isOpen && modifyModalPromiseResolve.current) {
+            console.log("Modify modal closed, resolving promise");
+            modifyModalPromiseResolve.current(true);
+            modifyModalPromiseResolve.current = null;
+        }
+    }, [modifyModalState.isOpen]);
+
+    // Update broker account ID when it changes
+    useEffect(() => {
+        if (brokerRef.current && currentAccountId) {
+            console.log("Updating broker account ID:", currentAccountId);
+            if (typeof brokerRef.current.setAccountId === 'function') {
+                brokerRef.current.setAccountId(currentAccountId);
+            }
+        }
+    }, [currentAccountId]);
 
     useEffect(() => {
         if (lastOrder && brokerRef.current) {
@@ -122,36 +117,17 @@ export const TVChartContainer = () => {
     // Synergy with external symbol changes
     useEffect(() => {
         if (widgetRef.current && symbol) {
-            try {
-                const activeChart = widgetRef.current.activeChart();
-                if (!activeChart) {
-                    // Chart not ready yet, skip
-                    return;
-                }
-                const currentSymbol = activeChart.symbol();
-                if (currentSymbol !== symbol) {
-                    console.log(`[Chart] External symbol change detected: ${currentSymbol} -> ${symbol}`);
-                    widgetRef.current.setSymbol(symbol, activeChart.resolution(), () => {
-                        console.log(`[Chart] Symbol updated to ${symbol}`);
-                    });
-                }
-            } catch (error) {
-                // Chart not ready yet, ignore error
-                console.log('[Chart] Chart not ready for symbol change:', error);
+            const currentSymbol = widgetRef.current.activeChart().symbol();
+            if (currentSymbol !== symbol) {
+                console.log(`[Chart] External symbol change detected: ${currentSymbol} -> ${symbol}`);
+                widgetRef.current.setSymbol(symbol, widgetRef.current.activeChart().resolution(), () => {
+                    console.log(`[Chart] Symbol updated to ${symbol}`);
+                });
             }
         }
     }, [symbol]);
 
     useEffect(() => {
-        if (!currentAccountId) {
-            console.log('[TVChartContainer] No accountId, skipping widget initialization');
-            return;
-        }
-
-        console.log('[TVChartContainer] Starting script loading...');
-        setIsLoading(true);
-        setLoadingProgress(10);
-
         const scripts = [
             '/charting_library/charting_library.standalone.js',
             '/datafeeds/udf/dist/bundle.js',
@@ -215,11 +191,9 @@ export const TVChartContainer = () => {
                 custom_css_url: '/charting_library/custom.css',
                 disabled_features: [
                     'use_localstorage_for_settings',
-                    'order_panel',
                     'widgetbar',
                     'dom_widget',
                     'right_toolbar',
-                    'buy_sell_buttons',
                     'legend_show_volume',
                     'header_symbol_search',
                     'symbol_search_hot_key',
@@ -248,12 +222,30 @@ export const TVChartContainer = () => {
                 toolbar_bg: '#02040d',
 
                 broker_factory: (host: any) => {
-                    // Create ZuperiorBroker with accountId
                     const broker = new ZuperiorBroker(host, datafeed, currentAccountId);
                     brokerRef.current = broker; // Expose broker instance
 
-                    // Expose broker globally for ChartContainer access
-                    window.__ZUPERIOR_CHART_BROKER__ = broker;
+                    // CRITICAL: Sync broker with live positions data from TradingTerminal
+                    // This ensures Account Manager shows the same data as the open positions table
+                    const syncBrokerWithLiveData = () => {
+                        // Get live positions data from the parent component (TradingTerminal)
+                        // This should match the data shown in the open positions table
+                        if (typeof window !== 'undefined' && (window as any).__LIVE_POSITIONS_DATA__) {
+                            const liveData = (window as any).__LIVE_POSITIONS_DATA__;
+                            if (broker.syncFromLiveState && typeof broker.syncFromLiveState === 'function') {
+                                broker.syncFromLiveState(liveData.openPositions || [], liveData.pendingOrders || []);
+                            }
+                        }
+                    };
+
+                    // Sync immediately and set up periodic sync
+                    syncBrokerWithLiveData();
+                    const syncInterval = setInterval(syncBrokerWithLiveData, 1000);
+
+                    // Store cleanup function
+                    (broker as any).__cleanup__ = () => {
+                        clearInterval(syncInterval);
+                    };
 
                     customOrderDialog = window.CustomDialogs.createOrderDialog(broker, onOrderResultCallback);
                     customPositionDialog = window.CustomDialogs.createPositionDialog(broker, onPositionResultCallback);
@@ -284,7 +276,9 @@ export const TVChartContainer = () => {
                         supportPLUpdate: true,
                         supportLevel2Data: false,
                         showQuantityInsteadOfAmount: true,
-                        supportPositions: true,
+                        supportEditAmount: false,
+                        supportOrderBrackets: true,
+                        supportMarketBrackets: true,
                         supportPositionBrackets: true,
                         supportOrdersHistory: false,
                     },
@@ -311,7 +305,9 @@ export const TVChartContainer = () => {
                                 flag: (position.symbol || '').toLowerCase().replace(/[^a-z0-9]/g, ''),
                             };
                             setModifyModalState({ isOpen: true, position: mappedPosition });
-                            return Promise.resolve(true);
+                            return new Promise((resolve) => {
+                                modifyModalPromiseResolve.current = resolve;
+                            });
                         },
                         showPositionBracketsDialog: (position: any, brackets: any, focus: any) => {
                             console.log("CustomUI showPositionBracketsDialog triggered", position, brackets);
@@ -325,24 +321,24 @@ export const TVChartContainer = () => {
                                 flag: (position.symbol || '').toLowerCase().replace(/[^a-z0-9]/g, ''),
                             };
                             setModifyModalState({ isOpen: true, position: mappedPosition });
-                            return Promise.resolve(true);
+                            return new Promise((resolve) => {
+                                modifyModalPromiseResolve.current = resolve;
+                            });
                         },
                         showCancelOrderDialog: (order: any) => {
-                            // Cancel immediately without confirmation dialog
-                            if (brokerRef.current && brokerRef.current.cancelOrder) {
-                                brokerRef.current.cancelOrder(order.id).catch((err: any) => {
-                                    console.error('Error canceling order:', err);
-                                });
-                            }
+                            if (!createCancelOrderButtonListener) return Promise.resolve(false);
+                            const listener = createCancelOrderButtonListener(order, () => {
+                                window.CustomDialogs.hideCancelOrderDialog(customCancelOrderDialog, listener);
+                            });
+                            window.CustomDialogs.showCancelOrderDialog(customCancelOrderDialog, listener, order);
                             return Promise.resolve(true);
                         },
                         showClosePositionDialog: (position: any) => {
-                            // Close immediately without confirmation dialog
-                            if (brokerRef.current && brokerRef.current.closePosition) {
-                                brokerRef.current.closePosition(position.id).catch((err: any) => {
-                                    console.error('Error closing position:', err);
-                                });
-                            }
+                            if (!createClosePositionButtonListener) return Promise.resolve(false);
+                            const listener = createClosePositionButtonListener(position, () => {
+                                window.CustomDialogs.hideClosePositionDialog(customClosePositionDialog, listener);
+                            });
+                            window.CustomDialogs.showClosePositionDialog(customClosePositionDialog, listener, position);
                             return Promise.resolve(true);
                         },
                         showReversePositionDialog: (position: any) => {
@@ -364,11 +360,6 @@ export const TVChartContainer = () => {
             tvWidget.onChartReady(() => {
                 console.log('Chart is ready');
 
-                // Mark broker as ready
-                if (brokerRef.current && typeof brokerRef.current.setWidgetReady === 'function') {
-                    brokerRef.current.setWidgetReady(true);
-                }
-
                 tvWidget.activeChart().onSymbolChanged().subscribe(null, (symbolData: any) => {
                     console.log("Symbol changed:", symbolData);
                     setSymbol(tvWidget.activeChart().symbol());
@@ -378,6 +369,12 @@ export const TVChartContainer = () => {
                 tvWidget.subscribe('onPriceUpdate', (price: any) => {
                     redrawChart();
                 });
+
+                // Notify broker that widget is ready
+                if (brokerRef.current && typeof brokerRef.current.setWidgetReady === 'function') {
+                    console.log('Setting broker widget ready');
+                    brokerRef.current.setWidgetReady(true);
+                }
             });
         };
 
@@ -385,13 +382,7 @@ export const TVChartContainer = () => {
             return new Promise((resolve, reject) => {
                 const script = document.createElement('script');
                 script.src = src;
-                script.onload = () => {
-                    loadedCount++;
-                    const progress = 10 + (loadedCount / scripts.length) * 60; // 10-70%
-                    setLoadingProgress(progress);
-                    console.log(`[TVChartContainer] Loaded ${src} (${loadedCount}/${scripts.length})`);
-                    resolve(undefined);
-                };
+                script.onload = resolve;
                 script.onerror = (event) => {
                     reject(new Error(`Failed to load script: ${src}`));
                 };
@@ -411,19 +402,10 @@ export const TVChartContainer = () => {
 
         Promise.all(scripts.map(loadScript))
             .then(() => {
-                console.log('[TVChartContainer] All scripts loaded, initializing widget...');
-                setLoadingProgress(80);
                 initWidget();
-                // Set loading to false after widget initialization
-                setTimeout(() => {
-                    setIsLoading(false);
-                    setLoadingProgress(100);
-                    console.log('[TVChartContainer] Chart ready!');
-                }, 1500); // Give chart time to render
             })
             .catch(err => {
                 console.error('Error loading scripts:', err);
-                setIsLoading(false);
                 if (err instanceof Error) {
                     console.error('Error details:', err.message);
                 } else {
@@ -432,108 +414,22 @@ export const TVChartContainer = () => {
             });
 
         return () => {
+            if (brokerRef.current && typeof (brokerRef.current as any).__cleanup__ === 'function') {
+                (brokerRef.current as any).__cleanup__();
+            }
             if (window.tvWidget) {
                 window.tvWidget.remove();
                 window.tvWidget = null;
             }
-            if (brokerRef.current && brokerRef.current.destroy) {
-                brokerRef.current.destroy();
-            }
         };
-    }, [currentAccountId, symbol, setSymbol, setModifyModalState]);
-
-    // Expose global function to open modify modal from Broker
-    useEffect(() => {
-        window.__OPEN_MODIFY_POSITION_MODAL__ = (position: any, brackets?: { stopLoss?: number, takeProfit?: number }) => {
-            console.log('[TVChartContainer] Opening Modify Modal for position:', position.id, brackets);
-            const mappedPosition = {
-                ...position,
-                openPrice: position.avg_price || position.avgPrice || position.price,
-                currentPrice: position.currentPrice || position.price,
-                tp: brackets?.takeProfit || position.takeProfit || position.tp,
-                sl: brackets?.stopLoss || position.stopLoss || position.sl,
-                pl: position.profit || position.pl || '0.00',
-                volume: position.qty || position.volume,
-                flag: (position.symbol || '').toLowerCase().replace(/[^a-z0-9]/g, ''),
-            };
-            setModifyModalState({ isOpen: true, position: mappedPosition });
-        };
-
-        return () => {
-            delete window.__OPEN_MODIFY_POSITION_MODAL__;
-        };
-    }, [setModifyModalState]);
-
-    // Sync positions and orders to broker when they change
-    useEffect(() => {
-        const broker = brokerRef.current || window.__ZUPERIOR_CHART_BROKER__;
-        if (broker && typeof broker.syncFromLiveState === 'function' && currentAccountId) {
-            console.log('[TVChartContainer] Syncing positions/orders to broker:', {
-                positionsCount: rawPositions?.length || 0,
-                pendingOrdersCount: rawPendingOrders?.length || 0,
-            });
-
-            // Convert positions/orders to format expected by syncFromLiveState
-            const positions = (rawPositions || []).map((pos: any) => ({
-                ...pos,
-                ticket: pos.ticket || pos.id,
-            }));
-
-            const pendingOrders = (rawPendingOrders || []).map((order: any) => ({
-                ...order,
-                ticket: order.ticket || order.id,
-            }));
-
-            broker.syncFromLiveState(positions, pendingOrders);
-        }
-    }, [rawPositions, rawPendingOrders, currentAccountId]);
+    }, []);
 
     return (
-        <div style={{ position: 'relative', height: '100%', width: '100%' }}>
-            {isLoading && (
-                <div style={{
-                    position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    backgroundColor: '#0F0F0F',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    zIndex: 9999,
-                }}>
-                    <div style={{
-                        width: '200px',
-                        height: '4px',
-                        backgroundColor: '#1a1a1a',
-                        borderRadius: '2px',
-                        overflow: 'hidden',
-                        marginBottom: '16px',
-                    }}>
-                        <div style={{
-                            width: `${loadingProgress}%`,
-                            height: '100%',
-                            backgroundColor: '#2962FF',
-                            transition: 'width 0.3s ease',
-                        }} />
-                    </div>
-                    <div style={{
-                        color: '#888',
-                        fontSize: '14px',
-                        fontFamily: 'system-ui, -apple-system, sans-serif',
-                    }}>
-                        Loading chart... {Math.round(loadingProgress)}%
-                    </div>
-                </div>
-            )}
-            <div
-                ref={containerRef}
-                className="tv-chart-container"
-                style={{ height: '100%', width: '100%', opacity: isLoading ? 0 : 1, transition: 'opacity 0.3s ease' }}
-            />
-        </div>
+        <div
+            ref={containerRef}
+            className="tv-chart-container"
+            style={{ height: '100%', width: '100%' }}
+        />
     );
 };
 

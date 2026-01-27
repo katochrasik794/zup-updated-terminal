@@ -11,9 +11,9 @@
     "ts-loader": "9.4.2",
     "typescript": "5.5.4",
     "webpack": "5.76.3",
-    "webpack-cli": "^4.7.2"
+    "webpack-cli": "4.7.2"
   },
   "scripts": {
-    "build": "npx --yes webpack-cli --mode production || webpack --mode production"
+    "build": "webpack"
   }
 }

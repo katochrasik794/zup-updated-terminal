@@ -15,8 +15,5 @@
     "compile": "tsc",
     "bundle-js": "rollup -c rollup.config.mjs",
     "build": "npm run compile && npm run bundle-js"
-  },
-  "optionalDependencies": {
-    "@rollup/rollup-win32-x64-msvc": "^4.55.2"
   }
 }

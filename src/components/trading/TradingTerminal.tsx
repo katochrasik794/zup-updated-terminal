@@ -53,6 +53,18 @@ export default function TradingTerminal() {
     enabled: !!currentAccountId,
   });
 
+  // CRITICAL: Expose live positions data to TradingView broker
+  // This ensures Account Manager shows the same data as the open positions table
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      (window as any).__LIVE_POSITIONS_DATA__ = {
+        openPositions: rawPositions || [],
+        pendingOrders: rawPendingOrders || [],
+        closedPositions: rawClosedPositions || [],
+      };
+    }
+  }, [rawPositions, rawPendingOrders, rawClosedPositions]);
+
 
   // Format positions for BottomPanel display
   const openPositions = useMemo(() => {

@@ -28,6 +28,7 @@ import {
 
 import { IDatafeedQuotesApi, QuoteData } from '../../trading_platform-master/charting_library/datafeed-api';
 import { AbstractBrokerMinimal } from '../../trading_platform-master/broker-sample/src/abstract-broker-minimal';
+import { ordersPageColumns, positionsPageColumns } from '../../trading_platform-master/broker-sample/src/columns';
 import { apiClient, positionsApi } from '@/lib/api';
 
 interface SimpleMap<TValue> {
@@ -66,9 +67,9 @@ function safeHostCall(host: any, method: string, ...args: any[]): any {
 }
 
 export class ZuperiorBroker extends AbstractBrokerMinimal {
-	private readonly _accountId: string | null;
-	private readonly _positions: Position[] = [];
-	private readonly _orders: Order[] = [];
+	private _accountId: string | null;
+	private _positions: Position[] = [];
+	private _orders: Order[] = [];
 	private _positionById: SimpleMap<Position> = {};
 	private _orderById: SimpleMap<Order> = {};
 	private _pollInterval: NodeJS.Timeout | null = null;
@@ -90,6 +91,26 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			if (!this._isPolling) {
 				this._startPolling();
 			}
+		}
+	}
+
+	public setAccountId(accountId: string | null) {
+		if (this._accountId === accountId) return;
+
+		console.log(`[ZuperiorBroker] Switching account from ${this._accountId} to ${accountId}`);
+		this._accountId = accountId;
+
+		// Clear existing data
+		this._positions.length = 0;
+		this._orders.length = 0;
+		this._positionById = {};
+		this._orderById = {};
+
+		// Restart polling with new account
+		if (this._isPolling) {
+			this._fetchPositionsAndOrders();
+		} else {
+			this._startPolling();
 		}
 	}
 
@@ -134,6 +155,8 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			try {
 				if (this._host && typeof this._host.positionUpdate === 'function') {
 					const cleanPosition = this._createCleanPosition(p);
+					// Update _positionById with clean position before calling positionUpdate
+					this._positionById[cleanPosition.id] = cleanPosition;
 					this._host.positionUpdate(cleanPosition);
 					if ((cleanPosition as any).pl !== undefined) {
 						this._host.plUpdate(cleanPosition.symbol, (cleanPosition as any).pl);
@@ -192,18 +215,45 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 
 			if (response && response.success) {
 				// Ensure we have arrays, handle null/undefined cases
-				const positionsArray = Array.isArray(response.positions)
-					? response.positions
-					: Array.isArray(response.data?.positions)
-						? response.data.positions
-						: [];
-				const pendingArray = Array.isArray(response.pendingOrders)
-					? response.pendingOrders
-					: Array.isArray(response.data?.pendingOrders)
-						? response.data.pendingOrders
-						: [];
+				// Ensure we have arrays, handle null/undefined cases
+				// Check if response.data is an array (like usePositions handles it)
+				let positionsSource = response.positions;
+				if (!positionsSource && Array.isArray(response.data)) {
+					positionsSource = response.data;
+				} else if (!positionsSource && response.data?.positions) {
+					positionsSource = response.data.positions;
+				}
+
+				const positionsArray = Array.isArray(positionsSource) ? positionsSource : [];
+
+				let pendingSource = response.pendingOrders;
+				if (!pendingSource && response.data?.pendingOrders) {
+					pendingSource = response.data.pendingOrders;
+				}
+
+				const pendingArray = Array.isArray(pendingSource) ? pendingSource : [];
 
 				console.log(`[ZuperiorBroker] Raw data - positions: ${positionsArray.length}, orders: ${pendingArray.length}`);
+
+				// Debug: Log raw position data to see what fields are available
+				if (positionsArray.length > 0) {
+					console.log(`[ZuperiorBroker] Raw position data (first position):`, positionsArray[0]);
+					console.log(`[ZuperiorBroker] All keys in first position:`, Object.keys(positionsArray[0] || {}));
+					// Check for TP/SL in various formats
+					const firstPos = positionsArray[0];
+					if (firstPos) {
+						console.log(`[ZuperiorBroker] TP/SL check:`, {
+							takeProfit: firstPos.takeProfit,
+							TakeProfit: firstPos.TakeProfit,
+							TP: firstPos.TP,
+							tp: firstPos.tp,
+							stopLoss: firstPos.stopLoss,
+							StopLoss: firstPos.StopLoss,
+							SL: firstPos.SL,
+							sl: firstPos.sl,
+						});
+					}
+				}
 
 				// Map positions - filter out invalid ones
 				const tvPositions = (Array.isArray(positionsArray) ? positionsArray : [])
@@ -215,7 +265,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 							return null;
 						}
 					})
-					.filter((p: Position | null): p is Position => !!p && !!p.id && !!p.symbol && p.qty > 0 && p.avgPrice > 0);
+					.filter((p: Position | null): p is Position => p !== null && !!p.id && !!p.symbol && p.qty > 0 && p.avgPrice > 0);
 
 				// Map pending orders - filter out invalid ones
 				const tvOrders = (Array.isArray(pendingArray) ? pendingArray : [])
@@ -231,7 +281,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 							return null;
 						}
 					})
-					.filter((o: Order | null): o is Order => !!o && !!o.id && !!o.symbol && o.qty > 0);
+					.filter((o: Order | null): o is Order => o !== null && !!o.id && !!o.symbol && o.qty > 0);
 
 				// Create bracket orders for positions with TP/SL using helper methods
 				const bracketOrders: Order[] = [];
@@ -285,9 +335,30 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 				const allOrders = [...(Array.isArray(tvOrders) ? tvOrders : []), ...bracketOrders];
 
 				// Update internal state - ensure arrays exist
+				// CRITICAL: Store positions with TP/SL fields preserved
 				if (Array.isArray(this._positions) && Array.isArray(tvPositions)) {
 					this._positions.length = 0;
+					// Ensure all positions have TP/SL fields before storing
+					tvPositions.forEach(p => {
+						// Verify TP/SL fields are present
+						if (!('takeProfit' in p)) {
+							(p as any).takeProfit = undefined;
+						}
+						if (!('stopLoss' in p)) {
+							(p as any).stopLoss = undefined;
+						}
+					});
 					this._positions.push(...tvPositions);
+
+					// Debug: Log stored positions to verify TP/SL are preserved
+					if (tvPositions.length > 0) {
+						console.log(`[ZuperiorBroker] Stored positions with TP/SL:`, tvPositions.map(p => ({
+							id: p.id,
+							symbol: p.symbol,
+							takeProfit: p.takeProfit,
+							stopLoss: p.stopLoss,
+						})));
+					}
 				} else {
 					console.warn('[ZuperiorBroker] Cannot update positions - arrays not valid');
 				}
@@ -298,17 +369,6 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 				} else {
 					console.warn('[ZuperiorBroker] Cannot update orders - arrays not valid');
 				}
-
-				// Update positionById map
-				const positionMap: SimpleMap<Position> = {};
-				if (Array.isArray(tvPositions)) {
-					tvPositions.forEach(p => {
-						if (p && p.id) {
-							positionMap[p.id] = p;
-						}
-					});
-				}
-				this._positionById = positionMap;
 
 				// Update orderById map
 				const orderMap: SimpleMap<Order> = {};
@@ -327,7 +387,12 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 				if (this._isWidgetReady) {
 					console.log(`[ZuperiorBroker] Widget ready, notifying TradingView: ${bracketOrders.length} brackets, ${tvOrders.length} orders, ${tvPositions.length} positions`);
 
-					// Step 1: Update positions FIRST with brackets so TradingView can show TP/SL buttons
+					// Step 1: Create clean positions and update internal state BEFORE calling positionUpdate
+					// CRITICAL: Store clean positions in _positionById and _positions BEFORE calling positionUpdate
+					// This ensures positions() method returns valid data when TradingView queries it internally
+					const cleanPositions: Position[] = [];
+					const positionMap: SimpleMap<Position> = {};
+
 					if (Array.isArray(tvPositions) && tvPositions.length > 0) {
 						tvPositions.forEach(p => {
 							try {
@@ -362,11 +427,36 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 								// Create a clean position object - brackets must be present (even if undefined)
 								const cleanPosition = this._createCleanPosition(p);
 
+								// Store clean position in arrays/maps
+								cleanPositions.push(cleanPosition);
+								positionMap[cleanPosition.id] = cleanPosition;
+							} catch (error) {
+								console.error('[ZuperiorBroker] Error creating clean position:', error, p);
+							}
+						});
+					}
+
+					// Update internal state with clean positions BEFORE calling positionUpdate
+					// This ensures positions() returns correct data when TradingView queries it
+					this._positions.length = 0;
+					this._positions.push(...cleanPositions);
+					this._positionById = positionMap;
+
+					// Now notify TradingView with clean positions
+					if (cleanPositions.length > 0) {
+						cleanPositions.forEach(cleanPosition => {
+							try {
+								// Verify bracket fields are present before sending
+								const hasTakeProfit = 'takeProfit' in cleanPosition;
+								const hasStopLoss = 'stopLoss' in cleanPosition;
 								console.log(`[ZuperiorBroker] Step 1: Sending position with brackets:`, {
 									id: cleanPosition.id,
 									symbol: cleanPosition.symbol,
 									takeProfit: cleanPosition.takeProfit,
 									stopLoss: cleanPosition.stopLoss,
+									hasTakeProfitField: hasTakeProfit,
+									hasStopLossField: hasStopLoss,
+									positionKeys: Object.keys(cleanPosition),
 								});
 
 								if (this._host && typeof this._host.positionUpdate === 'function') {
@@ -376,7 +466,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 									this._host.plUpdate(cleanPosition.symbol, (cleanPosition as any).pl);
 								}
 							} catch (error) {
-								console.error('[ZuperiorBroker] Error updating position:', error, p);
+								console.error('[ZuperiorBroker] Error updating position:', error, cleanPosition);
 							}
 						});
 					} else {
@@ -433,24 +523,49 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 		const id = String(ticket);
 
 		// Map side: Buy = 1, Sell = -1
-		// Check multiple possible fields for side/type
-		const typeStr = (apiPos.type || apiPos.Type || '').toString().toLowerCase();
+		// FIXED: Correct side mapping logic to match open positions table
+		const typeStr = (apiPos.type || apiPos.Type || '').toString();
 		const action = apiPos.Action || apiPos.action;
-		const isBuy = typeStr.includes('buy') ||
-			action === 0 ||
-			String(action) === '0' ||
-			(apiPos.type && (apiPos.type === 'Buy' || apiPos.type === 0));
+		
+		// Primary check: use type field directly if it's a string
+		let isBuy = false;
+		if (typeStr === 'Buy') {
+			isBuy = true;
+		} else if (typeStr === 'Sell') {
+			isBuy = false;
+		} else if (action !== undefined) {
+			// Fallback: use action field (0 = Buy, 1 = Sell)
+			isBuy = action === 0 || String(action) === '0';
+		} else {
+			// Last resort: check if type contains 'buy'
+			isBuy = typeStr.toLowerCase().includes('buy');
+		}
+		
 		const side = isBuy ? Side.Buy : Side.Sell;
 
 		const openPrice = Number(apiPos.openPrice || apiPos.OpenPrice || apiPos.priceOpen || apiPos.PriceOpen || apiPos.price || apiPos.Price || 0);
 		const currentPrice = Number(apiPos.currentPrice || apiPos.CurrentPrice || apiPos.priceCurrent || apiPos.PriceCurrent || apiPos.price || apiPos.Price || openPrice);
-		const rawVolume = Math.abs(Number(apiPos.volume || apiPos.Volume || 0));
-		// Divide volume by 10000 to match the display in the positions table
-		const volume = rawVolume / 10000;
+
+		// Fix volume logic: Divide by 10000 to match open positions table
+		// This matches the TradingTerminal volume formatting: (pos.volume / 10000).toFixed(2)
+		let volume = 0;
+		const volumeLots = apiPos.VolumeLots || apiPos.volumeLots;
+		const rawVolume = apiPos.Volume || apiPos.volume || 0;
+
+		if (volumeLots !== undefined && volumeLots !== null) {
+			volume = Number(volumeLots);
+		} else {
+			const numVolume = Math.abs(Number(rawVolume));
+			// Always divide by 10000 to match open positions table
+			volume = numVolume / 10000;
+		}
+
 		const profit = Number(apiPos.profit || apiPos.Profit || apiPos.pl || apiPos.PL || 0);
 
 		// Ensure all required fields are valid
+		// Use raw symbol from API without normalization to match chart symbol (e.g. EURJPYm)
 		const symbol = (apiPos.symbol || apiPos.Symbol || '').toUpperCase();
+
 		if (!symbol || !id || volume <= 0 || openPrice <= 0) {
 			console.warn('[ZuperiorBroker] Invalid position data:', { id, symbol, rawVolume, volume, openPrice });
 		}
@@ -483,25 +598,121 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 		if (profit !== 0 && !isNaN(profit) && isFinite(profit)) {
 			(position as any).pl = Number(profit);
 		}
-		// Extract TP/SL from multiple field name variations
-		const takeProfitRaw = apiPos.takeProfit || apiPos.TakeProfit || apiPos.TP || apiPos.tp;
-		const takeProfitNum = typeof takeProfitRaw === 'string' ? parseFloat(takeProfitRaw) : Number(takeProfitRaw);
+		// FIXED: Extract TP/SL from multiple field name variations with better validation
+		// Check all possible field name variations (case-insensitive, snake_case, camelCase, etc.)
+		const takeProfitRaw = apiPos.takeProfit ?? apiPos.TakeProfit ?? apiPos.TP ?? apiPos.tp ??
+			apiPos.take_profit ?? apiPos.Take_Profit ?? apiPos.TAKE_PROFIT ??
+			apiPos.takeProfitPrice ?? apiPos.TakeProfitPrice ?? apiPos.tpPrice ?? apiPos.TPPrice ??
+			apiPos.PriceTP ?? apiPos.priceTP;
+			
+		const takeProfitNum = (takeProfitRaw !== undefined && takeProfitRaw !== null && takeProfitRaw !== '' && takeProfitRaw !== 0)
+			? (typeof takeProfitRaw === 'string' ? parseFloat(takeProfitRaw) : Number(takeProfitRaw))
+			: NaN;
+		// Only include valid positive numbers for TP/SL
 		const takeProfit = Number.isFinite(takeProfitNum) && takeProfitNum > 0 ? takeProfitNum : undefined;
 
-		const stopLossRaw = apiPos.stopLoss || apiPos.StopLoss || apiPos.SL || apiPos.sl;
-		const stopLossNum = typeof stopLossRaw === 'string' ? parseFloat(stopLossRaw) : Number(stopLossRaw);
+		const stopLossRaw = apiPos.stopLoss ?? apiPos.StopLoss ?? apiPos.SL ?? apiPos.sl ??
+			apiPos.stop_loss ?? apiPos.Stop_Loss ?? apiPos.STOP_LOSS ??
+			apiPos.stopLossPrice ?? apiPos.StopLossPrice ?? apiPos.slPrice ?? apiPos.SLPrice ??
+			apiPos.PriceSL ?? apiPos.priceSL;
+			
+		const stopLossNum = (stopLossRaw !== undefined && stopLossRaw !== null && stopLossRaw !== '' && stopLossRaw !== 0)
+			? (typeof stopLossRaw === 'string' ? parseFloat(stopLossRaw) : Number(stopLossRaw))
+			: NaN;
+		// Only include valid positive numbers for TP/SL
 		const stopLoss = Number.isFinite(stopLossNum) && stopLossNum > 0 ? stopLossNum : undefined;
 
-		// Set TP/SL fields - ensure they are numbers (not strings) or undefined
-		position.takeProfit = takeProfit !== undefined ? Number(takeProfit) : undefined;
-		position.stopLoss = stopLoss !== undefined ? Number(stopLoss) : undefined;
+		// Debug logging to see what we're getting from API - log for ALL positions to help debug
+		console.log(`[ZuperiorBroker] TP/SL extraction for position ${id}:`, {
+			takeProfitRaw,
+			takeProfit,
+			takeProfitNum,
+			stopLossRaw,
+			stopLoss,
+			stopLossNum,
+			allApiKeys: Object.keys(apiPos),
+			// Log all potential TP/SL fields
+			apiTakeProfit: apiPos.takeProfit,
+			apiTP: apiPos.TP,
+			apiStopLoss: apiPos.stopLoss,
+			apiSL: apiPos.SL,
+		});
+
+		// Set TP/SL fields - ensure they are numbers (not strings) or null for TradingView brackets
+		// CRITICAL: Always set these fields, even if null, so Account Manager can display columns
+		position.takeProfit = takeProfit !== undefined ? Number(takeProfit) : null;
+		position.stopLoss = stopLoss !== undefined ? Number(stopLoss) : null;
+
+		// Add all additional fields required by app's position table
+		// These fields are extracted from API response to match usePositions hook format
+
+		// ticket field - required by app
+		(position as any).ticket = Number(ticket) || 0;
+
+		// type field as string (Buy/Sell) - required by app
+		(position as any).type = isBuy ? 'Buy' : 'Sell';
+
+		// volume field (alias for qty) - app uses 'volume'
+		(position as any).volume = Number(volume);
+
+		// openPrice field (alias for avgPrice) - app uses 'openPrice'
+		(position as any).openPrice = Number(openPrice);
+
+		// currentPrice field - required for P&L calculation
+		(position as any).currentPrice = Number(currentPrice);
+
+		// swap field - required by app
+		(position as any).swap = Number(apiPos.swap || apiPos.Swap || 0);
+
+		// commission field - required by app
+		(position as any).commission = Number(apiPos.commission || apiPos.Commission || 0);
+
+		// comment field - required by app
+		(position as any).comment = apiPos.comment || apiPos.Comment || undefined;
+
+		// openTime field - required by app
+		const openTime = apiPos.openTime || apiPos.OpenTime || apiPos.TimeCreate || apiPos.timeCreate ||
+			apiPos.TimeSetup || apiPos.timeSetup || new Date().toISOString();
+		(position as any).openTime = String(openTime);
+
+		// openTimeInMs field - required by TradingView for proper chart display
+		// Convert ISO string to milliseconds timestamp
+		let openTimeMs = Date.now();
+		try {
+			openTimeMs = new Date(openTime).getTime();
+		} catch (e) {
+			console.warn('[ZuperiorBroker] Failed to parse openTime:', openTime);
+		}
+		(position as any).openTimeInMs = openTimeMs;
+
+		// positionId field - app uses this
+		(position as any).positionId = Number(apiPos.PositionId || apiPos.positionId || ticket) || undefined;
 
 		// Ensure bracket fields are always present (even if undefined)
+		// This is required for TradingView Account Manager to show TP/SL columns
 		if (!('stopLoss' in position)) {
 			position.stopLoss = undefined;
 		}
 		if (!('takeProfit' in position)) {
 			position.takeProfit = undefined;
+		}
+
+		// Final verification - log if values are missing but should be there
+		if (takeProfitRaw !== undefined && takeProfitRaw !== null && takeProfit === undefined) {
+			console.warn(`[ZuperiorBroker] TP value lost during extraction for position ${id}:`, {
+				raw: takeProfitRaw,
+				parsed: takeProfitNum,
+				isFinite: Number.isFinite(takeProfitNum),
+				isPositive: takeProfitNum > 0,
+			});
+		}
+		if (stopLossRaw !== undefined && stopLossRaw !== null && stopLoss === undefined) {
+			console.warn(`[ZuperiorBroker] SL value lost during extraction for position ${id}:`, {
+				raw: stopLossRaw,
+				parsed: stopLossNum,
+				isFinite: Number.isFinite(stopLossNum),
+				isPositive: stopLossNum > 0,
+			});
 		}
 
 		return position;
@@ -532,9 +743,9 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 		const limitPrice = (type === OrderType.Limit) ? openPrice : undefined;
 		const stopPrice = (type === OrderType.Stop) ? openPrice : undefined;
 
-		// Divide volume by 10000 to match the display in the positions table
+		// Use raw volume to match usePositions hook
 		const rawVolume = Number(apiOrder.volume || apiOrder.Volume || 0);
-		const volume = rawVolume / 10000;
+		const volume = rawVolume;
 
 		return {
 			id,
@@ -588,9 +799,122 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			console.warn('[ZuperiorBroker] _orders is not an array, returning empty array');
 			return Promise.resolve([]);
 		}
+
+		// Start with pending orders from API
 		const orders = this._orders.slice();
-		console.log(`[ZuperiorBroker] orders() called, returning ${orders.length} orders`);
+
+		// Synthesize bracket orders for all open positions
+		// This ensures TP/SL lines appear on the chart even after refresh
+		if (Array.isArray(this._positions)) {
+			this._positions.forEach(position => {
+				// Create TP bracket if exists and is valid
+				if (position.takeProfit !== undefined && position.takeProfit !== null && position.takeProfit > 0) {
+					const tpOrder: Order = {
+						id: `tp_${position.id}`,
+						symbol: position.symbol,
+						qty: position.qty,
+						parentId: position.id,
+						parentType: ParentType.Position,
+						limitPrice: Number(position.takeProfit),
+						side: changeSide(position.side),
+						status: OrderStatus.Working,
+						type: OrderType.Limit,
+					} as Order;
+
+					// Add profit if available
+					if ((position as any).pl !== undefined) {
+						(tpOrder as any).pl = (position as any).pl;
+					}
+
+					orders.push(tpOrder);
+				}
+
+				// Create SL bracket if exists and is valid
+				if (position.stopLoss !== undefined && position.stopLoss !== null && position.stopLoss > 0) {
+					const slOrder: Order = {
+						id: `sl_${position.id}`,
+						symbol: position.symbol,
+						qty: position.qty,
+						parentId: position.id,
+						parentType: ParentType.Position,
+						stopPrice: Number(position.stopLoss),
+						price: Number(position.stopLoss),
+						side: changeSide(position.side),
+						status: OrderStatus.Working,
+						type: OrderType.Stop,
+					} as Order;
+
+					// Add profit if available
+					if ((position as any).pl !== undefined) {
+						(slOrder as any).pl = (position as any).pl;
+					}
+
+					orders.push(slOrder);
+				}
+			});
+		}
+
+		console.log(`[ZuperiorBroker] orders() called, returning ${orders.length} orders (including brackets)`);
 		return Promise.resolve(orders);
+	}
+
+	// CRITICAL: Add this method for bracket functionality
+	public getBrackets(parentId: string): Order[] {
+		return this._orders.filter(
+			(order: Order) => order.parentId === parentId &&
+				(order.status === OrderStatus.Working || order.status === OrderStatus.Inactive)
+		);
+	}
+
+	// CRITICAL: Add modifyOrder method for draggable TP/SL
+	public async modifyOrder(order: Order, _confirmId?: string): Promise<void> {
+		console.log('[ZuperiorBroker] modifyOrder called:', order);
+		
+		// Get the original order
+		const originalOrder = this._orderById[order.id];
+		if (!originalOrder) {
+			return;
+		}
+
+		// Update local state
+		Object.assign(this._orderById[order.id], order);
+		
+		// Update orders array
+		const orderIndex = this._orders.findIndex(o => o.id === order.id);
+		if (orderIndex >= 0) {
+			this._orders[orderIndex] = order;
+		}
+
+		// Notify TradingView
+		if (this._host && typeof this._host.orderUpdate === 'function') {
+			this._host.orderUpdate(order);
+		}
+
+		// Handle bracket updates
+		if (order.parentId !== undefined) {
+			const entity = order.parentType === ParentType.Position
+				? this._positionById[order.parentId]
+				: this._orderById[order.parentId];
+
+			if (entity) {
+				// Update TP/SL on parent
+				if (order.limitPrice !== undefined) {
+					(entity as any).takeProfit = order.limitPrice;
+				}
+				if (order.stopPrice !== undefined) {
+					(entity as any).stopLoss = order.stopPrice;
+				}
+
+				// Update parent position
+				if (order.parentType === ParentType.Position) {
+					const cleanPosition = this._createCleanPosition(entity as Position);
+					this._positionById[cleanPosition.id] = cleanPosition;
+					if (this._host && typeof this._host.positionUpdate === 'function') {
+						this._host.positionUpdate(cleanPosition);
+					}
+				}
+			}
+		}
 	}
 
 	public async positions(): Promise<Position[]> {
@@ -599,20 +923,37 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			console.warn('[ZuperiorBroker] _positions is not an array, returning empty array');
 			return Promise.resolve([]);
 		}
-		const positions = this._positions.slice();
+
+		// CRITICAL: Ensure all positions have TP/SL fields (even if undefined) for Account Manager
+		// TradingView Account Manager needs these fields to display Stop Loss and Take Profit columns
+		const positions = this._positions.map(p => {
+			// Create clean position to ensure all fields are present
+			const clean = this._createCleanPosition(p);
+			return clean;
+		});
+
 		console.log(`[ZuperiorBroker] positions() called, returning ${positions.length} positions`);
 		if (positions.length > 0) {
-			console.log('[ZuperiorBroker] Sample position:', {
+			console.log('[ZuperiorBroker] Sample position for Account Manager:', {
 				id: positions[0].id,
 				symbol: positions[0].symbol,
 				qty: positions[0].qty,
 				side: positions[0].side,
 				avgPrice: positions[0].avgPrice,
-				takeProfit: (positions[0] as any).takeProfit,
-				stopLoss: (positions[0] as any).stopLoss,
+				takeProfit: positions[0].takeProfit,
+				stopLoss: positions[0].stopLoss,
+				hasTakeProfit: 'takeProfit' in positions[0],
+				hasStopLoss: 'stopLoss' in positions[0],
 			});
 		}
 		return Promise.resolve(positions);
+	}
+
+	public async individualPositions(): Promise<Position[]> {
+		// Return individual positions (same as positions() since we don't use netting)
+		const positions = await this.positions();
+		console.log(`[ZuperiorBroker] individualPositions() called, returning ${positions.length} individual positions`);
+		return positions;
 	}
 
 	public async executions(_symbol: string): Promise<Execution[]> {
@@ -620,21 +961,98 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 	}
 
 	public async placeOrder(preOrder: PreOrder): Promise<PlaceOrderResult> {
-		// This is handled by the TradingContext, so we just return success
 		console.log('[ZuperiorBroker] placeOrder called:', preOrder);
-		return Promise.resolve({});
-	}
 
-	public async modifyOrder(order: Order, _confirmId?: string): Promise<void> {
-		console.log('[ZuperiorBroker] modifyOrder called:', order);
-		// Update local state
-		if (this._orderById[order.id]) {
-			Object.assign(this._orderById[order.id], order);
-			if (this._host && typeof this._host.orderUpdate === 'function') {
-				this._host.orderUpdate(order);
+		if (!this._accountId) {
+			throw new Error('No account ID');
+		}
+
+		try {
+			const token = apiClient.getToken();
+			const baseURL = process.env.NEXT_PUBLIC_BACKEND_API_URL ||
+				(process.env.NEXT_PUBLIC_API_BASE_URL && process.env.NEXT_PUBLIC_API_BASE_URL.includes('localhost')
+					? process.env.NEXT_PUBLIC_API_BASE_URL
+					: 'http://localhost:5000');
+
+			// Map TV PreOrder to backend payload
+			// TV PreOrder: { symbol, qty, side (1/-1), type (1=Limit, 2=Market, 3=Stop), limitPrice, stopPrice, takeProfit, stopLoss }
+
+			const side = preOrder.side === 1 ? 'buy' : 'sell';
+			const isMarket = preOrder.type === 2; // Market
+
+			let endpoint = '';
+			let payload: any = {};
+
+			if (isMarket) {
+				endpoint = '/api/orders/market';
+				payload = {
+					accountId: this._accountId,
+					symbol: preOrder.symbol,
+					side: side,
+					volume: preOrder.qty,
+					stopLoss: preOrder.stopLoss,
+					takeProfit: preOrder.takeProfit,
+				};
+			} else {
+				// Pending Order (Limit or Stop)
+				endpoint = '/api/orders/pending';
+
+				let orderType = 'limit';
+				let price = 0;
+
+				if (preOrder.type === 1) { // Limit
+					orderType = 'limit';
+					price = preOrder.limitPrice || 0;
+				} else if (preOrder.type === 3) { // Stop
+					orderType = 'stop';
+					price = preOrder.stopPrice || 0;
+				} else if (preOrder.type === 4) { // StopLimit
+					orderType = 'stop'; // Backend might treat stop-limit as stop for now, or needs specific handling
+					price = preOrder.limitPrice || 0;
+				}
+
+				payload = {
+					accountId: this._accountId,
+					symbol: preOrder.symbol,
+					side: side,
+					volume: preOrder.qty,
+					price: price,
+					orderType: orderType,
+					stopLoss: preOrder.stopLoss,
+					takeProfit: preOrder.takeProfit,
+				};
 			}
+
+			console.log(`[ZuperiorBroker] Sending order to backend (${endpoint}):`, payload);
+
+			const response = await fetch(`${baseURL}${endpoint}`, {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+					...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+				},
+				body: JSON.stringify(payload),
+			});
+
+			if (!response.ok) {
+				const errorData = await response.json().catch(() => ({ message: response.statusText }));
+				throw new Error(errorData.message || `Failed to place order: ${response.statusText}`);
+			}
+
+			const result = await response.json();
+			console.log('[ZuperiorBroker] Order placed successfully:', result);
+
+			// Refresh data
+			this._fetchPositionsAndOrders();
+
+			return { orderId: result.orderId || result.id || 'unknown' };
+		} catch (error) {
+			console.error('[ZuperiorBroker] Error placing order:', error);
+			throw error;
 		}
 	}
+
+
 
 	public async cancelOrder(orderId: string): Promise<void> {
 		if (!this._accountId) {
@@ -759,14 +1177,11 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 				: undefined;
 
 			// Get current position
-			let position = this._positionById[positionId];
+			let position: Position | undefined = this._positionById[positionId];
 			if (!position) {
 				// Try to get from positions array
 				const positions = await this.positions();
-				const found = positions.find(p => p.id === positionId);
-				if (found) {
-					position = found;
-				}
+				position = positions.find(p => p.id === positionId);
 			}
 
 			if (!position) {
@@ -792,63 +1207,120 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 				}
 			}
 
-			// Call API to modify position
-			await positionsApi.modifyPosition({
-				accountId: this._accountId,
-				positionId: positionId,
-				stopLoss: finalStopLoss,
-				takeProfit: finalTakeProfit,
+			// Call API to update position
+			const token = apiClient.getToken();
+			const baseURL = process.env.NEXT_PUBLIC_BACKEND_API_URL ||
+				(process.env.NEXT_PUBLIC_API_BASE_URL && process.env.NEXT_PUBLIC_API_BASE_URL.includes('localhost')
+					? process.env.NEXT_PUBLIC_API_BASE_URL
+					: 'http://localhost:5000');
+
+			// Use the correct endpoint for modifying positions found in backend routes
+			const response = await fetch(`${baseURL}/api/positions/${positionId}/modify`, {
+				method: 'PUT',
+				headers: {
+					'Content-Type': 'application/json',
+					...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+				},
+				body: JSON.stringify({
+					accountId: this._accountId,
+					stopLoss: finalStopLoss,
+					takeProfit: finalTakeProfit,
+				}),
 			});
 
-			// Update position brackets
-			position.stopLoss = finalStopLoss !== undefined ? Number(finalStopLoss) : undefined;
-			position.takeProfit = finalTakeProfit !== undefined ? Number(finalTakeProfit) : undefined;
-
-			// Get existing brackets
-			const existingTPBracket = this._getTakeProfitBracket(position);
-			const existingSLBracket = this._getStopLossBracket(position);
-
-			// Update or create TP bracket
-			if (finalTakeProfit !== undefined) {
-				this._updatePositionsBracket({
-					parent: position,
-					bracket: existingTPBracket,
-					bracketType: 1, // TakeProfit
-					newPrice: finalTakeProfit,
-				});
-			} else if (existingTPBracket) {
-				// Cancel existing TP bracket if position no longer has TP
-				this._updatePositionsBracket({
-					parent: position,
-					bracket: existingTPBracket,
-					bracketType: 1,
-					newPrice: undefined,
-				});
+			if (!response.ok) {
+				const errorData = await response.json().catch(() => ({ message: response.statusText }));
+				throw new Error(errorData.message || `Failed to update position brackets: ${response.statusText}`);
 			}
 
-			// Update or create SL bracket
-			if (finalStopLoss !== undefined) {
-				this._updatePositionsBracket({
-					parent: position,
-					bracket: existingSLBracket,
-					bracketType: 0, // StopLoss
-					newPrice: finalStopLoss,
-				});
-			} else if (existingSLBracket) {
-				// Cancel existing SL bracket if position no longer has SL
-				this._updatePositionsBracket({
-					parent: position,
-					bracket: existingSLBracket,
-					bracketType: 0,
-					newPrice: undefined,
-				});
-			}
+			// Update local position state
+			position.stopLoss = finalStopLoss;
+			position.takeProfit = finalTakeProfit;
+			this._positionById[positionId] = position;
 
-			// Update position after brackets
+			// 1. Notify Position Update
 			if (this._host && typeof this._host.positionUpdate === 'function') {
 				const cleanPosition = this._createCleanPosition(position);
 				this._host.positionUpdate(cleanPosition);
 			}
+
+			// 2. Handle Take Profit Bracket
+			if (finalTakeProfit !== undefined) {
+				const tpOrder: Order = {
+					id: `tp_${positionId}`,
+					symbol: position.symbol,
+					qty: position.qty,
+					parentId: positionId,
+					parentType: ParentType.Position,
+					limitPrice: finalTakeProfit,
+					side: changeSide(position.side),
+					status: OrderStatus.Working, // Must be Working for brackets on position
+					type: OrderType.Limit,
+				} as Order;
+
+				// Add profit if available (for display on line)
+				if ((position as any).pl !== undefined) {
+					(tpOrder as any).pl = (position as any).pl;
+				}
+
+				this._orderById[tpOrder.id] = tpOrder;
+				if (this._host && typeof this._host.orderUpdate === 'function') {
+					this._host.orderUpdate(tpOrder);
+				}
+			} else {
+				// If TP removed, we should probably cancel the existing TP bracket if we tracked it
+				// For now, we just don't send an update, or we could send Canceled if we knew the ID
+				// But since IDs are deterministic (tp_...), we can try to cancel
+				const tpId = `tp_${positionId}`;
+				if (this._orderById[tpId]) {
+					const tpOrder = this._orderById[tpId];
+					tpOrder.status = OrderStatus.Canceled;
+					if (this._host && typeof this._host.orderUpdate === 'function') {
+						this._host.orderUpdate(tpOrder);
+					}
+					delete this._orderById[tpId];
+				}
+			}
+
+			// 3. Handle Stop Loss Bracket
+			if (finalStopLoss !== undefined) {
+				const slOrder: Order = {
+					id: `sl_${positionId}`,
+					symbol: position.symbol,
+					qty: position.qty,
+					parentId: positionId,
+					parentType: ParentType.Position,
+					stopPrice: finalStopLoss,
+					price: finalStopLoss, // Required for stop orders sometimes
+					side: changeSide(position.side),
+					status: OrderStatus.Working, // Must be Working for brackets on position
+					type: OrderType.Stop,
+				} as Order;
+
+				// Add profit if available
+				if ((position as any).pl !== undefined) {
+					(slOrder as any).pl = (position as any).pl;
+				}
+
+				this._orderById[slOrder.id] = slOrder;
+				if (this._host && typeof this._host.orderUpdate === 'function') {
+					this._host.orderUpdate(slOrder);
+				}
+			} else {
+				// If SL removed
+				const slId = `sl_${positionId}`;
+				if (this._orderById[slId]) {
+					const slOrder = this._orderById[slId];
+					slOrder.status = OrderStatus.Canceled;
+					if (this._host && typeof this._host.orderUpdate === 'function') {
+						this._host.orderUpdate(slOrder);
+					}
+					delete this._orderById[slId];
+				}
+			}
+
+			// Refresh all data to be sure
+			this._fetchPositionsAndOrders();
 
 			// Optionally trigger modify modal if available
 			if (typeof window !== 'undefined' && (window as any).__OPEN_MODIFY_POSITION_MODAL__) {
@@ -862,6 +1334,151 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			await this._fetchPositionsAndOrders();
 		} catch (error) {
 			console.error('[ZuperiorBroker] Error editing position brackets:', error);
+			throw error;
+		}
+	}
+
+	public async editIndividualPositionBrackets(positionId: string, modifiedBrackets: Brackets, customFields?: any): Promise<void> {
+		console.log('[ZuperiorBroker] editIndividualPositionBrackets called:', {
+			positionId,
+			brackets: {
+				stopLoss: modifiedBrackets.stopLoss !== undefined ? modifiedBrackets.stopLoss : 'undefined',
+				takeProfit: modifiedBrackets.takeProfit !== undefined ? modifiedBrackets.takeProfit : 'undefined',
+			},
+		});
+
+		if (!this._accountId) {
+			throw new Error('No account ID');
+		}
+
+		if (!positionId) {
+			throw new Error('Position ID is required');
+		}
+
+		try {
+			// Get current position
+			let position: Position | undefined = this._positionById[positionId];
+			if (!position) {
+				const positions = await this.positions();
+				position = positions.find(p => p.id === positionId);
+			}
+
+			if (!position) {
+				throw new Error('Position not found');
+			}
+
+			// Extract bracket values
+			const stopLossValue = modifiedBrackets.stopLoss !== undefined && modifiedBrackets.stopLoss !== null && Number(modifiedBrackets.stopLoss) > 0
+				? Number(modifiedBrackets.stopLoss)
+				: null;
+			const takeProfitValue = modifiedBrackets.takeProfit !== undefined && modifiedBrackets.takeProfit !== null && Number(modifiedBrackets.takeProfit) > 0
+				? Number(modifiedBrackets.takeProfit)
+				: null;
+
+			// Call backend API
+			const token = apiClient.getToken();
+			const baseURL = process.env.NEXT_PUBLIC_BACKEND_API_URL ||
+				(process.env.NEXT_PUBLIC_API_BASE_URL && process.env.NEXT_PUBLIC_API_BASE_URL.includes('localhost')
+					? process.env.NEXT_PUBLIC_API_BASE_URL
+					: 'http://localhost:5000');
+
+			const response = await fetch(`${baseURL}/api/positions/${positionId}/modify`, {
+				method: 'PUT',
+				headers: {
+					'Content-Type': 'application/json',
+					...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+				},
+				body: JSON.stringify({
+					accountId: this._accountId,
+					stopLoss: stopLossValue,
+					takeProfit: takeProfitValue,
+				}),
+			});
+
+			if (!response.ok) {
+				const errorData = await response.json().catch(() => ({ message: response.statusText }));
+				throw new Error(errorData.message || `Failed to update position brackets: ${response.statusText}`);
+			}
+
+			// Update position locally
+			position.stopLoss = stopLossValue;
+			position.takeProfit = takeProfitValue;
+			this._positionById[positionId] = position;
+
+			// CRITICAL: Call individualPositionUpdate (not positionUpdate) for individual positions
+			if (this._host && typeof this._host.individualPositionUpdate === 'function') {
+				const cleanPosition = this._createCleanPosition(position);
+				this._host.individualPositionUpdate(cleanPosition);
+			} else if (this._host && typeof this._host.positionUpdate === 'function') {
+				// Fallback to positionUpdate if individualPositionUpdate not available
+				const cleanPosition = this._createCleanPosition(position);
+				this._host.positionUpdate(cleanPosition);
+			}
+
+			// Update bracket orders
+			if (takeProfitValue !== null) {
+				const tpOrder: Order = {
+					id: `tp_${positionId}`,
+					symbol: position.symbol,
+					qty: position.qty,
+					parentId: positionId,
+					parentType: ParentType.Position,
+					limitPrice: takeProfitValue,
+					side: changeSide(position.side),
+					status: OrderStatus.Working,
+					type: OrderType.Limit,
+				} as Order;
+
+				this._orderById[tpOrder.id] = tpOrder;
+				if (this._host && typeof this._host.orderUpdate === 'function') {
+					this._host.orderUpdate(tpOrder);
+				}
+			} else {
+				// Remove TP bracket
+				const tpId = `tp_${positionId}`;
+				if (this._orderById[tpId]) {
+					const tpOrder = this._orderById[tpId];
+					tpOrder.status = OrderStatus.Canceled;
+					if (this._host && typeof this._host.orderUpdate === 'function') {
+						this._host.orderUpdate(tpOrder);
+					}
+					delete this._orderById[tpId];
+				}
+			}
+
+			if (stopLossValue !== null) {
+				const slOrder: Order = {
+					id: `sl_${positionId}`,
+					symbol: position.symbol,
+					qty: position.qty,
+					parentId: positionId,
+					parentType: ParentType.Position,
+					stopPrice: stopLossValue,
+					price: stopLossValue,
+					side: changeSide(position.side),
+					status: OrderStatus.Working,
+					type: OrderType.Stop,
+				} as Order;
+
+				this._orderById[slOrder.id] = slOrder;
+				if (this._host && typeof this._host.orderUpdate === 'function') {
+					this._host.orderUpdate(slOrder);
+				}
+			} else {
+				// Remove SL bracket
+				const slId = `sl_${positionId}`;
+				if (this._orderById[slId]) {
+					const slOrder = this._orderById[slId];
+					slOrder.status = OrderStatus.Canceled;
+					if (this._host && typeof this._host.orderUpdate === 'function') {
+						this._host.orderUpdate(slOrder);
+					}
+					delete this._orderById[slId];
+				}
+			}
+
+		} catch (error) {
+			console.error('[ZuperiorBroker] Error editing individual position brackets:', error);
 			throw error;
 		}
 	}
@@ -880,13 +1497,126 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 	}
 
 	public accountManagerInfo(): AccountManagerInfo {
-		return {
+		// Ensure columns are arrays (defensive check)
+		// If imports fail, provide minimal valid column arrays
+		let orderCols: any[] = [];
+		let positionCols: any[] = [];
+
+		try {
+			// Check if ordersPageColumns is available and valid
+			if (typeof ordersPageColumns !== 'undefined' && Array.isArray(ordersPageColumns) && ordersPageColumns.length > 0) {
+				// Validate each column has required fields
+				orderCols = ordersPageColumns.filter(col =>
+					col &&
+					typeof col === 'object' &&
+					Array.isArray(col.dataFields) &&
+					col.id &&
+					col.label
+				);
+				if (orderCols.length === 0) {
+					throw new Error('No valid order columns found');
+				}
+			} else {
+				throw new Error('ordersPageColumns is not available');
+			}
+		} catch (error) {
+			console.warn('[ZuperiorBroker] Error loading order columns, using fallback:', error);
+			// Fallback minimal columns if import fails
+			orderCols = [
+				{ label: 'Symbol', id: 'symbol', dataFields: ['symbol'], formatter: 'symbol' },
+				{ label: 'Side', id: 'side', dataFields: ['side'], formatter: 'side' },
+				{ label: 'Qty', id: 'qty', dataFields: ['qty'], formatter: 'formatQuantity' },
+				{ label: 'Status', id: 'status', dataFields: ['status'], formatter: 'status' },
+			];
+		}
+
+		try {
+			// Check if positionsPageColumns is available and valid
+			if (typeof positionsPageColumns !== 'undefined' && Array.isArray(positionsPageColumns) && positionsPageColumns.length > 0) {
+				// Validate each column has required fields
+				positionCols = positionsPageColumns.filter(col =>
+					col &&
+					typeof col === 'object' &&
+					Array.isArray(col.dataFields) &&
+					col.id &&
+					col.label
+				);
+				if (positionCols.length === 0) {
+					throw new Error('No valid position columns found');
+				}
+			} else {
+				throw new Error('positionsPageColumns is not available');
+			}
+		} catch (error) {
+			console.warn('[ZuperiorBroker] Error loading position columns, using fallback:', error);
+			// Fallback minimal columns if import fails
+			positionCols = [
+				{ label: 'Symbol', id: 'symbol', dataFields: ['symbol'], formatter: 'symbol' },
+				{ label: 'Side', id: 'side', dataFields: ['side'], formatter: 'side' },
+				{ label: 'Qty', id: 'qty', dataFields: ['qty'], formatter: 'formatQuantity' },
+				{ label: 'Avg Price', id: 'avgPrice', dataFields: ['avgPrice'], formatter: 'formatPrice' },
+				{ label: 'Profit', id: 'pl', dataFields: ['pl'], formatter: 'profit' },
+			];
+		}
+
+		const accountInfo: AccountManagerInfo = {
 			accountTitle: 'Trading Account',
 			summary: [],
-			orderColumns: [],
-			positionColumns: [],
-			pages: [],
+			orderColumns: orderCols,
+			positionColumns: positionCols,
+			pages: [], // Required field - empty array if no custom pages
 		};
+
+		// Add custom formatters and columns as requested
+		(accountInfo as any).customFormatters = [
+			{
+				name: 'custom-type',
+				formatText: (dataFields: any) => {
+					return dataFields.values[0];
+				}
+			},
+			{
+				name: 'custom-button',
+				formatElement: (dataFields: any) => {
+					const price = dataFields.values[0];
+					const button = document.createElement('button');
+					button.innerText = 'Alert';
+					button.style.cursor = 'pointer';
+					button.style.padding = '4px 8px';
+					button.style.borderRadius = '4px';
+					button.style.backgroundColor = '#2962FF';
+					button.style.color = 'white';
+					button.style.border = 'none';
+
+					button.addEventListener('click', (event) => {
+						event.stopPropagation();
+						// Use safe host call or direct call if type allows
+						if (this._host && typeof (this._host as any).showNotification === 'function') {
+							(this._host as any).showNotification(
+								'The button is clicked',
+								`The price is: ${price}`,
+								1
+							);
+						} else {
+							alert(`The price is: ${price}`);
+						}
+					});
+
+					return button;
+				}
+			}
+		];
+
+		// REMOVED: Custom and Button columns as requested
+		// No custom columns will be added to match the open positions table
+
+		console.log('[ZuperiorBroker] accountManagerInfo:', {
+			orderColumnsCount: accountInfo.orderColumns.length,
+			positionColumnsCount: accountInfo.positionColumns?.length || 0,
+			pagesCount: accountInfo.pages.length,
+		});
+
+		return accountInfo;
 	}
 
 	public async accountsMetainfo(): Promise<AccountMetainfo[]> {
@@ -917,8 +1647,8 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 	// Helper method to create clean position object for TradingView
 	// ============================================================================
 	private _createCleanPosition(position: Position): Position {
-		// Create a clean position object with only required/valid fields
-		// This prevents TradingView from trying to access undefined properties
+		// Create a clean position object with ALL fields expected by the app's position table
+		// This ensures Account Manager displays the same data as the app's position table
 		const clean: Position = {
 			id: String(position.id),
 			symbol: String(position.symbol).toUpperCase(),
@@ -927,23 +1657,91 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			avgPrice: Number(position.avgPrice),
 		} as Position;
 
+		// Add ticket field (required by app's position table)
+		if ((position as any).ticket !== undefined) {
+			(clean as any).ticket = Number((position as any).ticket);
+		}
+
+		// Add type field as string (Buy/Sell) - required by app's position table
+		if ((position as any).type !== undefined) {
+			(clean as any).type = String((position as any).type);
+		} else {
+			// FIXED: Correct fallback mapping from side to type
+			(clean as any).type = position.side === Side.Buy ? 'Buy' : 'Sell';
+		}
+
+		// Add volume field (alias for qty) - app uses 'volume'
+		(clean as any).volume = Number(position.qty);
+
+		// Add openPrice field (alias for avgPrice) - app uses 'openPrice'
+		(clean as any).openPrice = Number(position.avgPrice);
+
+		// Add currentPrice field - required for P&L calculation
+		if ((position as any).currentPrice !== undefined) {
+			(clean as any).currentPrice = Number((position as any).currentPrice);
+		} else if ((position as any).last !== undefined) {
+			(clean as any).currentPrice = Number((position as any).last);
+		}
+
 		// CRITICAL: Always include takeProfit and stopLoss fields (even if undefined)
 		// TradingView needs these fields present to show TP/SL buttons on trade lines
-		clean.takeProfit = (position.takeProfit !== undefined && position.takeProfit !== null && typeof position.takeProfit === 'number' && isFinite(position.takeProfit) && position.takeProfit > 0)
+		const takeProfitValue = (position.takeProfit !== undefined && position.takeProfit !== null && typeof position.takeProfit === 'number' && isFinite(position.takeProfit) && position.takeProfit > 0)
 			? Number(position.takeProfit)
-			: undefined;
-		clean.stopLoss = (position.stopLoss !== undefined && position.stopLoss !== null && typeof position.stopLoss === 'number' && isFinite(position.stopLoss) && position.stopLoss > 0)
+			: null; // Use null instead of undefined for TradingView brackets
+		const stopLossValue = (position.stopLoss !== undefined && position.stopLoss !== null && typeof position.stopLoss === 'number' && isFinite(position.stopLoss) && position.stopLoss > 0)
 			? Number(position.stopLoss)
-			: undefined;
+			: null; // Use null instead of undefined for TradingView brackets
 
-		// Add optional fields only if they are valid numbers
-		// NEVER multiply profit here - keep original profit for trade lines
-		// TP/SL lines will get profit from bracket orders separately
+		// Explicitly assign to ensure they're enumerable properties
+		clean.takeProfit = takeProfitValue;
+		clean.stopLoss = stopLossValue;
+
+		// Add profit field - required by app's position table
 		if ((position as any).pl !== undefined && (position as any).pl !== null && typeof (position as any).pl === 'number' && isFinite((position as any).pl)) {
 			(clean as any).pl = Number((position as any).pl);
+			(clean as any).profit = Number((position as any).pl); // App uses 'profit'
 		}
+
+		// Add last (current price) field for TradingView
 		if ((position as any).last !== undefined && (position as any).last !== null && typeof (position as any).last === 'number' && isFinite((position as any).last)) {
 			(clean as any).last = Number((position as any).last);
+		}
+
+		// Add swap field - required by app's position table
+		if ((position as any).swap !== undefined) {
+			(clean as any).swap = Number((position as any).swap || 0);
+		}
+
+		// Add commission field - required by app's position table
+		if ((position as any).commission !== undefined) {
+			(clean as any).commission = Number((position as any).commission || 0);
+		}
+
+		// Add comment field - required by app's position table
+		if ((position as any).comment !== undefined) {
+			(clean as any).comment = String((position as any).comment);
+		}
+
+		// Add openTime field - required by app's position table
+		if ((position as any).openTime !== undefined) {
+			(clean as any).openTime = String((position as any).openTime);
+		}
+
+		// Add openTimeInMs field - required by TradingView for proper chart display
+		if ((position as any).openTimeInMs !== undefined) {
+			(clean as any).openTimeInMs = Number((position as any).openTimeInMs);
+		} else if ((position as any).openTime !== undefined) {
+			// Convert openTime string to milliseconds if openTimeInMs not available
+			try {
+				(clean as any).openTimeInMs = new Date((position as any).openTime).getTime();
+			} catch (e) {
+				(clean as any).openTimeInMs = Date.now();
+			}
+		}
+
+		// Add positionId field - app uses this
+		if ((position as any).positionId !== undefined) {
+			(clean as any).positionId = Number((position as any).positionId);
 		}
 
 		return clean;
@@ -965,23 +1763,42 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 				if (!id) continue;
 				const symbol = String(p.symbol ?? '');
 
-				const typeStr = String(p.type || '').toLowerCase();
-				const side: Side = typeStr === 'sell' ? Side.Sell : Side.Buy;
+				// FIXED: Correct side mapping to match open positions table
+				const typeStr = String(p.type || '');
+				const side: Side = typeStr === 'Buy' ? Side.Buy : Side.Sell;
 
 				const rawVolume = Math.abs(Number(p.volume ?? p.qty ?? 0));
-				const volume = rawVolume / 10000; // Divide by 10000 to match table display
+				// Divide by 10000 to match open positions table formatting
+				const volume = rawVolume / 10000;
 				const avgPrice = Number(p.openPrice ?? p.price ?? 0);
 
 				if (volume <= 0 || avgPrice <= 0) continue;
 
-				// Extract TP/SL from multiple field name variations
-				const stopLossRaw = p.stopLoss ?? p.StopLoss ?? p.SL ?? p.sl;
-				const stopLossNum = typeof stopLossRaw === 'string' ? parseFloat(stopLossRaw) : Number(stopLossRaw);
+				// FIXED: Extract TP/SL with better validation - only include positive values
+				const stopLossRaw = p.stopLoss ?? p.StopLoss ?? p.SL ?? p.sl ??
+					p.stop_loss ?? p.Stop_Loss ?? p.stopLossPrice ?? p.StopLossPrice ?? p.PriceSL ?? p.priceSL;
+				const stopLossNum = (stopLossRaw !== undefined && stopLossRaw !== null && stopLossRaw !== '' && stopLossRaw !== 0)
+					? (typeof stopLossRaw === 'string' ? parseFloat(stopLossRaw) : Number(stopLossRaw))
+					: NaN;
 				const stopLoss = Number.isFinite(stopLossNum) && stopLossNum > 0 ? stopLossNum : undefined;
 
-				const takeProfitRaw = p.takeProfit ?? p.TakeProfit ?? p.TP ?? p.tp;
-				const takeProfitNum = typeof takeProfitRaw === 'string' ? parseFloat(takeProfitRaw) : Number(takeProfitRaw);
+				const takeProfitRaw = p.takeProfit ?? p.TakeProfit ?? p.TP ?? p.tp ??
+					p.take_profit ?? p.Take_Profit ?? p.takeProfitPrice ?? p.TakeProfitPrice ?? p.PriceTP ?? p.priceTP;
+				const takeProfitNum = (takeProfitRaw !== undefined && takeProfitRaw !== null && takeProfitRaw !== '' && takeProfitRaw !== 0)
+					? (typeof takeProfitRaw === 'string' ? parseFloat(takeProfitRaw) : Number(takeProfitRaw))
+					: NaN;
 				const takeProfit = Number.isFinite(takeProfitNum) && takeProfitNum > 0 ? takeProfitNum : undefined;
+
+				// Debug logging to see what we're getting from API
+				if (id && (takeProfitRaw !== undefined || stopLossRaw !== undefined)) {
+					console.log(`[ZuperiorBroker] syncFromLiveState TP/SL extraction for position ${id}:`, {
+						takeProfitRaw,
+						takeProfit,
+						stopLossRaw,
+						stopLoss,
+						allPositionKeys: Object.keys(p),
+					});
+				}
 
 				const position: Position = {
 					id,
@@ -1029,16 +1846,52 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 					}
 				}
 
-				// Set TP/SL fields - ensure they are numbers (not strings) or undefined
-				position.stopLoss = stopLoss !== undefined ? Number(stopLoss) : undefined;
-				position.takeProfit = takeProfit !== undefined ? Number(takeProfit) : undefined;
 
-				// Ensure bracket fields are always present (even if undefined)
+				// Set TP/SL fields on position object - use null for TradingView brackets
+				position.takeProfit = takeProfit || null;
+				position.stopLoss = stopLoss || null;
+
+				// Add all additional fields required by app's position table
+				// These fields are extracted from API response to match usePositions hook format
+
+				// ticket field - required by app
+				(position as any).ticket = Number(p.ticket) || 0;
+
+				// type field as string (Buy/Sell) - required by app
+				(position as any).type = side === Side.Buy ? 'Buy' : 'Sell';
+
+				// volume field (alias for qty) - app uses 'volume'
+				(position as any).volume = Number(volume);
+
+				// openPrice field (alias for avgPrice) - app uses 'openPrice'
+				(position as any).openPrice = Number(avgPrice);
+
+				// currentPrice field - required for P&L calculation
+				(position as any).currentPrice = Number(currentPriceValue);
+
+				// swap field - required by app
+				(position as any).swap = Number(p.swap || p.Swap || 0);
+
+				// commission field - required by app
+				(position as any).commission = Number(p.commission || p.Commission || 0);
+
+				// comment field - required by app
+				(position as any).comment = p.comment || p.Comment || undefined;
+
+				// openTime field - required by app
+				const openTime = p.openTime || p.OpenTime || p.TimeCreate || p.timeCreate ||
+					p.TimeSetup || p.timeSetup || new Date().toISOString();
+				(position as any).openTime = String(openTime);
+
+				// positionId field - app uses this
+				(position as any).positionId = Number(p.PositionId || p.positionId || p.ticket) || undefined;
+
+				// Ensure bracket fields are always present (even if null) for TradingView
 				if (!('stopLoss' in position)) {
-					position.stopLoss = undefined;
+					position.stopLoss = null;
 				}
 				if (!('takeProfit' in position)) {
-					position.takeProfit = undefined;
+					position.takeProfit = null;
 				}
 
 				// Validate bracket values are numbers
@@ -1057,20 +1910,15 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 					}
 				}
 
-				// Update position cache - ensure profit is set before storing
-				this._positionById[id] = position;
-
-				// Debug: Log profit value before creating clean position
-				console.log('[ZuperiorBroker] Position profit before clean:', {
-					id: position.id,
-					rawProfit: (position as any).pl,
-					profitType: typeof (position as any).pl,
-				});
-
 				// CRITICAL: Update position FIRST with brackets so TradingView can show TP/SL buttons
 				// The position must have takeProfit/stopLoss fields set (even if undefined) for buttons to appear
 				if (this._isWidgetReady) {
 					const cleanPosition = this._createCleanPosition(position);
+
+					// CRITICAL: Store clean position in _positionById BEFORE calling positionUpdate
+					// TradingView may call positions() internally during positionUpdate, and it needs
+					// to find the position in _positionById with the same structure
+					this._positionById[id] = cleanPosition;
 
 					// Debug: Log profit value after creating clean position
 					console.log('[ZuperiorBroker] Position profit after clean:', {
@@ -1131,7 +1979,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 				const side: Side = typeStr === 'sell' ? Side.Sell : Side.Buy;
 
 				const rawVolume = Math.abs(Number(o.volume ?? 0));
-				const volume = rawVolume / 10000; // Divide by 10000 to match table display
+				const volume = rawVolume; // Use raw volume
 
 				const orderType = o.orderType || o.Type || o.type;
 				let type: OrderType;
@@ -1202,16 +2050,15 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			parentType: isPosition ? ParentType.Position : ParentType.Order,
 			limitPrice: entity.takeProfit,
 			side: changeSide(entity.side),
-			status: (isPosition ? OrderStatus.Working : OrderStatus.Inactive) as any,
+			status: OrderStatus.Working, // Always Working for active brackets
 			type: OrderType.Limit,
 		} as Order;
 
-		// Add profit to TP bracket order - multiply by 100 for TP line display
-		// TradingView may use this profit value for displaying on TP lines
+		// Add profit to TP bracket order for display
 		if (isPosition && (entity as Position as any).pl !== undefined && (entity as Position as any).pl !== null) {
 			const profitValue = Number((entity as Position as any).pl);
 			if (Number.isFinite(profitValue)) {
-				(bracket as any).pl = profitValue * 100;
+				(bracket as any).pl = profitValue;
 			}
 		}
 
@@ -1244,16 +2091,15 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			stopPrice: stopLossValue,
 			price: stopLossValue,
 			side: changeSide(entity.side),
-			status: (isPosition ? OrderStatus.Working : OrderStatus.Inactive) as any,
+			status: OrderStatus.Working, // Always Working for active brackets
 			type: OrderType.Stop,
 		} as Order;
 
-		// Add profit to SL bracket order - multiply by 100 for SL line display
-		// TradingView may use this profit value for displaying on SL lines
+		// Add profit to SL bracket order for display
 		if (isPosition && (entity as Position as any).pl !== undefined && (entity as Position as any).pl !== null) {
 			const profitValue = Number((entity as Position as any).pl);
 			if (Number.isFinite(profitValue)) {
-				(bracket as any).pl = profitValue * 100;
+				(bracket as any).pl = profitValue;
 			}
 		}
 
@@ -1325,6 +2171,8 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			if (order.parentType === ParentType.Position && entity) {
 				if (this._host && typeof this._host.positionUpdate === 'function') {
 					const cleanPosition = this._createCleanPosition(entity as Position);
+					// Update _positionById with clean position before calling positionUpdate
+					this._positionById[cleanPosition.id] = cleanPosition;
 					this._host.positionUpdate(cleanPosition);
 				}
 			}
@@ -1376,6 +2224,8 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 					// Update parent position after bracket is created
 					if (this._host && typeof this._host.positionUpdate === 'function') {
 						const cleanPosition = this._createCleanPosition(parent);
+						// Update _positionById with clean position before calling positionUpdate
+						this._positionById[cleanPosition.id] = cleanPosition;
 						this._host.positionUpdate(cleanPosition);
 					}
 				} catch (error) {
@@ -1398,6 +2248,8 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 				// Update parent position after bracket is updated
 				if (this._host && typeof this._host.positionUpdate === 'function') {
 					const cleanPosition = this._createCleanPosition(parent);
+					// Update _positionById with clean position before calling positionUpdate
+					this._positionById[cleanPosition.id] = cleanPosition;
 					this._host.positionUpdate(cleanPosition);
 				}
 			} catch (error) {
@@ -1442,6 +2294,8 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 				// Update parent position after bracket is updated
 				if (this._host && typeof this._host.positionUpdate === 'function') {
 					const cleanPosition = this._createCleanPosition(parent);
+					// Update _positionById with clean position before calling positionUpdate
+					this._positionById[cleanPosition.id] = cleanPosition;
 					this._host.positionUpdate(cleanPosition);
 				}
 			} catch (error) {

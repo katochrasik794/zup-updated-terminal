@@ -1,5 +1,4 @@
-import { ConnectionStatus, OrderStatus, OrderType, ParentType, Side, StandardFormatterName, } from '../../charting_library/broker-api';
-import { BottomWidgetBarMode } from '../../charting_library/broker-api';
+import { ConnectionStatus, OrderStatus, OrderType, ParentType, Side, } from '../../charting_library/broker-api';
 /**
  * Imports the objects for columns on the "Account Summary", "Orders", and "Positions" pages
  */
@@ -30,10 +29,6 @@ export class BrokerDemo extends AbstractBrokerMinimal {
         this._orderById = {};
         /** Defines the initial values for the custom "Account Summary" page in the Account Manager */
         this._accountManagerData = { title: 'Demo account', balance: 10000000, equity: 10000000, pl: 0 };
-        /** Stores a reference to the showPositionDialog callback from customUI */
-        this._showPositionDialogCallback = null;
-        /** Flag to prevent infinite recursion when dialog calls editPositionBrackets */
-        this._isUpdatingFromDialog = false;
         /** Handles updates to the equity value by calling the `equityUpdate` method of the Trading Host */
         this._handleEquityUpdate = (value) => {
             this._host.equityUpdate(value);
@@ -119,7 +114,7 @@ export class BrokerDemo extends AbstractBrokerMinimal {
             console.log('Durations are not implemented in this sample.');
         }
         // Open the Account Manager
-        this._host.setAccountManagerVisibilityMode(BottomWidgetBarMode.Normal);
+        this._host.setAccountManagerVisibilityMode("normal" /* BottomWidgetBarMode.Normal */);
         if ((preOrder.type === OrderType.Market || preOrder.type === undefined)
             && this._getBrackets(preOrder.symbol).length > 0) {
             this._updateOrder(this._createOrder(preOrder));
@@ -186,13 +181,13 @@ export class BrokerDemo extends AbstractBrokerMinimal {
             {
                 text: 'Balance',
                 wValue: this._balanceValue,
-                formatter: StandardFormatterName.Fixed, // Default value
+                formatter: "fixed" /* StandardFormatterName.Fixed */, // Default value
                 isDefault: true,
             },
             {
                 text: 'Equity',
                 wValue: this._equityValue,
-                formatter: StandardFormatterName.Fixed, // Default value
+                formatter: "fixed" /* StandardFormatterName.Fixed */, // Default value
                 isDefault: true,
             },
         ];
@@ -251,65 +246,12 @@ export class BrokerDemo extends AbstractBrokerMinimal {
         return this._host.defaultContextMenuActions(_context);
     }
     /**
-     * Sets the callback function to show the position dialog.
-     * This is called from the widget initialization to enable dialog interception.
-     */
-    setShowPositionDialogCallback(callback) {
-        this._showPositionDialogCallback = callback;
-    }
-    /**
-     * Marks that editPositionBrackets is being called from the dialog.
-     * This prevents infinite recursion when the dialog calls editPositionBrackets.
-     */
-    setUpdatingFromDialog(updating) {
-        this._isUpdatingFromDialog = updating;
-    }
-    /**
      * Enables a dialog that allows adding bracket orders to a position.
      * The library calls this method when users modify existing position with bracket orders.
-     * If a showPositionDialog callback is set, it will intercept the call and open the dialog instead.
      */
     async editPositionBrackets(positionId, modifiedBrackets) {
         // Retrieve the position object using its ID
         const position = this._positionById[positionId];
-        // If position doesn't exist, return early
-        if (!position) {
-            console.warn('[Broker] editPositionBrackets: Position not found:', positionId);
-            return;
-        }
-        console.log('[Broker] editPositionBrackets called:', {
-            positionId,
-            modifiedBrackets,
-            isUpdatingFromDialog: this._isUpdatingFromDialog,
-            hasCallback: this._showPositionDialogCallback !== null
-        });
-        // If this is being called from the dialog (after user confirms), skip interception and update directly
-        if (this._isUpdatingFromDialog) {
-            console.log('[Broker] Updating from dialog, proceeding with direct update');
-            // Reset flag and proceed with normal update
-            this._isUpdatingFromDialog = false;
-        }
-        // If showPositionDialog callback is set and not updating from dialog, intercept and open dialog
-        else if (this._showPositionDialogCallback !== null) {
-            console.log('[Broker] Intercepting editPositionBrackets, opening dialog');
-            // Retrieve all brackets associated with this position to get current bracket values
-            const positionBrackets = this._getBrackets(positionId);
-            // Find the take-profit and stop-loss brackets from the position's brackets
-            const takeProfitBracket = positionBrackets.find((bracket) => bracket.limitPrice !== undefined);
-            const stopLossBracket = positionBrackets.find((bracket) => bracket.stopPrice !== undefined);
-            // Create brackets object with current values, but override with modified values from drag operation
-            const currentBrackets = {
-                takeProfit: modifiedBrackets.takeProfit !== undefined ? modifiedBrackets.takeProfit : (takeProfitBracket?.limitPrice ?? position.takeProfit),
-                stopLoss: modifiedBrackets.stopLoss !== undefined ? modifiedBrackets.stopLoss : (stopLossBracket?.stopPrice ?? position.stopLoss),
-            };
-            // Open the position dialog with the dragged values pre-filled
-            await this._showPositionDialogCallback(position, currentBrackets, false);
-            // If user confirmed the dialog, the dialog itself will call editPositionBrackets again
-            // with the final values, so we don't need to do anything here
-            // If user cancelled, we also don't need to do anything (brackets remain unchanged)
-            return;
-        }
-        // Original implementation: directly update brackets (fallback for when callback is not set)
         // Retrieve all brackets associated with this position
         const positionBrackets = this._getBrackets(positionId);
         // Create a modified position object based on the original position

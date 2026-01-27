@@ -1,0 +1,81 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+    <title>TradingView Trading Platform with Brackets</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,minimum-scale=1.0">
+    
+    <script type="text/javascript" src="charting_library/charting_library.standalone.js"></script>
+    <script type="text/javascript" src="datafeeds/udf/dist/bundle.js"></script>
+    <script type="text/javascript" src="broker-sample/dist/bundle.js"></script>
+
+    <script type="text/javascript">
+        function initOnReady() {
+            var datafeed = new Datafeeds.UDFCompatibleDatafeed("https://demo-feed-data.tradingview.com", undefined, {
+                maxResponseLength: 1000,
+                expectedOrder: 'latestFirst',
+            });
+
+            var widget = window.tvWidget = new TradingView.widget({
+                fullscreen: true,
+                symbol: 'AAPL',
+                interval: '1D',
+                container: "tv_chart_container",
+                datafeed: datafeed,
+                library_path: "charting_library/",
+                locale: "en",
+                disabled_features: ["use_localstorage_for_settings"],
+                enabled_features: ["study_templates", 'dom_widget'],
+                charts_storage_url: 'https://saveload.tradingview.com',
+                charts_storage_api_version: "1.1",
+                client_id: 'trading_platform_demo',
+                user_id: 'public_user',
+                
+                widgetbar: {
+                    details: true,
+                    news: true,
+                    watchlist: true,
+                    datawindow: true,
+                    watchlist_settings: {
+                        default_symbols: ["MSFT", "IBM", "AAPL"]
+                    }
+                },
+
+                broker_factory: function(host) { 
+                    return new Brokers.BrokerDemo(host, datafeed); 
+                },
+                broker_config: {
+                    configFlags: {
+                        supportNativeReversePosition: true,
+                        supportClosePosition: true,
+                        supportPLUpdate: true,
+                        supportLevel2Data: false,
+                        showQuantityInsteadOfAmount: true,
+                        supportPositions: true,
+                        supportPositionBrackets: false,
+                        supportIndividualPositionBrackets: true,
+                        supportOrderBrackets: true,
+                        supportMarketBrackets: true,
+                        supportOrdersHistory: false,
+                        supportTradeBrackets: true,
+                        supportModifyBrackets: true,
+                        supportModifyOrder: true,
+                        supportModifyOrderPrice: true,
+                        supportEditAmount: true,
+                        supportBrackets: true
+                    },
+                    durations: [
+                        { name: 'DAY', value: 'DAY' },
+                        { name: 'GTC', value: 'GTC' }
+                    ],
+                },
+            });
+        };
+
+        window.addEventListener('DOMContentLoaded', initOnReady, false);
+    </script>
+</head>
+
+<body style="margin:0px;">
+    <div id="tv_chart_container"></div>
+</body>
+</html>
