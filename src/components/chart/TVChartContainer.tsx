@@ -35,6 +35,8 @@ export const TVChartContainer = () => {
     const brokerRef = useRef<any>(null);
     const { lastOrder, symbol, setSymbol, setModifyModalState, lastModification } = useTrading();
     const { currentAccountId } = useAccount();
+    const [isLoading, setIsLoading] = React.useState(true);
+    const [loadingProgress, setLoadingProgress] = React.useState(0);
 
     // Fetch positions and orders for syncing to broker
     const {
@@ -146,6 +148,10 @@ export const TVChartContainer = () => {
             return;
         }
 
+        console.log('[TVChartContainer] Starting script loading...');
+        setIsLoading(true);
+        setLoadingProgress(10);
+
         const scripts = [
             '/charting_library/charting_library.standalone.js',
             '/datafeeds/udf/dist/bundle.js',
@@ -245,7 +251,7 @@ export const TVChartContainer = () => {
                     // Create ZuperiorBroker with accountId
                     const broker = new ZuperiorBroker(host, datafeed, currentAccountId);
                     brokerRef.current = broker; // Expose broker instance
-                    
+
                     // Expose broker globally for ChartContainer access
                     window.__ZUPERIOR_CHART_BROKER__ = broker;
 
@@ -357,7 +363,7 @@ export const TVChartContainer = () => {
 
             tvWidget.onChartReady(() => {
                 console.log('Chart is ready');
-                
+
                 // Mark broker as ready
                 if (brokerRef.current && typeof brokerRef.current.setWidgetReady === 'function') {
                     brokerRef.current.setWidgetReady(true);
@@ -379,7 +385,13 @@ export const TVChartContainer = () => {
             return new Promise((resolve, reject) => {
                 const script = document.createElement('script');
                 script.src = src;
-                script.onload = resolve;
+                script.onload = () => {
+                    loadedCount++;
+                    const progress = 10 + (loadedCount / scripts.length) * 60; // 10-70%
+                    setLoadingProgress(progress);
+                    console.log(`[TVChartContainer] Loaded ${src} (${loadedCount}/${scripts.length})`);
+                    resolve(undefined);
+                };
                 script.onerror = (event) => {
                     reject(new Error(`Failed to load script: ${src}`));
                 };
@@ -399,10 +411,19 @@ export const TVChartContainer = () => {
 
         Promise.all(scripts.map(loadScript))
             .then(() => {
+                console.log('[TVChartContainer] All scripts loaded, initializing widget...');
+                setLoadingProgress(80);
                 initWidget();
+                // Set loading to false after widget initialization
+                setTimeout(() => {
+                    setIsLoading(false);
+                    setLoadingProgress(100);
+                    console.log('[TVChartContainer] Chart ready!');
+                }, 1500); // Give chart time to render
             })
             .catch(err => {
                 console.error('Error loading scripts:', err);
+                setIsLoading(false);
                 if (err instanceof Error) {
                     console.error('Error details:', err.message);
                 } else {
@@ -437,7 +458,7 @@ export const TVChartContainer = () => {
             };
             setModifyModalState({ isOpen: true, position: mappedPosition });
         };
-        
+
         return () => {
             delete window.__OPEN_MODIFY_POSITION_MODAL__;
         };
@@ -451,28 +472,68 @@ export const TVChartContainer = () => {
                 positionsCount: rawPositions?.length || 0,
                 pendingOrdersCount: rawPendingOrders?.length || 0,
             });
-            
+
             // Convert positions/orders to format expected by syncFromLiveState
             const positions = (rawPositions || []).map((pos: any) => ({
                 ...pos,
                 ticket: pos.ticket || pos.id,
             }));
-            
+
             const pendingOrders = (rawPendingOrders || []).map((order: any) => ({
                 ...order,
                 ticket: order.ticket || order.id,
             }));
-            
+
             broker.syncFromLiveState(positions, pendingOrders);
         }
     }, [rawPositions, rawPendingOrders, currentAccountId]);
 
     return (
-        <div
-            ref={containerRef}
-            className="tv-chart-container"
-            style={{ height: '100%', width: '100%' }}
-        />
+        <div style={{ position: 'relative', height: '100%', width: '100%' }}>
+            {isLoading && (
+                <div style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    backgroundColor: '#0F0F0F',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    zIndex: 9999,
+                }}>
+                    <div style={{
+                        width: '200px',
+                        height: '4px',
+                        backgroundColor: '#1a1a1a',
+                        borderRadius: '2px',
+                        overflow: 'hidden',
+                        marginBottom: '16px',
+                    }}>
+                        <div style={{
+                            width: `${loadingProgress}%`,
+                            height: '100%',
+                            backgroundColor: '#2962FF',
+                            transition: 'width 0.3s ease',
+                        }} />
+                    </div>
+                    <div style={{
+                        color: '#888',
+                        fontSize: '14px',
+                        fontFamily: 'system-ui, -apple-system, sans-serif',
+                    }}>
+                        Loading chart... {Math.round(loadingProgress)}%
+                    </div>
+                </div>
+            )}
+            <div
+                ref={containerRef}
+                className="tv-chart-container"
+                style={{ height: '100%', width: '100%', opacity: isLoading ? 0 : 1, transition: 'opacity 0.3s ease' }}
+            />
+        </div>
     );
 };
 
