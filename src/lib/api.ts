@@ -24,16 +24,27 @@ const API_BASE_URL = getBackendUrl();
 
 // Log the base URL for debugging
 if (typeof window !== 'undefined') {
-  console.log('[API Client] Initialized with base URL:', API_BASE_URL);
-  console.log('[API Client] Environment variable:', {
-    NEXT_PUBLIC_BACKEND_API_URL: process.env.NEXT_PUBLIC_BACKEND_API_URL || 'NOT SET',
+  const runtimeURL = process.env.NEXT_PUBLIC_BACKEND_API_URL || 'NOT SET';
+  console.log('[API Client] Build-time base URL:', API_BASE_URL);
+  console.log('[API Client] Runtime environment variable:', {
+    NEXT_PUBLIC_BACKEND_API_URL: runtimeURL,
   });
+  
+  // Check if runtime URL differs from build-time URL (indicates env var was set after build)
+  if (runtimeURL !== 'NOT SET' && runtimeURL !== API_BASE_URL) {
+    console.warn('[API Client] WARNING: Runtime env var differs from build-time URL!');
+    console.warn('[API Client] Build-time:', API_BASE_URL);
+    console.warn('[API Client] Runtime:', runtimeURL);
+    console.warn('[API Client] This means env var was set AFTER build. Rebuild required!');
+  }
+  
   if (API_BASE_URL.includes('metaapi')) {
     console.warn('[API Client] WARNING: API base URL points to MetaAPI instead of local backend!');
     console.warn('[API Client] Set NEXT_PUBLIC_BACKEND_API_URL=http://localhost:5000 in .env.local');
   }
-  if (API_BASE_URL.includes('localhost')) {
-    console.warn('[API Client] WARNING: Using localhost:5000 - make sure NEXT_PUBLIC_BACKEND_API_URL is set in production!');
+  if (API_BASE_URL.includes('localhost') && runtimeURL === 'NOT SET') {
+    console.error('[API Client] ERROR: Using localhost:5000 in production!');
+    console.error('[API Client] NEXT_PUBLIC_BACKEND_API_URL is NOT SET - set it in Vercel and rebuild!');
   }
 }
 
@@ -58,17 +69,25 @@ class ApiClient {
    * Get the current base URL, re-evaluating environment variables at runtime
    * This ensures production builds use the correct API URL from environment variables
    * In Next.js, NEXT_PUBLIC_* variables are embedded at build time and available at runtime
+   * ALWAYS use this method instead of this.baseURL to ensure correct URL in production
    */
   getBaseURL(): string {
-    // Re-evaluate environment variables at runtime
-    // In Next.js, process.env.NEXT_PUBLIC_* vars are available in browser
+    // ALWAYS check environment variable first - this is the source of truth
+    // In Next.js, process.env.NEXT_PUBLIC_* vars are embedded at build time and available in browser
     const backendUrl = process.env.NEXT_PUBLIC_BACKEND_API_URL;
-    if (backendUrl) {
-      return backendUrl;
+    
+    if (backendUrl && backendUrl.trim() !== '') {
+      // Environment variable is set - use it (this should be the case in production)
+      return backendUrl.trim();
     }
 
-    // Fallback to current baseURL if env var not available
-    console.warn('[API Client] NEXT_PUBLIC_BACKEND_API_URL not set, using fallback:', this.baseURL || 'http://localhost:5000');
+    // Only fallback to localhost if env var is truly not set (local development)
+    // In production, this should never happen if NEXT_PUBLIC_BACKEND_API_URL is set in Vercel
+    if (typeof window !== 'undefined') {
+      console.warn('[API Client] NEXT_PUBLIC_BACKEND_API_URL not found in environment, using fallback:', this.baseURL || 'http://localhost:5000');
+      console.warn('[API Client] Make sure NEXT_PUBLIC_BACKEND_API_URL is set in Vercel environment variables and rebuild!');
+    }
+    
     return this.baseURL || 'http://localhost:5000';
   }
 
@@ -121,10 +140,31 @@ class ApiClient {
     }
 
     try {
-      // Use getBaseURL() to ensure we use runtime environment variables
+      // CRITICAL: Always use getBaseURL() which checks runtime env vars
+      // This ensures production uses the correct URL even if build was done before env var was set
       const baseURL = this.getBaseURL();
       const url = `${baseURL}${endpoint}`;
-      console.log(`[API Client] Making request to: ${url}`);
+      
+      // Enhanced logging to debug URL issues
+      if (typeof window !== 'undefined') {
+        console.log(`[API Client] Making request to: ${url}`);
+        console.log(`[API Client] URL Debug Info:`, {
+          endpoint,
+          envVar: process.env.NEXT_PUBLIC_BACKEND_API_URL || 'NOT SET',
+          usedURL: baseURL,
+          constructorURL: this.baseURL,
+          envVarMatchesUsed: process.env.NEXT_PUBLIC_BACKEND_API_URL === baseURL,
+        });
+        
+        // Warn if we're using localhost in what appears to be production
+        if (baseURL.includes('localhost') && typeof window !== 'undefined' && !window.location.hostname.includes('localhost')) {
+          console.error('[API Client] ERROR: Using localhost in production!');
+          console.error('[API Client] Current hostname:', window.location.hostname);
+          console.error('[API Client] Env var value:', process.env.NEXT_PUBLIC_BACKEND_API_URL);
+          console.error('[API Client] This usually means the build was done BEFORE env var was set in Vercel.');
+          console.error('[API Client] Solution: Set NEXT_PUBLIC_BACKEND_API_URL in Vercel, then trigger a NEW deployment.');
+        }
+      }
 
       const response = await fetch(url, {
         ...options,
