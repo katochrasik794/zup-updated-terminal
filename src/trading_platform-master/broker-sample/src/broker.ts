@@ -201,7 +201,7 @@ export class BrokerDemo extends AbstractBrokerMinimal {
 		}
 
 		// Open the Account Manager
-		this._host.setAccountManagerVisibilityMode(BottomWidgetBarMode.Normal);
+		// this._host.setAccountManagerVisibilityMode(BottomWidgetBarMode.Normal);
 
 		if (
 			(preOrder.type === OrderType.Market || preOrder.type === undefined)
@@ -286,13 +286,13 @@ export class BrokerDemo extends AbstractBrokerMinimal {
 			{
 				text: 'Balance',
 				wValue: this._balanceValue,
-				formatter: StandardFormatterName.Fixed, // Default value
+				formatter: 'fixed' as any, // StandardFormatterName.Fixed
 				isDefault: true,
 			},
 			{
 				text: 'Equity',
 				wValue: this._equityValue,
-				formatter: StandardFormatterName.Fixed, // Default value
+				formatter: 'fixed' as any, // StandardFormatterName.Fixed
 				isDefault: true,
 			},
 		];

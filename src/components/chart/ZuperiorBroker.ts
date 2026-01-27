@@ -1406,11 +1406,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			this._positionById[positionId] = position;
 
 			// CRITICAL: Call individualPositionUpdate (not positionUpdate) for individual positions
-			if (this._host && typeof this._host.individualPositionUpdate === 'function') {
-				const cleanPosition = this._createCleanPosition(position);
-				this._host.individualPositionUpdate(cleanPosition);
-			} else if (this._host && typeof this._host.positionUpdate === 'function') {
-				// Fallback to positionUpdate if individualPositionUpdate not available
+			if (this._host && typeof this._host.positionUpdate === 'function') {
 				const cleanPosition = this._createCleanPosition(position);
 				this._host.positionUpdate(cleanPosition);
 			}

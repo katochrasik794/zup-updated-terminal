@@ -18,21 +18,21 @@ import {
 export const ordersPageColumns: OrderTableColumn[] = [
 	{
 		label: 'Symbol',
-		formatter: StandardFormatterName.Symbol,
-		id: CommonAccountManagerColumnId.Symbol,
+		formatter: 'symbol' as any,
+		id: 'symbol' as any,
 		dataFields: ['symbol', 'symbol', 'message'],
 	},
 	{
 		label: 'Side',
 		id: 'side',
 		dataFields: ['side'],
-		formatter: StandardFormatterName.Side,
+		formatter: 'side' as any,
 	},
 	{
 		label: 'Type',
 		id: 'type',
 		dataFields: ['type', 'parentId', 'stopType'],
-		formatter: StandardFormatterName.Type,
+		formatter: 'type' as any,
 	},
 	{
 		label: 'Qty',
@@ -40,28 +40,28 @@ export const ordersPageColumns: OrderTableColumn[] = [
 		id: 'qty',
 		dataFields: ['qty'],
 		help: 'Size in lots',
-		formatter: StandardFormatterName.FormatQuantity,
+		formatter: 'formatQuantity' as any,
 	},
 	{
 		label: 'Limit Price',
 		alignment: 'right',
 		id: 'limitPrice',
 		dataFields: ['limitPrice'],
-		formatter: StandardFormatterName.FormatPrice,
+		formatter: 'formatPrice' as any,
 	},
 	{
 		label: 'Stop Price',
 		alignment: 'right',
 		id: 'stopPrice',
 		dataFields: ['stopPrice'],
-		formatter: StandardFormatterName.FormatPrice,
+		formatter: 'formatPrice' as any,
 	},
 	{
 		label: 'Last',
 		alignment: 'right',
 		id: 'last',
 		dataFields: ['last'],
-		formatter: StandardFormatterName.FormatPriceForexSup,
+		formatter: 'formatPriceForexSup' as any,
 		highlightDiff: true,
 	},
 	{
@@ -73,8 +73,8 @@ export const ordersPageColumns: OrderTableColumn[] = [
 		label: 'Status',
 		id: 'status',
 		dataFields: ['status'],
-		formatter: StandardFormatterName.Status,
-		supportedStatusFilters: [OrderStatusFilter.All],
+		formatter: 'status' as any,
+		supportedStatusFilters: [1 as any], // OrderStatusFilter.All
 	},
 	{
 		label: 'Order ID',
@@ -89,15 +89,15 @@ export const ordersPageColumns: OrderTableColumn[] = [
 export const positionsPageColumns: AccountManagerColumn[] = [
 	{
 		label: 'Symbol',
-		formatter: StandardFormatterName.Symbol,
-		id: CommonAccountManagerColumnId.Symbol,
+		formatter: 'symbol' as any,
+		id: 'symbol' as any,
 		dataFields: ['symbol', 'symbol', 'message'],
 	},
 	{
 		label: 'Side',
 		id: 'side',
 		dataFields: ['side'],
-		formatter: StandardFormatterName.Side,
+		formatter: 'side' as any,
 	},
 	{
 		label: 'Qty',
@@ -105,21 +105,21 @@ export const positionsPageColumns: AccountManagerColumn[] = [
 		id: 'qty',
 		dataFields: ['qty'],
 		help: 'Size in lots',
-		formatter: StandardFormatterName.FormatQuantity,
+		formatter: 'formatQuantity' as any,
 	},
 	{
 		label: 'Avg Fill Price',
 		alignment: 'right',
 		id: 'avgPrice',
 		dataFields: ['avgPrice'],
-		formatter: StandardFormatterName.FormatPrice,
+		formatter: 'formatPrice' as any,
 	},
 	{
 		label: 'Last',
 		alignment: 'right',
 		id: 'last',
 		dataFields: ['last'],
-		formatter: StandardFormatterName.FormatPriceForexSup,
+		formatter: 'formatPriceForexSup' as any,
 		highlightDiff: true,
 	},
 	{
@@ -127,21 +127,21 @@ export const positionsPageColumns: AccountManagerColumn[] = [
 		alignment: 'right',
 		id: 'pl',
 		dataFields: ['pl'],
-		formatter: StandardFormatterName.Profit,
+		formatter: 'profit' as any,
 	},
 	{
 		label: 'Stop Loss',
 		alignment: 'right',
 		id: 'stopLoss',
 		dataFields: ['stopLoss'],
-		formatter: StandardFormatterName.FormatPrice,
+		formatter: 'formatPrice' as any,
 	},
 	{
 		label: 'Take Profit',
 		alignment: 'right',
 		id: 'takeProfit',
 		dataFields: ['takeProfit'],
-		formatter: StandardFormatterName.FormatPrice,
+		formatter: 'formatPrice' as any,
 	},
 ];
 
@@ -161,14 +161,14 @@ export const accountSummaryColumns: AccountManagerColumn[] = [
 		alignment: 'right',
 		id: 'balance',
 		dataFields: ['balance'],
-		formatter: StandardFormatterName.Fixed,
+		formatter: 'fixed' as any,
 	},
 	{
 		label: 'Open PL',
 		alignment: 'right',
 		id: 'pl',
 		dataFields: ['pl'],
-		formatter: StandardFormatterName.Profit,
+		formatter: 'profit' as any,
 		notSortable: true,
 	},
 	{
@@ -176,7 +176,7 @@ export const accountSummaryColumns: AccountManagerColumn[] = [
 		alignment: 'right',
 		id: 'equity',
 		dataFields: ['equity'],
-		formatter: StandardFormatterName.Fixed,
+		formatter: 'fixed' as any,
 		notSortable: true,
 	},
 ];
