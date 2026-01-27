@@ -1,5 +1,5 @@
-@import "tailwindcss";
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@100..800&family=Manrope:wght@200..800&display=swap');
+@import "tailwindcss";
 
 @theme {
   --font-sans: 'Manrope', sans-serif;

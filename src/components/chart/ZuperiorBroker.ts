@@ -69,8 +69,8 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 	private readonly _accountId: string | null;
 	private readonly _positions: Position[] = [];
 	private readonly _orders: Order[] = [];
-	private readonly _positionById: SimpleMap<Position> = {};
-	private readonly _orderById: SimpleMap<Order> = {};
+	private _positionById: SimpleMap<Position> = {};
+	private _orderById: SimpleMap<Order> = {};
 	private _pollInterval: NodeJS.Timeout | null = null;
 	private _isPolling = false;
 	private _isWidgetReady = false;
@@ -106,7 +106,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 
 		// CRITICAL: Update bracket orders FIRST, then positions
 		// This is the correct order for TradingView to display TP/SL lines
-		
+
 		// 1. Update bracket orders first
 		bracketOrders.forEach(bracket => {
 			try {
@@ -150,10 +150,10 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 	private async _startPolling() {
 		if (this._isPolling || !this._accountId) return;
 		this._isPolling = true;
-		
+
 		// Initial fetch
 		await this._fetchPositionsAndOrders();
-		
+
 		// Poll every 2 seconds
 		this._pollInterval = setInterval(() => {
 			this._fetchPositionsAndOrders();
@@ -192,15 +192,15 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 
 			if (response && response.success) {
 				// Ensure we have arrays, handle null/undefined cases
-				const positionsArray = Array.isArray(response.positions) 
-					? response.positions 
-					: Array.isArray(response.data?.positions) 
-						? response.data.positions 
+				const positionsArray = Array.isArray(response.positions)
+					? response.positions
+					: Array.isArray(response.data?.positions)
+						? response.data.positions
 						: [];
-				const pendingArray = Array.isArray(response.pendingOrders) 
-					? response.pendingOrders 
-					: Array.isArray(response.data?.pendingOrders) 
-						? response.data.pendingOrders 
+				const pendingArray = Array.isArray(response.pendingOrders)
+					? response.pendingOrders
+					: Array.isArray(response.data?.pendingOrders)
+						? response.data.pendingOrders
 						: [];
 
 				console.log(`[ZuperiorBroker] Raw data - positions: ${positionsArray.length}, orders: ${pendingArray.length}`);
@@ -215,8 +215,8 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 							return null;
 						}
 					})
-					.filter((p: Position | null): p is Position => p !== null && p.id && p.symbol && p.qty > 0 && p.avgPrice > 0);
-				
+					.filter((p: Position | null): p is Position => !!p && !!p.id && !!p.symbol && p.qty > 0 && p.avgPrice > 0);
+
 				// Map pending orders - filter out invalid ones
 				const tvOrders = (Array.isArray(pendingArray) ? pendingArray : [])
 					.map((order: any) => {
@@ -231,7 +231,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 							return null;
 						}
 					})
-					.filter((o: Order | null): o is Order => o !== null && o.id && o.symbol && o.qty > 0);
+					.filter((o: Order | null): o is Order => !!o && !!o.id && !!o.symbol && o.qty > 0);
 
 				// Create bracket orders for positions with TP/SL using helper methods
 				const bracketOrders: Order[] = [];
@@ -291,7 +291,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 				} else {
 					console.warn('[ZuperiorBroker] Cannot update positions - arrays not valid');
 				}
-				
+
 				if (Array.isArray(this._orders) && Array.isArray(allOrders)) {
 					this._orders.length = 0;
 					this._orders.push(...allOrders);
@@ -326,7 +326,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 				// This order is required for TradingView to show TP/SL buttons on trade lines
 				if (this._isWidgetReady) {
 					console.log(`[ZuperiorBroker] Widget ready, notifying TradingView: ${bracketOrders.length} brackets, ${tvOrders.length} orders, ${tvPositions.length} positions`);
-					
+
 					// Step 1: Update positions FIRST with brackets so TradingView can show TP/SL buttons
 					if (Array.isArray(tvPositions) && tvPositions.length > 0) {
 						tvPositions.forEach(p => {
@@ -431,13 +431,13 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 	private _mapApiPositionToTVPosition(apiPos: any): Position {
 		const ticket = apiPos.ticket || apiPos.Ticket || apiPos.PositionId || apiPos.id;
 		const id = String(ticket);
-		
+
 		// Map side: Buy = 1, Sell = -1
 		// Check multiple possible fields for side/type
 		const typeStr = (apiPos.type || apiPos.Type || '').toString().toLowerCase();
 		const action = apiPos.Action || apiPos.action;
-		const isBuy = typeStr.includes('buy') || 
-			action === 0 || 
+		const isBuy = typeStr.includes('buy') ||
+			action === 0 ||
 			String(action) === '0' ||
 			(apiPos.type && (apiPos.type === 'Buy' || apiPos.type === 0));
 		const side = isBuy ? Side.Buy : Side.Sell;
@@ -510,7 +510,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 	private _mapApiOrderToTVOrder(apiOrder: any): Order {
 		const ticket = apiOrder.ticket || apiOrder.Ticket || apiOrder.OrderId || apiOrder.id;
 		const id = String(ticket);
-		
+
 		// Map order type
 		const orderType = apiOrder.orderType || apiOrder.Type || apiOrder.type;
 		let type: OrderType;
@@ -645,11 +645,11 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			// Call API to cancel order - use fetch directly since we need DELETE with body
 			const token = apiClient.getToken();
 			// Get base URL from environment or default to localhost:5000
-			const baseURL = process.env.NEXT_PUBLIC_BACKEND_API_URL || 
-				(process.env.NEXT_PUBLIC_API_BASE_URL && process.env.NEXT_PUBLIC_API_BASE_URL.includes('localhost') 
-					? process.env.NEXT_PUBLIC_API_BASE_URL 
+			const baseURL = process.env.NEXT_PUBLIC_BACKEND_API_URL ||
+				(process.env.NEXT_PUBLIC_API_BASE_URL && process.env.NEXT_PUBLIC_API_BASE_URL.includes('localhost')
+					? process.env.NEXT_PUBLIC_API_BASE_URL
 					: 'http://localhost:5000');
-			
+
 			const response = await fetch(`${baseURL}/api/trading/pending/order/${orderId}`, {
 				method: 'DELETE',
 				headers: {
@@ -694,9 +694,9 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			}
 
 			const token = apiClient.getToken();
-			const baseURL = process.env.NEXT_PUBLIC_BACKEND_API_URL || 
-				(process.env.NEXT_PUBLIC_API_BASE_URL && process.env.NEXT_PUBLIC_API_BASE_URL.includes('localhost') 
-					? process.env.NEXT_PUBLIC_API_BASE_URL 
+			const baseURL = process.env.NEXT_PUBLIC_BACKEND_API_URL ||
+				(process.env.NEXT_PUBLIC_API_BASE_URL && process.env.NEXT_PUBLIC_API_BASE_URL.includes('localhost')
+					? process.env.NEXT_PUBLIC_API_BASE_URL
 					: 'http://localhost:5000');
 
 			const response = await fetch(`${baseURL}/api/trading/close`, {
@@ -763,7 +763,10 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			if (!position) {
 				// Try to get from positions array
 				const positions = await this.positions();
-				position = positions.find(p => p.id === positionId);
+				const found = positions.find(p => p.id === positionId);
+				if (found) {
+					position = found;
+				}
 			}
 
 			if (!position) {
@@ -882,6 +885,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			summary: [],
 			orderColumns: [],
 			positionColumns: [],
+			pages: [],
 		};
 	}
 
@@ -1055,7 +1059,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 
 				// Update position cache - ensure profit is set before storing
 				this._positionById[id] = position;
-				
+
 				// Debug: Log profit value before creating clean position
 				console.log('[ZuperiorBroker] Position profit before clean:', {
 					id: position.id,
@@ -1067,14 +1071,14 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 				// The position must have takeProfit/stopLoss fields set (even if undefined) for buttons to appear
 				if (this._isWidgetReady) {
 					const cleanPosition = this._createCleanPosition(position);
-					
+
 					// Debug: Log profit value after creating clean position
 					console.log('[ZuperiorBroker] Position profit after clean:', {
 						id: cleanPosition.id,
 						cleanProfit: (cleanPosition as any).pl,
 						profitType: typeof (cleanPosition as any).pl,
 					});
-					
+
 					// Step 1: Update position with brackets FIRST
 					safeHostCall(this._host, 'positionUpdate', cleanPosition);
 					if ((cleanPosition as any).pl !== undefined && (cleanPosition as any).pl !== null) {
@@ -1180,7 +1184,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 
 	private _createTakeProfitBracket(entity: Position | Order): Order {
 		const isPosition = 'avgPrice' in entity;
-		
+
 		if (!entity.symbol || typeof entity.symbol !== 'string' || entity.symbol.trim() === '') {
 			throw new Error(`Invalid symbol for TP bracket: ${entity.symbol} (entity id: ${entity.id})`);
 		}
@@ -1216,7 +1220,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 
 	private _createStopLossBracket(entity: Position | Order): Order {
 		const isPosition = 'avgPrice' in entity;
-		
+
 		if (!entity.symbol || typeof entity.symbol !== 'string' || entity.symbol.trim() === '') {
 			throw new Error(`Invalid symbol for SL bracket: ${entity.symbol} (entity id: ${entity.id})`);
 		}
@@ -1258,8 +1262,8 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 
 	private _getBrackets(parentId: string): Order[] {
 		return Object.values(this._orderById).filter(
-			(order: Order) => order.parentId === parentId && 
-			(order.status === OrderStatus.Working || order.status === OrderStatus.Inactive)
+			(order: Order) => order.parentId === parentId &&
+				(order.status === OrderStatus.Working || order.status === OrderStatus.Inactive)
 		);
 	}
 
