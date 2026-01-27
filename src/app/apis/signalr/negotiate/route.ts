@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
 
     // Build the target negotiate URL
     // The hub URL should point to the SignalR hub endpoint
-    const RAW_BASE = (process.env.TRADING_HUB_URL || process.env.NEXT_PUBLIC_API_BASE_URL || 'https://metaapi.zuperior.com').replace(/\/$/, '');
+    const RAW_BASE = (process.env.TRADING_HUB_URL || 'https://metaapi.zuperior.com').replace(/\/$/, '');
     const TRADING_HUB_BASE = RAW_BASE.includes('/hubs/') ? RAW_BASE : `${RAW_BASE}/hubs/${hub}`;
     
     const negotiateUrl = `${TRADING_HUB_BASE}/negotiate${params.toString() ? '?' + params.toString() : ''}`;
