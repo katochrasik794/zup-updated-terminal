@@ -416,4 +416,18 @@ export class RealtimeDataFeed {
             delete subs[listenerGuid];
         }
     }
+
+    // IDatafeedQuotesApi implementation
+    public getQuotes(symbols: string[], onDataCallback: (data: any[]) => void, onErrorCallback: (error: string) => void): void {
+        // Implementation can be added if needed, for now satisfying the interface
+        onDataCallback([]);
+    }
+
+    public subscribeQuotes(symbols: string[], fastSymbols: string[], onRealtimeCallback: (data: any[]) => void, listenerGUID: string): void {
+        // Implementation can be added if needed, for now satisfying the interface
+    }
+
+    public unsubscribeQuotes(listenerGUID: string): void {
+        // Implementation can be added if needed, for now satisfying the interface
+    }
 }
