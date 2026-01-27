@@ -108,7 +108,7 @@ export function InstrumentProvider({ children }: { children: React.ReactNode }) 
                 setError(response.message || 'Failed to fetch symbols')
             }
         } catch (err) {
-            console.error('[InstrumentContext] Fetch Error:', err)
+
             setError('Connection error')
         } finally {
             setIsLoading(false)

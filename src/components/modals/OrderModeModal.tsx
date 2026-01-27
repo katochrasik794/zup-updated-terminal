@@ -82,7 +82,7 @@ export default function OrderModeModal({ isOpen, onClose, onConfirm, mode }) {
             </button>
             <button
               onClick={() => onConfirm(dontShowAgain)}
-              className="px-4 py-2 bg-[#eab308] hover:bg-[#facc15] text-black text-[14px] font-bold rounded transition-colors"
+              className="px-4 py-2 bg-[#8b5cf6] hover:bg-[#7c3aed] text-white text-[14px] font-bold rounded transition-colors"
             >
               Yes, proceed
             </button>

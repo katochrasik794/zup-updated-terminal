@@ -147,7 +147,7 @@ export function useMultiAccountBalancePolling(accountIds: string[]) {
         throw new Error(response.message || 'API Error')
       }
     } catch (e: any) {
-      console.error(`[useAccountBalances] Error for ${accountId}:`, e)
+
       setErrors(prev => ({ ...prev, [accountId]: e.message }))
     } finally {
       setIsLoading(prev => ({ ...prev, [accountId]: false }))

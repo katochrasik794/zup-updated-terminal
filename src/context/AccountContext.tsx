@@ -124,7 +124,7 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
         setMt5Accounts([])
       }
     } catch (err) {
-      console.error('[AccountContext] Error fetching accounts:', err)
+
       setError(err instanceof Error ? err.message : 'Failed to fetch accounts')
       setMt5Accounts([])
     } finally {
@@ -172,7 +172,7 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
         return token;
       }
     } catch (err) {
-      console.error(`[AccountContext] Failed to get MetaAPI token for ${accountId}:`, err);
+
     }
 
     return null;

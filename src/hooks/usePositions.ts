@@ -130,42 +130,18 @@ const formatPosition = (pos: any, isClosedTrade: boolean = false): Position => {
     const volumeLots = pos.VolumeLots ?? pos.volumeLots;
     const rawVolume = pos.Volume ?? pos.volume ?? 0;
 
-    // Log volume fields for debugging
-    if (pos.OrderId || pos.orderId || pos.DealId || pos.dealId) {
-      console.log(`[formatPosition] Closed trade volume fields:`, {
-        OrderId: pos.OrderId ?? pos.orderId,
-        DealId: pos.DealId ?? pos.dealId,
-        Symbol: pos.Symbol ?? pos.symbol,
-        VolumeLots: volumeLots,
-        Volume: rawVolume,
-        allKeys: Object.keys(pos).filter(k => k.toLowerCase().includes('volume'))
-      });
-    }
-
     if (volumeLots !== undefined && volumeLots !== null) {
       volume = Number(volumeLots);
-      console.log(`[formatPosition] Using VolumeLots: ${volumeLots} -> ${volume}`);
     } else if (rawVolume !== undefined && rawVolume !== null) {
       const numVolume = Number(rawVolume);
-      console.log(`[formatPosition] Using Volume: ${rawVolume} (raw) -> ${numVolume} (parsed)`);
       // If volume < 1, multiply by 1000; if >= 100, divide by 100
       if (numVolume > 0 && numVolume < 1) {
         volume = numVolume * 1000;
-        console.log(`[formatPosition] Volume < 1, multiplied by 1000: ${volume}`);
       } else if (numVolume >= 100) {
         volume = numVolume / 100;
-        console.log(`[formatPosition] Volume >= 100, divided by 100: ${volume}`);
       } else {
         volume = numVolume;
-        console.log(`[formatPosition] Volume used as-is: ${volume}`);
       }
-    } else {
-      console.warn(`[formatPosition] No volume found for closed trade:`, {
-        OrderId: pos.OrderId ?? pos.orderId,
-        DealId: pos.DealId ?? pos.dealId,
-        Symbol: pos.Symbol ?? pos.symbol,
-        allKeys: Object.keys(pos)
-      });
     }
   } else {
     volume = Number(pos.Volume || pos.volume || 0);
@@ -194,15 +170,6 @@ const formatPosition = (pos: any, isClosedTrade: boolean = false): Position => {
   } else if (isPendingOrder) {
     // For pending orders, TimeSetup is the primary source
     openTime = pos.TimeSetup ?? pos.timeSetup ?? pos.TimeCreate ?? pos.timeCreate ?? pos.OpenTime ?? pos.openTime ?? new Date().toISOString();
-    // Log to verify TimeSetup is being used
-    if (pos.TimeSetup || pos.timeSetup) {
-      console.log(`[formatPosition] Pending order using TimeSetup:`, {
-        OrderId: pos.OrderId ?? pos.orderId,
-        Symbol: pos.Symbol ?? pos.symbol,
-        TimeSetup: pos.TimeSetup ?? pos.timeSetup,
-        formattedOpenTime: openTime
-      });
-    }
   } else {
     openTime = pos.TimeCreate ?? pos.timeCreate ?? pos.TimeSetup ?? pos.timeSetup ?? pos.OpenTime ?? pos.openTime ?? new Date().toISOString();
   }
@@ -322,7 +289,7 @@ export function usePositions({ accountId, enabled = true }: UsePositionsProps): 
         return;
       }
 
-      console.error('[usePositions] Error fetching positions:', err);
+
       if (isMountedRef.current) {
         // If account not found, don't show a blocking error, just set error state
         setError(err.message || 'Failed to fetch positions');

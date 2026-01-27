@@ -24,7 +24,7 @@ export async function getSession(): Promise<JWTPayload | null> {
 
     return verifyToken(token);
   } catch (error) {
-    console.error('[getSession] Error getting session:', error);
+
     return null;
   }
 }
@@ -37,7 +37,7 @@ export function verifyToken(token: string): JWTPayload | null {
     const decoded = jwt.verify(token, JWT_SECRET) as JWTPayload;
     return decoded;
   } catch (error) {
-    console.error('[verifyToken] Token verification failed:', error);
+
     return null;
   }
 }

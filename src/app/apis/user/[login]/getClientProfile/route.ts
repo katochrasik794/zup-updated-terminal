@@ -61,7 +61,6 @@ export async function GET(
     }, { status: 200 });
 
   } catch (error) {
-    console.error(`[getClientProfile] Error for account ${login}:`, error);
     
     return NextResponse.json({
       success: false,

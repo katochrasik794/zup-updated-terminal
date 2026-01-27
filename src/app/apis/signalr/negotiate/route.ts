@@ -25,7 +25,6 @@ export async function GET(request: NextRequest) {
     
     const negotiateUrl = `${TRADING_HUB_BASE}/negotiate${params.toString() ? '?' + params.toString() : ''}`;
     
-    console.log('[SignalR Negotiate Proxy] Proxying to:', negotiateUrl, 'hub:', hub);
 
     // Forward the negotiate request
     // Collect optional auth headers from the incoming request or query params
@@ -54,15 +53,12 @@ export async function GET(request: NextRequest) {
             const tokenData = await tokenRes.json().catch(() => ({} as any));
             clientToken = tokenData?.token || tokenData?.Token || tokenData?.accessToken || undefined;
             if (clientToken) {
-              console.log('[SignalR Negotiate Proxy] Successfully obtained token from backend for account:', accountId);
             }
           } else {
             const errorText = await tokenRes.text().catch(() => '');
-            console.error('[SignalR Negotiate Proxy] Backend token fetch failed:', tokenRes.status, errorText);
           }
         }
       } catch (err) {
-        console.error('[SignalR Negotiate Proxy] Error fetching token from backend:', err);
       }
     }
 
@@ -89,7 +85,6 @@ export async function GET(request: NextRequest) {
 
       if (!response.ok) {
         const errorText = await response.text().catch(() => '');
-        console.error('[SignalR Negotiate Proxy] Error:', response.status, errorText, 'URL:', negotiateUrl);
         return NextResponse.json(
           { error: `Negotiate failed: ${response.status}`, details: errorText },
           { status: response.status }
@@ -100,7 +95,6 @@ export async function GET(request: NextRequest) {
       
       // Modify the response to point WebSocket connections through our proxy
       // For now, we'll keep the original URL but this can be modified if needed
-      console.log('[SignalR Negotiate Proxy] Success:', data.connectionId);
       
       return NextResponse.json(data, {
         headers: {
@@ -112,9 +106,7 @@ export async function GET(request: NextRequest) {
       });
     } catch (fetchError: any) {
       clearTimeout(timeoutId)
-      console.error('[SignalR Negotiate Proxy] Fetch exception:', fetchError);
       if (fetchError.name === 'AbortError' || fetchError.name === 'TimeoutError') {
-        console.error('[SignalR Negotiate Proxy] Timeout after 20s - SignalR hub may be slow or unreachable', { negotiateUrl });
         return NextResponse.json(
           { error: 'Request timeout - SignalR hub may be unavailable or slow. Please try again.' },
           { status: 504 }
@@ -127,7 +119,6 @@ export async function GET(request: NextRequest) {
     }
 
   } catch (error) {
-    console.error('[SignalR Negotiate Proxy] Exception:', error);
     return NextResponse.json(
       { error: 'Internal server error', details: error instanceof Error ? error.message : String(error) },
       { status: 500 }
@@ -156,7 +147,6 @@ export async function POST(request: NextRequest) {
     // Reuse GET logic - NextRequest handles query params from URL automatically
     return GET(request)
   } catch (error) {
-    console.error('[SignalR Negotiate Proxy][POST] Exception:', error)
     return NextResponse.json({ 
       error: 'Internal server error', 
       details: error instanceof Error ? error.message : String(error) 

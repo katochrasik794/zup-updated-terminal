@@ -157,7 +157,6 @@ const ModifyPositionModal = () => {
         const orderId = position.ticket || position.id;
         
         if (!orderId) {
-          console.error('ModifyPositionModal: No order ID found');
           return;
         }
         
@@ -183,7 +182,6 @@ const ModifyPositionModal = () => {
         
         // Only proceed if at least one value is being modified
         if (tp === undefined && sl === undefined) {
-          console.warn('ModifyPositionModal: No valid TP/SL values to modify');
           onClose();
           return;
         }
@@ -194,7 +192,6 @@ const ModifyPositionModal = () => {
           sl: sl
         });
       } catch (error) {
-        console.error('ModifyPositionModal: Error in handleAction', error);
       }
     }
     // Add logic for partial close / close by if needed

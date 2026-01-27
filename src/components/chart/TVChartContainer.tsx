@@ -26,7 +26,6 @@ export const TVChartContainer = () => {
 
     useEffect(() => {
         if (lastModification && brokerRef.current) {
-            console.log("TVChartContainer received modification request:", lastModification);
 
             // BrokerDemo uses editPositionBrackets(positionId, modifiedBrackets)
             // where modifiedBrackets is { stopLoss?: number, takeProfit?: number }
@@ -39,20 +38,16 @@ export const TVChartContainer = () => {
                     ...(tp !== undefined && !isNaN(tp) ? { takeProfit: tp } : {}),
                 };
 
-                console.log(`Calling broker modification: ID=${lastModification.id}, Brackets=`, modifiedBrackets);
 
                 brokerRef.current.editPositionBrackets(lastModification.id, modifiedBrackets)
-                    .then(() => console.log("Position modification sent to broker"))
-                    .catch((err: any) => console.error("Failed to modify position", err));
+                    .catch(() => {});
             } else {
-                console.error("Broker does not support position modification. Available methods:", Object.keys(brokerRef.current));
             }
         }
     }, [lastModification]);
 
     useEffect(() => {
         if (!modifyModalState.isOpen && modifyModalPromiseResolve.current) {
-            console.log("Modify modal closed, resolving promise");
             modifyModalPromiseResolve.current(true);
             modifyModalPromiseResolve.current = null;
         }
@@ -61,7 +56,6 @@ export const TVChartContainer = () => {
     // Update broker account ID when it changes
     useEffect(() => {
         if (brokerRef.current && currentAccountId) {
-            console.log("Updating broker account ID:", currentAccountId);
             if (typeof brokerRef.current.setAccountId === 'function') {
                 brokerRef.current.setAccountId(currentAccountId);
             }
@@ -70,7 +64,6 @@ export const TVChartContainer = () => {
 
     useEffect(() => {
         if (lastOrder && brokerRef.current) {
-            console.log("TVChartContainer received order:", lastOrder);
             // Append silent flag to userData or similar if supported, or rely on handling in broker factory
             // For now, passing order as is.
             // Map context Order to TradingView Broker PreOrder
@@ -104,11 +97,9 @@ export const TVChartContainer = () => {
             else if (lastOrder.type === 'limit') preOrder.type = 1;
             else if (lastOrder.type === 'stop') preOrder.type = 3;
 
-            console.log("Placing mapped order:", preOrder);
 
             brokerRef.current.placeOrder(preOrder)
-                .then(() => console.log("Order placed on chart"))
-                .catch((err: any) => console.error("Failed to place order on chart", err));
+                .catch(() => {});
         }
     }, [lastOrder]);
 
@@ -119,9 +110,7 @@ export const TVChartContainer = () => {
         if (widgetRef.current && symbol) {
             const currentSymbol = widgetRef.current.activeChart().symbol();
             if (currentSymbol !== symbol) {
-                console.log(`[Chart] External symbol change detected: ${currentSymbol} -> ${symbol}`);
                 widgetRef.current.setSymbol(symbol, widgetRef.current.activeChart().resolution(), () => {
-                    console.log(`[Chart] Symbol updated to ${symbol}`);
                 });
             }
         }
@@ -143,33 +132,29 @@ export const TVChartContainer = () => {
 
         const initWidget = () => {
             if (!window.TradingView || !window.Brokers || !window.CustomDialogs) {
-                console.error('TradingView libraries not loaded yet');
                 return;
             }
 
             // Use our custom RealtimeDataFeed
             const datafeed = new RealtimeDataFeed();
 
-            const onCancelOrderResultCallback = (result: any) => console.log('Cancel Order Result:', result);
-            const onCloseOrderResultCallback = (result: any) => console.log('Close Order Result:', result);
-            const onReversePositionResultCallback = (result: any) => console.log('Reverse Position Result:', result);
-            const onOrderResultCallback = (result: any) => console.log('Order Result:', result);
-            const onPositionResultCallback = (result: any) => console.log('Position Result:', result);
+            const onCancelOrderResultCallback = () => {};
+            const onCloseOrderResultCallback = () => {};
+            const onReversePositionResultCallback = () => {};
+            const onOrderResultCallback = () => {};
+            const onPositionResultCallback = () => {};
 
             const customCancelOrderDialog = window.CustomDialogs.createCancelOrderDialog(onCancelOrderResultCallback);
             const customClosePositionDialog = window.CustomDialogs.createClosePositionDialog(onCloseOrderResultCallback);
             const customReversePositionDialog = window.CustomDialogs.createReversePositionDialog(onReversePositionResultCallback);
 
             const sendOrderRequest = (order: any) => {
-                console.log('sendOrderRequest():', order);
             };
 
             const sendModifyOrder = (order: any) => {
-                console.log('sendModifyOrder():', order);
             };
 
             const redrawChart = () => {
-                console.log('redraw chart');
             };
 
             let customOrderDialog: any = null;
@@ -294,7 +279,6 @@ export const TVChartContainer = () => {
                             return Promise.resolve(true);
                         },
                         showPositionDialog: (position: any, brackets: any, focus: any) => {
-                            console.log("CustomUI showPositionDialog triggered", position, brackets);
                             // Map BrokerDemo position fields to ModifyPositionModal fields
                             const mappedPosition = {
                                 ...position,
@@ -312,7 +296,6 @@ export const TVChartContainer = () => {
                             });
                         },
                         showPositionBracketsDialog: (position: any, brackets: any, focus: any) => {
-                            console.log("CustomUI showPositionBracketsDialog triggered", position, brackets);
                             const mappedPosition = {
                                 ...position,
                                 openPrice: position.avg_price || position.avgPrice || position.price,
@@ -360,10 +343,8 @@ export const TVChartContainer = () => {
             window.tvWidget = tvWidget;
 
             tvWidget.onChartReady(() => {
-                console.log('Chart is ready');
 
                 tvWidget.activeChart().onSymbolChanged().subscribe(null, (symbolData: any) => {
-                    console.log("Symbol changed:", symbolData);
                     setSymbol(tvWidget.activeChart().symbol());
                 });
 
@@ -374,7 +355,6 @@ export const TVChartContainer = () => {
 
                 // Notify broker that widget is ready
                 if (brokerRef.current && typeof brokerRef.current.setWidgetReady === 'function') {
-                    console.log('Setting broker widget ready');
                     brokerRef.current.setWidgetReady(true);
                 }
             });
@@ -407,11 +387,8 @@ export const TVChartContainer = () => {
                 initWidget();
             })
             .catch(err => {
-                console.error('Error loading scripts:', err);
                 if (err instanceof Error) {
-                    console.error('Error details:', err.message);
                 } else {
-                    console.error('Error object:', JSON.stringify(err, null, 2));
                 }
             });
 

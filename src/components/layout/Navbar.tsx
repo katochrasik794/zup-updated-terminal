@@ -221,21 +221,16 @@ export default function Navbar({ logoLarge, logoSmall }: NavbarProps) {
     // Normalize symbol for comparison (trim and uppercase)
     const normalizedSymbol = symbolData.symbol.trim().toUpperCase();
 
-    console.log('[Navbar] handleSelectSymbol called with:', symbolData.symbol);
-    console.log('[Navbar] Current tabs:', tabs.map(t => t.symbol));
-    console.log('[Navbar] Looking for normalized:', normalizedSymbol);
 
     const existingTab = tabs.find(tab => tab.symbol.trim().toUpperCase() === normalizedSymbol)
 
     if (existingTab) {
       // Tab already exists, just make it active
-      console.log('[Navbar] Tab exists, making active:', existingTab.id);
       handleTabClick(existingTab.id)
       return
     }
 
     // Create new tab only if it doesn't exist
-    console.log('[Navbar] Creating new tab for:', symbolData.symbol);
     const newId = Date.now().toString()
     const newTab: Tab = {
       id: newId,

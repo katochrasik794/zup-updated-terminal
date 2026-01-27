@@ -76,7 +76,6 @@ export default function AccountDropdown({ isOpen, onClose }) {
 
       setListBalances(prev => ({ ...prev, ...results }));
     } catch (err) {
-      console.error('[AccountDropdown] Fetch List Error:', err);
     }
   }, [isOpen, mt5Accounts]);
 
@@ -156,7 +155,6 @@ export default function AccountDropdown({ isOpen, onClose }) {
           ].map((item, idx) => {
             // Debug: Log P/L item
             if (item.isPL && isOpen) {
-              console.log('[AccountDropdown] Rendering P/L item:', {
                 label: item.label,
                 value: item.value,
                 profitLoss,

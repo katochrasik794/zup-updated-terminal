@@ -95,11 +95,11 @@ class WebSocketManager {
             this.ws.close();
         }
 
-        console.log(`[WS] Connecting to ${this.url}`);
+
         this.ws = new WebSocket(this.url);
 
         this.ws.onopen = () => {
-            console.log('[WS] Connected');
+
             this.resubscribe();
             this.processQueue();
         };
@@ -109,24 +109,24 @@ class WebSocketManager {
                 const data = JSON.parse(event.data);
                 this.handleMessage(data);
             } catch (e) {
-                console.error('[WS] Error parsing message:', e);
+
             }
         };
 
         this.ws.onclose = () => {
-            console.log('[WS] Disconnected, reconnecting in 2s...');
+
             this.ws = null;
             this.reconnectTimeout = setTimeout(() => this.connect(), 2000);
         };
 
         this.ws.onerror = (err) => {
-            console.error('[WS] Error:', err);
+
             // Close will be called automatically or we can force close
         };
     }
 
     private processQueue() {
-        console.log(`[WS] Processing ${this.requestQueue.length} queued requests`);
+
         while (this.requestQueue.length > 0) {
             const req = this.requestQueue.shift();
             if (req) req();
@@ -200,7 +200,7 @@ class WebSocketManager {
         };
 
         if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-            console.log(`[WS] Queuing history request for ${symbol} ${tf}`);
+
             this.requestQueue.push(runRequest);
         } else {
             runRequest();
@@ -208,7 +208,7 @@ class WebSocketManager {
     }
 
     private handleMessage(data: any) {
-        // console.log('[WS] Message:', data);
+        //
 
         if (data.type === 'candle_snapshot') {
             const response = data as CandleHistoryResponse;

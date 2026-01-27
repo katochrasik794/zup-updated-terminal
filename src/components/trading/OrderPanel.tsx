@@ -449,11 +449,20 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
       ? parseFloat(openPrice)
       : undefined
 
+    // Use violet for risk calculator form buttons, keep red/blue for regular form
+    const isRiskCalculator = formType === "risk-calculator"
+    const sellButtonBorder = isRiskCalculator ? 'border-[#8b5cf6]' : 'border-[#FF5555]'
+    const sellButtonHover = isRiskCalculator ? 'hover:bg-[#8b5cf6]/10' : 'hover:bg-[#FF5555]/10'
+    const buyButtonBorder = isRiskCalculator ? 'border-[#8b5cf6]' : 'border-[#4A9EFF]'
+    const buyButtonHover = isRiskCalculator ? 'hover:bg-[#8b5cf6]/10' : 'hover:bg-[#4A9EFF]/10'
+    const sellButtonTextColor = isRiskCalculator ? 'text-[#8b5cf6]' : 'text-[#FF5555]'
+    const buyButtonTextColor = isRiskCalculator ? 'text-[#8b5cf6]' : 'text-[#4A9EFF]'
+
     return (
       <div className="relative grid grid-cols-2 gap-3">
         <button
           type="button"
-          className={`rounded-md p-3 border-2 border-[#FF5555] bg-transparent ${readOnly ? '' : 'hover:bg-[#FF5555]/10'} text-left cursor-pointer`}
+          className={`rounded-md p-3 border-2 ${sellButtonBorder} bg-transparent ${readOnly ? '' : sellButtonHover} text-left cursor-pointer`}
           onClick={readOnly ? undefined : () => {
             if (showConfirmation) {
               // In regular form, set pending order side to show confirmation
@@ -462,7 +471,6 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
               // In risk calculator or pending orders, place order directly
               if (!onSell) return
               if (!finalVolume || finalVolume <= 0) {
-                console.warn('Invalid volume for sell order:', finalVolume)
                 return
               }
               // For pending orders, validate that openPrice is provided
@@ -484,7 +492,7 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
           disabled={readOnly}
         >
           <div className="text-xs text-white/60 mb-1">Sell</div>
-          <div className="price-font text-[#FF5555] font-bold text-sm leading-tight">
+          <div className={`price-font ${sellButtonTextColor} font-bold text-sm leading-tight`}>
             {Math.floor(currentSellPrice).toLocaleString()}
             <span className="text-lg">.{String(Math.floor((currentSellPrice % 1) * 100)).padStart(2, '0')}</span>
             <sup className="text-sm">{String(Math.floor((currentSellPrice % 1) * 1000) % 10)}</sup>
@@ -493,7 +501,7 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
 
         <button
           type="button"
-          className={`rounded-md p-3 border-2 border-[#4A9EFF] bg-transparent ${readOnly ? '' : 'hover:bg-[#4A9EFF]/10'} text-right cursor-pointer`}
+          className={`rounded-md p-3 border-2 ${buyButtonBorder} bg-transparent ${readOnly ? '' : buyButtonHover} text-right cursor-pointer`}
           onClick={readOnly ? undefined : () => {
             if (showConfirmation) {
               // In regular form, set pending order side to show confirmation
@@ -502,7 +510,6 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
               // In risk calculator or pending orders, place order directly
               if (!onBuy) return
               if (!finalVolume || finalVolume <= 0) {
-                console.warn('Invalid volume for buy order:', finalVolume)
                 return
               }
               // For pending orders, validate that openPrice is provided
@@ -524,7 +531,7 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
           disabled={readOnly}
         >
           <div className="text-xs text-white/60 mb-1">Buy</div>
-          <div className="price-font text-[#4A9EFF] font-bold text-sm leading-tight">
+          <div className={`price-font ${buyButtonTextColor} font-bold text-sm leading-tight`}>
             {Math.floor(currentBuyPrice).toLocaleString()}
             <span className="text-lg">.{String(Math.floor((currentBuyPrice % 1) * 100)).padStart(2, '0')}</span>
             <sup className="text-sm">{String(Math.floor((currentBuyPrice % 1) * 1000) % 10)}</sup>
@@ -1091,7 +1098,6 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
                       if (!handler) return
                       const finalVolume = parseFloat(volume) || 0.01
                       if (finalVolume <= 0) {
-                        console.warn(`Invalid volume for ${pendingOrderSide} order:`, finalVolume)
                         return
                       }
                       let finalStopLoss: number | undefined = undefined

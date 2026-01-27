@@ -42,25 +42,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const token = apiClient.getToken();
       if (!token) {
-        console.log('[AuthContext] No token found, user is not authenticated');
+
         setIsLoading(false);
         return;
       }
 
-      console.log('[AuthContext] Checking authentication with token...');
+
       const response = await authApi.getCurrentUser() as any;
       if (response.success && response.user) {
-        console.log('[AuthContext] Authentication successful, user:', (response.user as any).email);
+.email);
         setUser(response.user);
       } else {
-        console.warn('[AuthContext] Authentication failed, clearing token');
+
         apiClient.clearToken();
       }
     } catch (error: any) {
-      console.error('[AuthContext] Auth check failed:', error);
+
       // Don't clear token on network errors - might just be backend not running
       if (error.message && error.message.includes('Backend server is not reachable')) {
-        console.warn('[AuthContext] Backend server not reachable - this is expected if server is not running');
+
       } else {
         apiClient.clearToken();
       }
@@ -126,7 +126,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // 2. Fire and forget the logout request to the server (don't block UI)
     try {
-      authApi.logout().catch(err => console.error('[AuthContext] BG Logout Error:', err));
+      authApi.logout().catch(err =>);
     } catch (error) {
       // Ignore background errors
     }
@@ -139,7 +139,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(response.user);
       }
     } catch (error) {
-      console.error('Failed to refresh user:', error);
+
       setUser(null);
     }
   };

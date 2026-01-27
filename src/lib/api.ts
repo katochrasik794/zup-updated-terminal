@@ -22,31 +22,7 @@ const getBackendUrl = () => {
 
 const API_BASE_URL = getBackendUrl();
 
-// Log the base URL for debugging
-if (typeof window !== 'undefined') {
-  const runtimeURL = process.env.NEXT_PUBLIC_BACKEND_API_URL || 'NOT SET';
-  console.log('[API Client] Build-time base URL:', API_BASE_URL);
-  console.log('[API Client] Runtime environment variable:', {
-    NEXT_PUBLIC_BACKEND_API_URL: runtimeURL,
-  });
-  
-  // Check if runtime URL differs from build-time URL (indicates env var was set after build)
-  if (runtimeURL !== 'NOT SET' && runtimeURL !== API_BASE_URL) {
-    console.warn('[API Client] WARNING: Runtime env var differs from build-time URL!');
-    console.warn('[API Client] Build-time:', API_BASE_URL);
-    console.warn('[API Client] Runtime:', runtimeURL);
-    console.warn('[API Client] This means env var was set AFTER build. Rebuild required!');
-  }
-  
-  if (API_BASE_URL.includes('metaapi')) {
-    console.warn('[API Client] WARNING: API base URL points to MetaAPI instead of local backend!');
-    console.warn('[API Client] Set NEXT_PUBLIC_BACKEND_API_URL=http://localhost:5000 in .env.local');
-  }
-  if (API_BASE_URL.includes('localhost') && runtimeURL === 'NOT SET') {
-    console.error('[API Client] ERROR: Using localhost:5000 in production!');
-    console.error('[API Client] NEXT_PUBLIC_BACKEND_API_URL is NOT SET - set it in Vercel and rebuild!');
-  }
-}
+// Production: Console logs removed
 
 export interface ApiResponse<T = any> {
   success: boolean;
@@ -93,20 +69,6 @@ class ApiClient {
     // This ensures it works even if env var wasn't set during build
     if (isProduction) {
       const productionBackendUrl = 'https://zup-terminal-backend.onrender.com';
-      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_API_URL;
-      
-      // Log for debugging
-      if (typeof window !== 'undefined') {
-        console.log('[API Client] Production environment detected');
-        console.log('[API Client] Using production backend URL:', productionBackendUrl);
-        if (backendUrl && backendUrl.trim() !== '') {
-          console.log('[API Client] Env var also set:', backendUrl);
-        } else {
-          console.warn('[API Client] NEXT_PUBLIC_BACKEND_API_URL not in build - using hardcoded production URL');
-          console.warn('[API Client] Set NEXT_PUBLIC_BACKEND_API_URL in Vercel and rebuild for proper fix.');
-        }
-      }
-      
       return productionBackendUrl;
     }
 
@@ -117,10 +79,6 @@ class ApiClient {
     }
 
     // Fallback to localhost for local development only
-    if (typeof window !== 'undefined') {
-      console.log('[API Client] Local development detected, using:', this.baseURL || 'http://localhost:5000');
-    }
-    
     return this.baseURL || 'http://localhost:5000';
   }
 
@@ -177,27 +135,6 @@ class ApiClient {
       // This ensures production uses the correct URL even if build was done before env var was set
       const baseURL = this.getBaseURL();
       const url = `${baseURL}${endpoint}`;
-      
-      // Enhanced logging to debug URL issues
-      if (typeof window !== 'undefined') {
-        console.log(`[API Client] Making request to: ${url}`);
-        console.log(`[API Client] URL Debug Info:`, {
-          endpoint,
-          envVar: process.env.NEXT_PUBLIC_BACKEND_API_URL || 'NOT SET',
-          usedURL: baseURL,
-          constructorURL: this.baseURL,
-          envVarMatchesUsed: process.env.NEXT_PUBLIC_BACKEND_API_URL === baseURL,
-        });
-        
-        // Warn if we're using localhost in what appears to be production
-        if (baseURL.includes('localhost') && typeof window !== 'undefined' && !window.location.hostname.includes('localhost')) {
-          console.error('[API Client] ERROR: Using localhost in production!');
-          console.error('[API Client] Current hostname:', window.location.hostname);
-          console.error('[API Client] Env var value:', process.env.NEXT_PUBLIC_BACKEND_API_URL);
-          console.error('[API Client] This usually means the build was done BEFORE env var was set in Vercel.');
-          console.error('[API Client] Solution: Set NEXT_PUBLIC_BACKEND_API_URL in Vercel, then trigger a NEW deployment.');
-        }
-      }
 
       const response = await fetch(url, {
         ...options,
@@ -224,15 +161,8 @@ class ApiClient {
       // Handle network errors (backend not running, CORS, etc.)
       if (error.name === 'TypeError' && error.message === 'Failed to fetch') {
         const currentBaseURL = this.getBaseURL();
-        console.error(`[API Client] Network error - Backend server may not be running at ${currentBaseURL}`);
-        if (currentBaseURL.includes('localhost') && typeof window !== 'undefined' && !window.location.hostname.includes('localhost')) {
-          console.error('[API Client] CRITICAL: Using localhost in production!');
-          console.error('[API Client] Env var:', process.env.NEXT_PUBLIC_BACKEND_API_URL || 'NOT SET');
-          console.error('[API Client] You must rebuild the app AFTER setting NEXT_PUBLIC_BACKEND_API_URL in Vercel!');
-        }
         throw new Error(`Backend server is not reachable at ${currentBaseURL}. Please ensure the server is running.`);
       }
-      console.error('[API Request Error]:', error);
       throw error;
     }
   }

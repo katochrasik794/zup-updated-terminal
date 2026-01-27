@@ -137,7 +137,7 @@ const enrichPositions = async (positions: Position[], accountId: string, accessT
       });
     }
   } catch (err) {
-    console.error('[Enrich Positions] Error:', err);
+
   }
 
   return positions;
@@ -360,7 +360,7 @@ export function usePositionsSignalR({
                 setPositions(enriched);
               }
             }).catch(err => {
-              console.error('[Enrichment] Error:', err);
+
             });
           }
           return current;
@@ -370,7 +370,7 @@ export function usePositionsSignalR({
       enrichmentIntervalRef.current = setInterval(enrichmentHandler, UPDATE_INTERVAL);
 
     } catch (err: any) {
-      console.error('[SignalR] Connection error:', err);
+
       setError(err.message || 'Failed to connect');
       setIsConnecting(false);
       setIsConnected(false);

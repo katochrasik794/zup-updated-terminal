@@ -72,12 +72,12 @@ export function TradingProvider({ children }) {
     };
 
     const placeOrder = (order: Order) => {
-        console.log("Placing order globally:", order);
+
         setLastOrder(order);
     };
 
     const requestModifyPosition = (modification: any) => {
-        console.log("Requesting position modification:", modification);
+
         setLastModification(modification);
     };
 

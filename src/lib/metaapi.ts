@@ -89,7 +89,7 @@ export async function closePositionDirect({
             data,
         };
     } catch (error: any) {
-        console.error('[MetaAPI] Close position error:', error);
+
         return {
             success: false,
             message: error.message || 'Network error',
@@ -177,7 +177,7 @@ export async function placeMarketOrderDirect({
             data,
         };
     } catch (error: any) {
-        console.error('[MetaAPI] Market order error:', error);
+
         return {
             success: false,
             message: error.message || 'Network error',
@@ -248,7 +248,7 @@ export async function placePendingOrderDirect({
             data,
         };
     } catch (error: any) {
-        console.error('[MetaAPI] Pending order error:', error);
+
         return {
             success: false,
             message: error.message || 'Network error',

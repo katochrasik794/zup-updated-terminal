@@ -58,7 +58,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
         wsRef.current = socket;
 
         socket.onopen = () => {
-            console.log('[WebSocket] Connected');
+
             setIsConnected(true);
 
             // Resubscribe to anything we were listening to
@@ -69,14 +69,14 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
         };
 
         socket.onclose = () => {
-            console.log('[WebSocket] Disconnected');
+
             setIsConnected(false);
             wsRef.current = null;
 
             // Attempt reconnect
             if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
             reconnectTimeoutRef.current = setTimeout(() => {
-                console.log('[WebSocket] Attempting reconnect...');
+
                 connect();
             }, 3000); // 3s delay
         };
@@ -86,7 +86,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
             // The WebSocket is used for real-time price updates, but order placement uses REST APIs
             // Only log once to avoid console spam
             if (wsRef.current?.readyState !== WebSocket.CLOSED && !(wsRef.current as any)?.hasErrorLogged) {
-                console.warn('[WebSocket] Connection error (non-critical - order placement will still work via REST APIs)');
+');
                 if (wsRef.current) {
                     (wsRef.current as any).hasErrorLogged = true;
                 }
@@ -108,7 +108,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
                     }));
                 }
             } catch (e) {
-                console.error('[WebSocket] Message Parse Error:', e);
+
             }
         };
 

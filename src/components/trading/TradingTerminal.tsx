@@ -198,7 +198,6 @@ export default function TradingTerminal() {
       // Get MetaAPI access token
       const accessToken = await getMetaApiToken(currentAccountId);
       if (!accessToken) {
-        console.error("Failed to get MetaAPI access token");
         return;
       }
 
@@ -210,15 +209,12 @@ export default function TradingTerminal() {
       });
 
       if (!response.success) {
-        console.error("Failed to close position via direct API", response.message);
         // Optionally handle failure (e.g., revert toast or show error)
       } else {
-        console.log(`Position ${positionId} closed in record time!`);
         // Show toast ONLY after successful closing
         setClosedToast(position);
       }
     } catch (error) {
-      console.error("Error in handleClosePosition:", error);
     }
   }
 
@@ -262,7 +258,6 @@ export default function TradingTerminal() {
         setClosedToast(symbolPositions[0]);
       }
     } catch (error) {
-      console.error("Error in handleCloseGroup:", error);
     }
   }
 
@@ -322,7 +317,6 @@ export default function TradingTerminal() {
         setClosedToast(positionsToClose[0]);
       }
     } catch (error) {
-      console.error("Error in handleCloseAll:", error);
     }
   }
 
@@ -1002,7 +996,6 @@ export default function TradingTerminal() {
           }
         }
       } catch (error: any) {
-        console.error('Error modifying order/position:', error);
         setOrderToast({
           side: 'buy',
           symbol: symbol || 'BTCUSD',
