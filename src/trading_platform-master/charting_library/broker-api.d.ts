@@ -273,9 +273,10 @@ export interface AccountManagerInfo {
 	/** Optional sorting of the orders table. */
 	orderColumnsSorting?: SortingParameters;
 	/**
-	 * An array of data objects that create columns for the [History](https://www.tradingview.com/charting-library-docs/latest/trading_terminal/account-manager/#history) page, which displays all orders from previous sessions.
-	 * This page is enabled by default and requires the {@link IBrokerTerminal.ordersHistory} method to be implemented.
-	 * To hide the page, set {@link BrokerConfigFlags.supportOrdersHistory} to `false`.
+	 * An array of data objects that create columns for the [History](https://www.tradingview.com/charting-library-docs/latest/trading_terminal/account-manager/#history) page where all orders from previous sessions are shown.
+	 * Note that this page is only shown
+	 * if you set the {@link BrokerConfigFlags.supportOrdersHistory} to `true`
+	 * and implement the [`ordersHistory`](https://www.tradingview.com/charting-library-docs/latest/api/interfaces/Charting_Library.IBrokerTerminal#ordershistory) method.
 	 */
 	historyColumns?: AccountManagerColumn[];
 	/** Optional sorting of the table on the [History](https://www.tradingview.com/charting-library-docs/latest/trading_terminal/account-manager/#history) page. */
@@ -494,9 +495,6 @@ export interface BrokerConfigFlags {
 	 * Enables brackets for individual positions: take-profit and stop-loss orders.
 	 * If you set this flag to `true`, the library displays an _Edit_ button for individual positions and _Edit position..._ in the individual position's context menu.
 	 * This flag requires the {@link IBrokerTerminal.editIndividualPositionBrackets} method to be implemented.
-	 *
-	 * Ensure {@link BrokerConfigFlags.supportPositionBrackets} is set to `false`.
-	 * If `supportPositionBrackets` is enabled, it takes precedence, and individual positions will not be displayed on the chart.
 	 * @default false
 	 */
 	supportIndividualPositionBrackets?: boolean;
@@ -665,12 +663,11 @@ export interface BrokerConfigFlags {
 	 */
 	supportLeverageButton?: boolean;
 	/**
-	 * Enables the _Orders History_ tab in the [Account Manager](https://www.tradingview.com/charting-library-docs/latest/trading_terminal/account-manager/).
+	 * Enables orders history.
+	 * If `supportOrdersHistory` is set to `true`, the [Account Manager](https://www.tradingview.com/charting-library-docs/latest/trading_terminal/account-manager/) will have an additional tab: _Orders History_.
 	 * This flag requires the [`ordersHistory`](https://www.tradingview.com/charting-library-docs/latest/api/interfaces/Charting_Library.IBrokerTerminal#ordershistory) method to be implemented.
 	 * The method should return a list of orders with the `filled`, `cancelled`, and `rejected` statuses from previous trade sessions.
-	 *
-	 * To disable order history, set `supportOrdersHistory` to `false`.
-	 * @default true
+	 * @default false
 	 */
 	supportOrdersHistory?: boolean;
 	/**
@@ -1087,12 +1084,12 @@ export interface IBrokerCommon {
 	 */
 	orders(): Promise<Order[]>;
 	/**
-	 * The library calls `ordersHistory` to retrieve past orders for display on the _History_ page of the [Account Manager](https://www.tradingview.com/charting-library-docs/latest/trading_terminal/account-manager/).
-	 * This method is required because the {@link BrokerConfigFlags.supportOrdersHistory} flag is enabled by default.
-	 * If the method is not implemented while the flag is enabled, the Account Manager will not function.
-	 * For details, refer to the [History](https://www.tradingview.com/charting-library-docs/latest/trading_terminal/account-manager/#history) section.
+	 * The library calls `ordersHistory` to request orders history.
+	 * It is expected that returned orders will have a final status (`rejected`, `filled`, `cancelled`).
 	 *
-	 * Note that returned orders must have a final status: `rejected`, `filled`, or `cancelled`.
+	 * This method is only required when you set the {@link BrokerConfigFlags.supportOrdersHistory} flag to `true`.
+	 * This flag adds the *History* page, where order history is displayed, to the [Account Manager](https://www.tradingview.com/charting-library-docs/latest/trading_terminal/account-manager/).
+	 * Refer to the [History](https://www.tradingview.com/charting-library-docs/latest/trading_terminal/account-manager/#history) section for more information.
 	 */
 	ordersHistory?(): Promise<Order[]>;
 	/**
@@ -1843,10 +1840,8 @@ export interface InstrumentInfo {
 	 * The value of one pip for the instrument, expressed in the account currency.
 	 * This value is displayed in the *Order info* section of the [Order Ticket](https://www.tradingview.com/charting-library-docs/latest/trading_terminal/order-ticket).
 	 *
-	 * If set to `0`, keep in mind the following behavior:
-	 * - The *Order info* section will not be displayed, and it cannot be shown programmatically.
-	 * - Profit and loss values in [bracket orders](https://www.tradingview.com/charting-library-docs/latest/trading_terminal/trading-concepts/brackets) will not be displayed as expected for instruments with *Money* values (it will appear as `0`).
-	 * To ensure the section and all related values appear correctly in the UI, set this property to a non-zero value.
+	 * If set to `0`, the *Order info* section will not be displayed, and there will be no way to show it programmatically.
+	 * To ensure the section and the value appears in the UI, set this property to a non-zero value.
 	 *
 	 * If you implement [Trading Platform](https://www.tradingview.com/charting-library-docs/latest/trading_terminal/), use {@link IBrokerTerminal.subscribePipValue} to enable dynamic value updates.
 	 */

@@ -23,6 +23,6 @@
   },
   "homepage": "https://www.tradingview.com/charting-library-docs",
   "name": "trading_terminal",
-  "version": "30.3.0",
+  "version": "30.0.0",
   "types": "trading_terminal.d.ts"
 }

@@ -112,7 +112,6 @@ export declare enum ActionId {
 	ChartIndicatorShowSettingsDialog = "Chart.Indicator.ShowSettingsDialog",
 	ChartLegendToggleLastDayChangeValuesVisibility = "Chart.Legend.ToggleLastDayChangeValuesVisibility",
 	ChartLegendToggleBarChangeValuesVisibility = "Chart.Legend.ToggleBarChangeValuesVisibility",
-	ChartLegendToggleBarChangeColor = "Chart.Legend.ToggleBarChangeColor",
 	ChartLegendTogglePriceSourceVisibility = "Chart.Legend.TogglePriceSourceVisibility",
 	ChartLegendToggleIndicatorArgumentsVisibility = "Chart.Legend.ToggleIndicatorArgumentsVisibility",
 	ChartLegendToggleIndicatorTitlesVisibility = "Chart.Legend.ToggleIndicatorTitlesVisibility",
@@ -843,9 +842,10 @@ export interface AccountManagerInfo {
 	/** Optional sorting of the orders table. */
 	orderColumnsSorting?: SortingParameters;
 	/**
-	 * An array of data objects that create columns for the [History](https://www.tradingview.com/charting-library-docs/latest/trading_terminal/account-manager/#history) page, which displays all orders from previous sessions.
-	 * This page is enabled by default and requires the {@link IBrokerTerminal.ordersHistory} method to be implemented.
-	 * To hide the page, set {@link BrokerConfigFlags.supportOrdersHistory} to `false`.
+	 * An array of data objects that create columns for the [History](https://www.tradingview.com/charting-library-docs/latest/trading_terminal/account-manager/#history) page where all orders from previous sessions are shown.
+	 * Note that this page is only shown
+	 * if you set the {@link BrokerConfigFlags.supportOrdersHistory} to `true`
+	 * and implement the [`ordersHistory`](https://www.tradingview.com/charting-library-docs/latest/api/interfaces/Charting_Library.IBrokerTerminal#ordershistory) method.
 	 */
 	historyColumns?: AccountManagerColumn[];
 	/** Optional sorting of the table on the [History](https://www.tradingview.com/charting-library-docs/latest/trading_terminal/account-manager/#history) page. */
@@ -2125,9 +2125,6 @@ export interface BrokerConfigFlags {
 	 * Enables brackets for individual positions: take-profit and stop-loss orders.
 	 * If you set this flag to `true`, the library displays an _Edit_ button for individual positions and _Edit position..._ in the individual position's context menu.
 	 * This flag requires the {@link IBrokerTerminal.editIndividualPositionBrackets} method to be implemented.
-	 *
-	 * Ensure {@link BrokerConfigFlags.supportPositionBrackets} is set to `false`.
-	 * If `supportPositionBrackets` is enabled, it takes precedence, and individual positions will not be displayed on the chart.
 	 * @default false
 	 */
 	supportIndividualPositionBrackets?: boolean;
@@ -2296,12 +2293,11 @@ export interface BrokerConfigFlags {
 	 */
 	supportLeverageButton?: boolean;
 	/**
-	 * Enables the _Orders History_ tab in the [Account Manager](https://www.tradingview.com/charting-library-docs/latest/trading_terminal/account-manager/).
+	 * Enables orders history.
+	 * If `supportOrdersHistory` is set to `true`, the [Account Manager](https://www.tradingview.com/charting-library-docs/latest/trading_terminal/account-manager/) will have an additional tab: _Orders History_.
 	 * This flag requires the [`ordersHistory`](https://www.tradingview.com/charting-library-docs/latest/api/interfaces/Charting_Library.IBrokerTerminal#ordershistory) method to be implemented.
 	 * The method should return a list of orders with the `filled`, `cancelled`, and `rejected` statuses from previous trade sessions.
-	 *
-	 * To disable order history, set `supportOrdersHistory` to `false`.
-	 * @default true
+	 * @default false
 	 */
 	supportOrdersHistory?: boolean;
 	/**
@@ -3447,7 +3443,7 @@ export interface ChartPropertiesOverrides {
 	 */
 	"mainSeriesProperties.style": ChartStyle;
 	/**
-	 * Displays the countdown to the bar closing on the price scale. Available only for [intraday](https://www.tradingview.com/charting-library-docs/latest/connecting_data/time-and-sessions/configure-datafeed-resolutions#resolution-in-minutes-intraday) resolutions.
+	 * Displays the countdown to the bar closing on the price scale. Available only for [intraday](https://www.tradingview.com/charting-library-docs/latest/core_concepts/Resolution#resolution-in-minutes-intraday) resolutions.
 	 *
 	 * @default false
 	 */
@@ -3540,7 +3536,7 @@ export interface ChartPropertiesOverrides {
 	 */
 	"mainSeriesProperties.visible": boolean;
 	/**
-	 * Sessions to display on the chart. Use `'extended'` to include pre- and post-market subsessions. See the [Extended Sessions](https://www.tradingview.com/charting-library-docs/latest/connecting_data/time-and-sessions/Extended-Sessions) guide for more info.
+	 * Sessions to display on the chart. Use `'extended'` to include pre- and post-market subsessions. See the [Extended Sessions](https://www.tradingview.com/charting-library-docs/latest/connecting_data/Extended-Sessions) guide for more info.
 	 *
 	 * @default 'regular'
 	 */
@@ -4712,10 +4708,9 @@ export interface ChartingLibraryWidgetOptions {
 	 */
 	numeric_formatting?: NumericFormattingParams;
 	/**
-	 * An object containing a saved [chart layout](https://www.tradingview.com/charting-library-docs/latest/saving_loading/#chart-layouts).
-	 * Use this property to initialize the chart with a specific layout saved using the [low-level save/load API](https://www.tradingview.com/charting-library-docs/latest/saving_loading/low-level-api).
-	 *
-	 * To apply a saved layout after the chart is initialized, use the {@link IChartingLibraryWidget.load} instead.
+	 * JS object containing saved chart content.
+	 * Use this parameter when creating the widget if you have a saved chart already.
+	 * If you want to load the chart content when the chart is initialized then use `load()` method ({@link IChartingLibraryWidget.load}) of the widget.
 	 */
 	saved_data?: object;
 	/**
@@ -4850,14 +4845,9 @@ export interface ChartingLibraryWidgetOptions {
 	 */
 	user_id?: string;
 	/**
-	 * Set to `true` to automatically load the user's most recently saved [chart layout](https://www.tradingview.com/charting-library-docs/latest/saving_loading/#chart-layouts) on startup.
+	 * Set this parameter to `true` if you want the library to load the last saved chart for a user. You should implement [save/load](https://www.tradingview.com/charting-library-docs/latest/saving_loading/) first to make it work.
 	 *
-	 * This feature requires a server-side implementation of the high-level save/load API.
-	 * Therefore, you should implement the necessary endpoints for either the [REST API](https://www.tradingview.com/charting-library-docs/latest/saving_loading/save-load-rest-api/) or the [API handlers](https://www.tradingview.com/charting-library-docs/latest/saving_loading/save-load-adapter).
-	 *
-	 * Note that the {@link symbol} property takes precedence over `load_last_chart`.
-	 * If both are set, the chart will initialize with the symbol specified in `symbol`, ignoring the symbol from the saved layout.
-	 * To load the last saved chart correctly, remove the `symbol` property when `load_last_chart` is `true`.
+	 * Note that the {@link symbol} property takes precedence over `load_last_chart`. If `symbol` is specified, its value is displayed on the chart instead of the saved symbol. To avoid this issue, consider removing the `symbol` property when `load_last_chart` is enabled.
 	 *
 	 * ```javascript
 	 * load_last_chart: true,
@@ -5807,11 +5797,7 @@ export interface CreateShapeOptions<TOverrides extends object> extends CreateSha
  * Options for creating a drawing.
  */
 export interface CreateShapeOptionsBase<TOverrides extends object> {
-	/** Text for a drawing.
-	 *
-	 * For `long_positions` and `short_positions` ({@link shape}), the text is generated automatically based on the drawing's inputs and position.
-	 * Do not set this property for these drawing types as doing so will throw *Error: Value is undefined*.
-	 */
+	/** Text for drawing */
 	text?: string;
 	/** Should drawing be locked */
 	lock?: boolean;
@@ -6340,8 +6326,8 @@ export interface DatafeedConfiguration {
 	 */
 	exchanges?: Exchange[];
 	/**
-	 * List of [resolutions](https://www.tradingview.com/charting-library-docs/latest/connecting_data/time-and-sessions/configure-datafeed-resolutions) that the chart should support.
-	 * Each item of the array is expected to be a string that has a specific [format](https://www.tradingview.com/charting-library-docs/latest/ui_elements/Resolution#resolution-format).
+	 * List of [resolutions](https://www.tradingview.com/charting-library-docs/latest/core_concepts/Resolution) that the chart should support.
+	 * Each item of the array is expected to be a string that has a specific [format](https://www.tradingview.com/charting-library-docs/latest/core_concepts/Resolution#resolution-format).
 	 * If you set this property to `undefined` or an empty array, the _Resolution_ drop-down menu displays the list of resolutions available for
 	 * the current symbol ({@link LibrarySymbolInfo.supported_resolutions}).
 	 *
@@ -6462,13 +6448,13 @@ export interface DatafeedQuoteValues {
 	volume?: number;
 	/** Original name */
 	original_name?: string;
-	/** Pre-/post-market price. This value is required to display the [pre-/post-market price line](https://www.tradingview.com/charting-library-docs/latest/connecting_data/time-and-sessions/Extended-Sessions#enable-the-price-line) on the chart and information on the extended session in the [Details](https://www.tradingview.com/charting-library-docs/latest/trading_terminal/#details) widget. */
+	/** Pre-/post-market price. This value is required to display the [pre-/post-market price line](https://www.tradingview.com/charting-library-docs/latest/connecting_data/Extended-Sessions#enable-the-price-line) on the chart and information on the extended session in the [Details](https://www.tradingview.com/charting-library-docs/latest/trading_terminal/#details) widget. */
 	rtc?: number;
-	/** Pre-/post-market price update time. This value is required to display information on the [extended session](https://www.tradingview.com/charting-library-docs/latest/connecting_data/time-and-sessions/Extended-Sessions) in the [Details](https://www.tradingview.com/charting-library-docs/latest/trading_terminal/#details) widget. */
+	/** Pre-/post-market price update time. This value is required to display information on the [extended session](https://www.tradingview.com/charting-library-docs/latest/connecting_data/Extended-Sessions) in the [Details](https://www.tradingview.com/charting-library-docs/latest/trading_terminal/#details) widget. */
 	rtc_time?: number;
-	/** Pre-/post-market price change. This value is required to display information on the [extended session](https://www.tradingview.com/charting-library-docs/latest/connecting_data/time-and-sessions/Extended-Sessions) in the [Details](https://www.tradingview.com/charting-library-docs/latest/trading_terminal/#details) widget. */
+	/** Pre-/post-market price change. This value is required to display information on the [extended session](https://www.tradingview.com/charting-library-docs/latest/connecting_data/Extended-Sessions) in the [Details](https://www.tradingview.com/charting-library-docs/latest/trading_terminal/#details) widget. */
 	rch?: number;
-	/** Pre-/post-market price change percentage. This value is required to display information on the [extended session](https://www.tradingview.com/charting-library-docs/latest/connecting_data/time-and-sessions/Extended-Sessions) the [Details](https://www.tradingview.com/charting-library-docs/latest/trading_terminal/#details) widget. */
+	/** Pre-/post-market price change percentage. This value is required to display information on the [extended session](https://www.tradingview.com/charting-library-docs/latest/connecting_data/Extended-Sessions) the [Details](https://www.tradingview.com/charting-library-docs/latest/trading_terminal/#details) widget. */
 	rchp?: number;
 	[valueName: string]: string | number | string[] | number[] | undefined;
 }
@@ -6477,108 +6463,6 @@ export interface DatafeedSymbolType {
 	name: string;
 	/** Value to be passed as the `symbolType` argument to `searchSymbols` */
 	value: string;
-}
-/**
- * Override properties for the Dateandpricerange drawing tool.
- */
-export interface DateandpricerangeLineToolOverrides {
-	/** Default value: `#2962FF` */
-	"linetooldateandpricerange.backgroundColor": string;
-	/** Default value: `60` */
-	"linetooldateandpricerange.backgroundTransparency": number;
-	/** Default value: `#2962FF` */
-	"linetooldateandpricerange.borderColor": string;
-	/** Default value: `1` */
-	"linetooldateandpricerange.borderWidth": number;
-	/** Default value: `false` */
-	"linetooldateandpricerange.customText.bold": boolean;
-	/** Default value: `#2962FF` */
-	"linetooldateandpricerange.customText.color": string;
-	/** Default value: `12` */
-	"linetooldateandpricerange.customText.fontsize": number;
-	/** Default value: `false` */
-	"linetooldateandpricerange.customText.italic": boolean;
-	/** Default value: `false` */
-	"linetooldateandpricerange.customText.visible": boolean;
-	/** Default value: `false` */
-	"linetooldateandpricerange.drawBorder": boolean;
-	/** Default value: `false` */
-	"linetooldateandpricerange.extendBottom": boolean;
-	/** Default value: `false` */
-	"linetooldateandpricerange.extendTop": boolean;
-	/** Default value: `true` */
-	"linetooldateandpricerange.fillBackground": boolean;
-	/** Default value: `true` */
-	"linetooldateandpricerange.fillLabelBackground": boolean;
-	/** Default value: `12` */
-	"linetooldateandpricerange.fontsize": number;
-	/** Default value: `#585858` */
-	"linetooldateandpricerange.labelBackgroundColor": string;
-	/** Default value: `#2962FF` */
-	"linetooldateandpricerange.linecolor": string;
-	/** Default value: `2` */
-	"linetooldateandpricerange.linewidth": number;
-	/** Default value: `rgba(0, 0, 0, 0.2)` */
-	"linetooldateandpricerange.shadow": string;
-	/** Default value: `true` */
-	"linetooldateandpricerange.showBarsRange": boolean;
-	/** Default value: `true` */
-	"linetooldateandpricerange.showDateTimeRange": boolean;
-	/** Default value: `true` */
-	"linetooldateandpricerange.showPercentPriceRange": boolean;
-	/** Default value: `true` */
-	"linetooldateandpricerange.showPipsPriceRange": boolean;
-	/** Default value: `true` */
-	"linetooldateandpricerange.showPriceRange": boolean;
-	/** Default value: `true` */
-	"linetooldateandpricerange.showVolume": boolean;
-	/** Default value: `#000000` */
-	"linetooldateandpricerange.textColor": string;
-}
-/**
- * Override properties for the Daterange drawing tool.
- */
-export interface DaterangeLineToolOverrides {
-	/** Default value: `#2962FF` */
-	"linetooldaterange.backgroundColor": string;
-	/** Default value: `60` */
-	"linetooldaterange.backgroundTransparency": number;
-	/** Default value: `false` */
-	"linetooldaterange.customText.bold": boolean;
-	/** Default value: `#2962FF` */
-	"linetooldaterange.customText.color": string;
-	/** Default value: `12` */
-	"linetooldaterange.customText.fontsize": number;
-	/** Default value: `false` */
-	"linetooldaterange.customText.italic": boolean;
-	/** Default value: `false` */
-	"linetooldaterange.customText.visible": boolean;
-	/** Default value: `false` */
-	"linetooldaterange.extendBottom": boolean;
-	/** Default value: `false` */
-	"linetooldaterange.extendTop": boolean;
-	/** Default value: `true` */
-	"linetooldaterange.fillBackground": boolean;
-	/** Default value: `true` */
-	"linetooldaterange.fillLabelBackground": boolean;
-	/** Default value: `12` */
-	"linetooldaterange.fontsize": number;
-	/** Default value: `#585858` */
-	"linetooldaterange.labelBackgroundColor": string;
-	/** Default value: `#2962FF` */
-	"linetooldaterange.linecolor": string;
-	/** Default value: `2` */
-	"linetooldaterange.linewidth": number;
-	/** Default value: `rgba(0, 0, 0, 0.2)` */
-	"linetooldaterange.shadow": string;
-	/** Default value: `true` */
-	"linetooldaterange.showBarsRange": boolean;
-	/** Default value: `true` */
-	"linetooldaterange.showDateTimeRange": boolean;
-	/** Default value: `true` */
-	"linetooldaterange.showVolume": boolean;
-	/** Default value: `#000000` */
-	"linetooldaterange.textColor": string;
 }
 export interface DefaultContextMenuActionsParams {
 }
@@ -6869,15 +6753,6 @@ export interface DragStartParams {
 	 * Set drag image
 	 */
 	setDragImage: (image: HTMLElement, xOffset: number, yOffset: number) => void;
-	/**
-	 * Keys currently being pressed when the `dragstart` event occurred.
-	 */
-	keys: {
-		ctrlKey: boolean;
-		metaKey: boolean;
-		altKey: boolean;
-		shiftKey: boolean;
-	};
 }
 /** Item within a dropdown menu */
 export interface DropdownItem {
@@ -10048,12 +9923,12 @@ export interface IBrokerCommon {
 	 */
 	orders(): Promise<Order[]>;
 	/**
-	 * The library calls `ordersHistory` to retrieve past orders for display on the _History_ page of the [Account Manager](https://www.tradingview.com/charting-library-docs/latest/trading_terminal/account-manager/).
-	 * This method is required because the {@link BrokerConfigFlags.supportOrdersHistory} flag is enabled by default.
-	 * If the method is not implemented while the flag is enabled, the Account Manager will not function.
-	 * For details, refer to the [History](https://www.tradingview.com/charting-library-docs/latest/trading_terminal/account-manager/#history) section.
+	 * The library calls `ordersHistory` to request orders history.
+	 * It is expected that returned orders will have a final status (`rejected`, `filled`, `cancelled`).
 	 *
-	 * Note that returned orders must have a final status: `rejected`, `filled`, or `cancelled`.
+	 * This method is only required when you set the {@link BrokerConfigFlags.supportOrdersHistory} flag to `true`.
+	 * This flag adds the *History* page, where order history is displayed, to the [Account Manager](https://www.tradingview.com/charting-library-docs/latest/trading_terminal/account-manager/).
+	 * Refer to the [History](https://www.tradingview.com/charting-library-docs/latest/trading_terminal/account-manager/#history) section for more information.
 	 */
 	ordersHistory?(): Promise<Order[]>;
 	/**
@@ -11341,12 +11216,6 @@ export interface IChartWidgetApi {
 	 */
 	getVisibleRange(): VisibleTimeRange;
 	/**
-	 * Returns the range of bar times currently shown on the chart.
-	 * - This range **includes** existing bars and any visible incomplete bars created by non-time-based chart styles (for example, Renko).
-	 * - This range **does not include** future bar times beyond the last visible bar. To include them, use {@link IChartWidgetApi.getVisibleRange} instead.
-	 */
-	getVisibleBarsRange(): VisibleBarsTimeRange | null;
-	/**
 	 * Returns the object with 'format' function that you can use to format the prices.
 	 *
 	 * ```javascript
@@ -11406,22 +11275,22 @@ export interface IChartWidgetApi {
 	 */
 	exportData(options?: Partial<ExportDataOptions>): Promise<ExportedData>;
 	/**
-	 * Enable or disable [drag-to-export feature](https://www.tradingview.com/charting-library-docs/latest/ui_elements/Chart#enable-drag-to-export-feature).
+	 * Enable or disable drag-to-export feature.
 	 *
 	 * **Example**
 	 * ```javascript
 	 * // Enable drag-to-export, disable default chart drag to scroll
 	 * widget.activeChart().setDragExportEnabled(true);
 	 * widget.subscribe('dragstart', (params) => {
-	 *     // create a HTML element for drag image
-	 *     const dragImage = createDragImage();
-	 *     // set drag image
-	 *     params.setDragImage(dragImage, 0, 0);
-	 *     const exportData = widget.activeChart().exportData();
-	 *     // transform export data to csv
-	 *     const csvData = transformExportDataToCsv(exportData);
-	 *     params.setData('text/plain', csvData);
-	 * });
+	 * 		// create a HTML element for drag image
+	 * 		const dragImage = createDragImage();
+	 * 		// set drag image
+	 *      params.setDragImage(dragImage, 0, 0);
+	 *      const exportData = widget.activeChart().exportData();
+	 *  	// transform export data to csv
+	 * 		const csvData = transformExportDataToCsv(exportData);
+	 *      params.setData('text/plain', csvData);
+	 *  });
 	 * ```
 	 * To implement drag-to-export, you need to handle the `dragstart` event in your application and set the data to the `dataTransfer` object.
 	 * @param enabled `true` to enable drag-to-export, `false` to disable.
@@ -11491,19 +11360,6 @@ export interface IChartWidgetApi {
 	 * @param  {number} unixTime - date timestamp
 	 */
 	endOfPeriodToBarTime(unixTime: number): number;
-	/**
-	 * Apply overrides to a specific chart instance without reloading. See also {@link ChartingLibraryWidgetOptions.overrides}.
-	 *
-	 * **Example**
-	 * ```javascript
-	 * widget.chart(0).applyOverrides({"paneProperties.legendProperties.showLegend": false});
-	 * ```
-	 *
-	 * If you want to apply overrides to all charts, use {@link IChartingLibraryWidget.applyOverrides} instead.
-	 *
-	 * @param overrides An object of overrides to apply to the chart.
-	 */
-	applyOverrides(props: object): void;
 	/**
 	 * Get an API object for interacting with the timescale.
 	 *
@@ -11725,14 +11581,14 @@ export interface IChartingLibraryWidget {
 	 */
 	selectedLineTool(): SupportedLineTools;
 	/**
-	 * Saves the chart state to an object. This method is part of the [low-level save/load API](https://www.tradingview.com/charting-library-docs/latest/saving_loading/low-level-api).
+	 * Saves the chart state to a object. This method is part of the low-level save/load API.
 	 *
 	 * @param callback A function called with the chart state as the first argument.
 	 * @param options Options for customising the saved data.
 	 */
 	save(callback: (state: object) => void, options?: SaveChartOptions): void;
 	/**
-	 * Loads the chart state from an object. This method is part of the [low-level save/load API](https://www.tradingview.com/charting-library-docs/latest/saving_loading/low-level-api).
+	 * Loads the chart state from a object. This method is part of the low-level save/load API.
 	 *
 	 * @param state A chart state object to load.
 	 * @param extendedData A optional object of information about the saved state.
@@ -11958,16 +11814,9 @@ export interface IChartingLibraryWidget {
 	 */
 	addCustomCSSFile(url: string): void;
 	/**
-	 * Apply overrides to all charts currently in the widget without reloading. See also {@link ChartingLibraryWidgetOptions.overrides}.
+	 * Apply overrides to the chart without reloading. See also {@link ChartingLibraryWidgetOptions.overrides}.
 	 *
-	 * **Example**
-	 * ```javascript
-	 * widget.applyOverrides({"paneProperties.legendProperties.showLegend": false});
-	 * ```
-	 *
-	 * If you want to apply overrides to a specific chart only, use {@link IChartWidgetApi.applyOverrides} instead.
-	 *
-	 * @param overrides An object of overrides to apply to the chart(s).
+	 * @param overrides An object of overrides to apply to the chart.
 	 */
 	applyOverrides<TOverrides extends Partial<ChartPropertiesOverrides>>(overrides: TOverrides): void;
 	/**
@@ -12387,7 +12236,7 @@ export interface IContext {
 	 *
 	 * However, the library cannot determine the number of extra bars when your indicator depends on another indicator (chained calculations).
 	 * In this exceptional case, you can specify this number using the `setMinimumAdditionalDepth` method.
-	 * Consider the [Custom Moving Average](https://www.tradingview.com/charting-library-docs/latest/tutorials/how-to-guides/create-custom-indicator/constructor-implementation#2-call-setminimumadditionaldepth) example, where a series is calculated and then used as an input for the second calculation.
+	 * Consider the [Custom Moving Average](https://www.tradingview.com/charting-library-docs/latest/tutorials/create-custom-indicator/constructor-implementation#2-call-setminimumadditionaldepth) example, where a series is calculated and then used as an input for the second calculation.
 	 * @param  {number} value - minimum number of bars to request
 	 */
 	setMinimumAdditionalDepth(value: number): void;
@@ -12611,7 +12460,7 @@ export interface IDatafeedChartApi {
 	 * The time is provided without milliseconds. Example: `1445324591`.
 	 *
 	 * `getServerTime` is used to display countdown on the price scale.
-	 * Note that the countdown can be displayed only for [intraday](https://www.tradingview.com/charting-library-docs/latest/connecting_data/time-and-sessions/configure-datafeed-resolutions#resolution-in-minutes-intraday) resolutions.
+	 * Note that the countdown can be displayed only for [intraday](https://www.tradingview.com/charting-library-docs/latest/core_concepts/Resolution#resolution-in-minutes-intraday) resolutions.
 	 */
 	getServerTime?(callback: ServerTimeCallback): void;
 	/**
@@ -12624,19 +12473,6 @@ export interface IDatafeedChartApi {
 	 * @param searchSource The source of the search ({@link SearchInitiationPoint}).
 	 */
 	searchSymbols(userInput: string, exchange: string, symbolType: string, onResult: SearchSymbolsCallback, searchSource?: SearchInitiationPoint): void;
-	/**
-	 * Provides a list of symbols that match the user's search query.
-	 *
-	 * Optional. If defined, the library uses this method instead of the non-paginated `searchSymbols`.
-	 *
-	 * Use the `start` property from `options` to determine which "page" of results to return.
-	 * For example, if the first call returns 50 results with 10 remaining, the second call will have `start` set to `50`.
-	 * When no more results are available on the server, set the `symbolsRemaining` parameter of the callback to `0`.
-	 *
-	 * @param options Object containing the user input, exchange, symbol type, and search source ({@link SearchInitiationPoint}).
-	 * @param onResult Callback function that returns an array of results ({@link SearchSymbolResultItem}) or an empty array if no symbols are found.
-	 */
-	searchSymbolsPaginated?(options: SymbolSearchPaginatedOptions, onResult: SearchSymbolsPaginatedCallback): void;
 	/**
 	 * The library will call this function when it needs to get SymbolInfo by symbol name.
 	 *
@@ -13101,7 +12937,7 @@ export interface IMenuItem {
 	/** Menu item type */
 	readonly type: MenuItemType;
 	/**
-	 * A unique ID of an action item.
+	 * An unique ID of an action item. Could be used to distinguish actions between each other.
 	 */
 	readonly id: string;
 }
@@ -14081,13 +13917,13 @@ export interface ISeriesApi {
 	 * Enables or disables removing/changing/hiding the main series by the user
 	 */
 	setUserEditEnabled(enabled: boolean): void;
-	/** Moves the main series to the pane above. Note that this method works only if the pane exists. */
+	/** Merges the main series up (if possible) */
 	mergeUp(): void;
-	/** Moves the main series to the pane below. Note that this method works only if the pane exists. */
+	/** Merges the main series down (if possible) */
 	mergeDown(): void;
-	/** Moves the main series to a **new** pane above. Note that this method does not work if the main series is the only series on the current pane. */
+	/** Unmerges the main series up (if possible) */
 	unmergeUp(): void;
-	/** Moves the main series to a **new** pane below. Note that this method does not work if the main series is the only series on the current pane. */
+	/** Unmerges the main series down (if possible) */
 	unmergeDown(): void;
 	/** Pins the main series to a new price axis at right */
 	detachToRight(): void;
@@ -14303,19 +14139,19 @@ export interface IStudyApi {
 	 */
 	getStyleValues(): StudyStyleValues;
 	/**
-	 * Moves the indicator to the pane above. Note that this method works only if the pane exists.
+	 * Merge the study into the pane above, if possible.
 	 */
 	mergeUp(): void;
 	/**
-	 * Moves the indicator to the pane below. Note that this method works only if the pane exists.
+	 * Merge the study into the pane below, if possible.
 	 */
 	mergeDown(): void;
 	/**
-	 * Moves the indicator to a **new** pane above. Note that this method does not work if the indicator is the only series on the current pane.
+	 * Unmerge the study into the pane above, if possible.
 	 */
 	unmergeUp(): void;
 	/**
-	 * Moves the indicator to a **new** pane below. Note that this method does not work if the indicator is the only series on the current pane.
+	 * Unmerge the study into the pane below, if possible.
 	 */
 	unmergeDown(): void;
 	/**
@@ -15128,10 +14964,8 @@ export interface InstrumentInfo {
 	 * The value of one pip for the instrument, expressed in the account currency.
 	 * This value is displayed in the *Order info* section of the [Order Ticket](https://www.tradingview.com/charting-library-docs/latest/trading_terminal/order-ticket).
 	 *
-	 * If set to `0`, keep in mind the following behavior:
-	 * - The *Order info* section will not be displayed, and it cannot be shown programmatically.
-	 * - Profit and loss values in [bracket orders](https://www.tradingview.com/charting-library-docs/latest/trading_terminal/trading-concepts/brackets) will not be displayed as expected for instruments with *Money* values (it will appear as `0`).
-	 * To ensure the section and all related values appear correctly in the UI, set this property to a non-zero value.
+	 * If set to `0`, the *Order info* section will not be displayed, and there will be no way to show it programmatically.
+	 * To ensure the section and the value appears in the UI, set this property to a non-zero value.
 	 *
 	 * If you implement [Trading Platform](https://www.tradingview.com/charting-library-docs/latest/trading_terminal/), use {@link IBrokerTerminal.subscribePipValue} to enable dynamic value updates.
 	 */
@@ -15557,7 +15391,7 @@ export interface LibrarySymbolInfo {
 	 */
 	type: string;
 	/**
-	 * Trading hours for the symbol. The time should be in the **exchange** time zone specified in the {@link LibrarySymbolInfo.timezone} property. Refer to the [Trading sessions](https://www.tradingview.com/charting-library-docs/latest/connecting_data/time-and-sessions/Trading-Sessions) article for more information.
+	 * Trading hours for the symbol. The time should be in the **exchange** time zone specified in the {@link LibrarySymbolInfo.timezone} property. Refer to the [Trading sessions](https://www.tradingview.com/charting-library-docs/latest/connecting_data/Trading-Sessions) article for more information.
 	 * @example "1700-0200"
 	 */
 	session: string;
@@ -15676,13 +15510,13 @@ export interface LibrarySymbolInfo {
 	 * A flag indicating whether your datafeed contains intraday (minutes) data for this symbol.
 	 * If `true`, the library requests this data when an intraday resolution is selected. If `false`, _No data here_ is displayed on the chart.
 	 *
-	 * This property is required to enable intraday resolutions. Refer to the [Configure resolutions in datafeed](https://www.tradingview.com/charting-library-docs/latest/connecting_data/time-and-sessions/configure-datafeed-resolutions#resolution-in-minutes-intraday) article for more information.
+	 * This property is required to enable intraday resolutions. Refer to the [Resolution](https://www.tradingview.com/charting-library-docs/latest/core_concepts/Resolution#resolution-in-minutes-intraday) article for more information.
 	 * @default false
 	 */
 	has_intraday?: boolean;
 	/**
-	 * An array of [resolutions](https://www.tradingview.com/charting-library-docs/latest/connecting_data/time-and-sessions/configure-datafeed-resolutions) which should be enabled in the _Resolution_ drop-down menu for this symbol.
-	 * Each item of the array is expected to be a string that has a specific [format](https://www.tradingview.com/charting-library-docs/latest/ui_elements/Resolution#resolution-format).
+	 * An array of [resolutions](https://www.tradingview.com/charting-library-docs/latest/core_concepts/Resolution) which should be enabled in the _Resolution_ drop-down menu for this symbol.
+	 * Each item of the array is expected to be a string that has a specific [format](https://www.tradingview.com/charting-library-docs/latest/core_concepts/Resolution#resolution-format).
 	 *
 	 * If one changes the symbol and the new symbol does not support the selected resolution, an error message will be shown on the chart.
 	 *
@@ -15706,9 +15540,9 @@ export interface LibrarySymbolInfo {
 	/**
 	 * An array of intraday (minutes) resolutions that your datafeed supports. Items in the array should be listed in ascending order, for example: `["1", "2"]`.
 	 *
-	 * This property is required to enable intraday resolutions. Refer to the [Configure resolutions in datafeed](https://www.tradingview.com/charting-library-docs/latest/connecting_data/time-and-sessions/configure-datafeed-resolutions#resolution-in-minutes-intraday) article for more information.
+	 * This property is required to enable intraday resolutions. Refer to the [Resolution](https://www.tradingview.com/charting-library-docs/latest/core_concepts/Resolution#resolution-in-minutes-intraday) article for more information.
 	 * Note that each resolution in `intraday_multipliers` should be handled in the {@link IDatafeedChartApi.getBars} implementation.
-	 * Consider the [example](https://www.tradingview.com/charting-library-docs/latest/connecting_data/time-and-sessions/configure-datafeed-resolutions#example).
+	 * Consider the [example](https://www.tradingview.com/charting-library-docs/latest/core_concepts/Resolution#example).
 	 *
 	 * The library also uses resolutions listed in `intraday_multipliers` to display higher resolution that your datafeed does not explicitly support. If `intraday_multipliers` is not specified, the library cannot build additional resolutions.
 	 *
@@ -15720,7 +15554,7 @@ export interface LibrarySymbolInfo {
 	 * A flag indicating whether your datafeed contains seconds data for this symbol.
 	 * If `true`, the library requests this data when a seconds resolution is selected. If `false`, _No data here_ is displayed on the chart.
 	 *
-	 * You should set `has_seconds` to `true` to enable seconds resolutions. Refer to the [Configure resolutions in datafeed](https://www.tradingview.com/charting-library-docs/latest/connecting_data/time-and-sessions/configure-datafeed-resolutions#resolution-in-seconds) article for more information.
+	 * You should set `has_seconds` to `true` to enable seconds resolutions. Refer to the [Resolution](https://www.tradingview.com/charting-library-docs/latest/core_concepts/Resolution#resolution-in-seconds) article for more information.
 	 * @default false
 	 */
 	has_seconds?: boolean;
@@ -15728,13 +15562,13 @@ export interface LibrarySymbolInfo {
 	 * A flag indicating whether your datafeed contains ticks data for this symbol.
 	 * If `true`, the library requests this data when a resolution in ticks is selected. If `false`, _No data here_ is displayed on the chart.
 	 *
-	 * You should set `has_ticks` to `true` to enable ticks resolutions. Refer to the [Configure resolutions in datafeed](https://www.tradingview.com/charting-library-docs/latest/connecting_data/time-and-sessions/configure-datafeed-resolutions#resolution-in-ticks) article for more information.
+	 * You should set `has_ticks` to `true` to enable ticks resolutions. Refer to the [Resolution](https://www.tradingview.com/charting-library-docs/latest/core_concepts/Resolution#resolution-in-ticks) article for more information.
 	 * @default false
 	 */
 	has_ticks?: boolean;
 	/**
 	 * An array of seconds resolutions that your datafeed supports. Items in the array should be listed in ascending order and **should not** include letters, for example: `["1", "2"]`.
-	 * This property is required to enable seconds resolutions. Refer to the [Configure resolutions in datafeed](https://www.tradingview.com/charting-library-docs/latest/connecting_data/time-and-sessions/configure-datafeed-resolutions#resolution-in-seconds) article for more information.
+	 * This property is required to enable seconds resolutions. Refer to the [Resolution](https://www.tradingview.com/charting-library-docs/latest/core_concepts/Resolution#resolution-in-seconds) article for more information.
 	 *
 	 * The library also uses resolutions listed in `seconds_multipliers` to display higher resolution that your datafeed does not explicitly support. If `seconds_multipliers` is not specified, the library cannot build additional resolutions.
 	 * Consider the example. You need to enable one-second and five-second resolutions but your datafeed contains only one-second data. In this case, you should set `seconds_multipliers` to `["1"]`.
@@ -15756,13 +15590,13 @@ export interface LibrarySymbolInfo {
 	 * A flag indicating whether your datafeed contains daily data for this symbol.
 	 * If `true`, the library requests this data when a daily resolution is selected. If `false`, _No data here_ is displayed on the chart.
 	 *
-	 * `has_daily` is set to `true` by default. However, you should also specify {@link daily_multipliers} to enable daily resolutions. Refer to the [Configure resolutions in datafeed](https://www.tradingview.com/charting-library-docs/latest/connecting_data/time-and-sessions/configure-datafeed-resolutions#resolution-in-days) article for more information.
+	 * `has_daily` is set to `true` by default. However, you should also specify {@link daily_multipliers} to enable daily resolutions. Refer to the [Resolution](https://www.tradingview.com/charting-library-docs/latest/core_concepts/Resolution#resolution-in-days) article for more information.
 	 * @default true
 	 */
 	has_daily?: boolean;
 	/**
 	 * An array of daily resolutions that your datafeed supports. Items in the array should be listed in ascending order and **should not** include letters, for example: `["1", "2"]`.
-	 * This property is required to enable daily resolutions. Refer to the [Configure resolutions in datafeed](https://www.tradingview.com/charting-library-docs/latest/connecting_data/time-and-sessions/configure-datafeed-resolutions#resolution-in-days) article for more information.
+	 * This property is required to enable daily resolutions. Refer to the [Resolution](https://www.tradingview.com/charting-library-docs/latest/core_concepts/Resolution#resolution-in-days) article for more information.
 	 *
 	 * The library also uses resolutions listed in `daily_multipliers` to display higher resolution that your datafeed does not explicitly support. If `daily_multipliers` is not specified, the library cannot build additional resolutions.
 	 * @default ["1"]
@@ -15771,7 +15605,7 @@ export interface LibrarySymbolInfo {
 	/**
 	 * A flag indicating whether your datafeed contains weekly or monthly data for this symbol. If `true`, the library requests this data when the corresponding resolution is selected.
 	 * To enable weekly or monthly resolutions, you should also specify the {@link weekly_multipliers} or {@link monthly_multipliers} properties.
-	 * Refer to the [Configure resolutions in datafeed](https://www.tradingview.com/charting-library-docs/latest/connecting_data/time-and-sessions/configure-datafeed-resolutions#resolution-in-weeks--months) article for more information.
+	 * Refer to the [Resolution](https://www.tradingview.com/charting-library-docs/latest/core_concepts/Resolution#resolution-in-weeks--months) article for more information.
 	 *
 	 * If `has_weekly_and_monthly` is set to `false`, the library attempts to build the resolutions using daily bars. Note that building bars requires a large number of requests to your datafeed.
 	 * If the library fails to build bars, _No data here_ is displayed on the chart.
@@ -15780,7 +15614,7 @@ export interface LibrarySymbolInfo {
 	has_weekly_and_monthly?: boolean;
 	/**
 	 * An array of weekly resolutions that your datafeed supports. Items in the array should be listed in ascending order and **should not** include letters, for example: `["1", "3"]`.
-	 * This property is required to enable weekly resolutions. Refer to the [Configure resolutions in datafeed](https://www.tradingview.com/charting-library-docs/latest/connecting_data/time-and-sessions/configure-datafeed-resolutions#resolution-in-weeks--months) article for more information.
+	 * This property is required to enable weekly resolutions. Refer to the [Resolution](https://www.tradingview.com/charting-library-docs/latest/core_concepts/Resolution#resolution-in-weeks--months) article for more information.
 	 *
 	 * The library also uses resolutions listed in `weekly_multipliers` to display higher resolution that your datafeed does not explicitly support. If `weekly_multipliers` is not specified, the library cannot build additional resolutions.
 	 * @default ['1']
@@ -15788,7 +15622,7 @@ export interface LibrarySymbolInfo {
 	weekly_multipliers?: string[];
 	/**
 	 * An array of monthly resolutions that your datafeed supports. Items in the array should be listed in ascending order and **should not** include letters, for example: `["1", "3", "6", "12"]`.
-	 * This property is required to enable monthly resolutions. Refer to the [Configure resolutions in datafeed](https://www.tradingview.com/charting-library-docs/latest/connecting_data/time-and-sessions/configure-datafeed-resolutions#resolution-in-weeks--months) article for more information.
+	 * This property is required to enable monthly resolutions. Refer to the [Resolution](https://www.tradingview.com/charting-library-docs/latest/core_concepts/Resolution#resolution-in-weeks--months) article for more information.
 	 *
 	 * The library also uses resolutions listed in `monthly_multipliers` to display higher resolution that your datafeed does not explicitly support. If `monthly_multipliers` is not specified, the library cannot build additional resolutions.
 	 * @default ['1']
@@ -20039,7 +19873,7 @@ export interface ScriptContext {
 }
 /**
  * [Symbol Search](https://www.tradingview.com/charting-library-docs/latest/ui_elements/Symbol-Search) result item.
- * Pass the resulting array to the callback for [`searchSymbols`](https://www.tradingview.com/charting-library-docs/latest/connecting_data/datafeed-api/required-methods#searchsymbols) or [`searchSymbolsPaginated`](https://www.tradingview.com/charting-library-docs/latest/connecting_data/datafeed-api/additional-methods#searchsymbolspaginated).
+ * Pass the resulting array of symbols as a parameter to {@link SearchSymbolsCallback} of the [`searchSymbols`](https://www.tradingview.com/charting-library-docs/latest/connecting_data/datafeed-api/required-methods#searchsymbols) method.
  *
  * @example
  * ```
@@ -21092,8 +20926,6 @@ export interface StudyInputBaseInfo {
 	readonly isHidden?: boolean;
 	/** Is the input visible */
 	readonly visible?: string;
-	/** Is the input always visible in the legend, even when the user hides indicator inputs in the legend */
-	readonly isAlwaysShownInLegend?: boolean;
 	/** An array of plot ids, upon the hiding of which, this input should also be hidden within the legend */
 	readonly hideWhenPlotsHidden?: string[];
 	/** Whether the input should be rendered based on user inputs */
@@ -27082,11 +26914,11 @@ export interface SubscribeEventsMap {
 	 * Drag start
 	 * @param  {boolean} enabled - if drag export is currently enabled
 	 */
-	dragstart: (params: DragStartParams) => void;
+	dragStart: (params: DragStartParams) => void;
 	/**
 	 * Drag end
 	 */
-	dragend: EmptyCallback;
+	dragEnd: EmptyCallback;
 	/**
 	 * Fired when the chart theme is updated. This event can be triggered in several ways:
 	 * - When a user applies a saved [chart template](https://www.tradingview.com/charting-library-docs/latest/saving_loading/#chart-templates).
@@ -27229,31 +27061,6 @@ export interface SymbolSearchCompleteData {
 	 */
 	name: string;
 }
-/**
- * Options that define paginated [Symbol Search](https://www.tradingview.com/charting-library-docs/latest/ui_elements/Symbol-Search) requests.
- */
-export interface SymbolSearchPaginatedOptions {
-	/**
-	 * The requested exchange. An empty value means no filter is specified.
-	 */
-	exchange: string;
-	/**
-	 * Text entered by the user in the Symbol Search field.
-	 */
-	userInput: string;
-	/**
-	 * The number of results to skip, representing how many have already been returned for the same input.
-	 */
-	start?: number;
-	/**
-	 * Type of symbol. An empty value means no filter is specified.
-	 */
-	symbolType: string;
-	/**
-	 * The source of the search ({@link SearchInitiationPoint}).
-	 */
-	searchSource?: SearchInitiationPoint;
-}
 export interface SymbolSpecificTradingOptions {
 	/** Array of strings with valid duration values. You can check that in Order Ticket. */
 	allowedDurations?: string[];
@@ -27388,13 +27195,13 @@ export interface TextFieldMetaInfo extends CustomInputFieldMetaInfo {
  * Override properties for the Text drawing tool.
  */
 export interface TextLineToolOverrides {
-	/** Default value: `rgba(41, 98, 255, 0.25)` */
+	/** Default value: `rgba(91, 133, 191, 0.3)` */
 	"linetooltext.backgroundColor": string;
 	/** Default value: `70` */
 	"linetooltext.backgroundTransparency": number;
 	/** Default value: `false` */
 	"linetooltext.bold": boolean;
-	/** Default value: `#707070` */
+	/** Default value: `#667b8b` */
 	"linetooltext.borderColor": string;
 	/** Default value: `#2962FF` */
 	"linetooltext.color": string;
@@ -27442,13 +27249,13 @@ export interface TextWithCheckboxValue {
  * Override properties for the Textabsolute drawing tool.
  */
 export interface TextabsoluteLineToolOverrides {
-	/** Default value: `rgba(41, 98, 255, 0.25)` */
+	/** Default value: `rgba(155, 190, 213, 0.3)` */
 	"linetooltextabsolute.backgroundColor": string;
 	/** Default value: `70` */
 	"linetooltextabsolute.backgroundTransparency": number;
 	/** Default value: `false` */
 	"linetooltextabsolute.bold": boolean;
-	/** Default value: `#707070` */
+	/** Default value: `#667b8b` */
 	"linetooltextabsolute.borderColor": string;
 	/** Default value: `#2962FF` */
 	"linetooltextabsolute.color": string;
@@ -28614,19 +28421,6 @@ export interface VertlineLineToolOverrides {
 	"linetoolvertline.vertLabelsAlign": string;
 }
 /**
- * A time range of bars.
- */
-export interface VisibleBarsTimeRange {
-	/**
-	 * UNIX timestamp of the first visible bar in the range.
-	 */
-	from: number;
-	/**
-	 * UNIX timestamp of the last visible bar in the range.
-	 */
-	to: number;
-}
-/**
  * Boundaries of the price scale visible range in main series area
  */
 export interface VisiblePriceRange {
@@ -29228,7 +29022,7 @@ export type CellAlignment = "left" | "right";
 /**
  * A chart action ID.
  */
-export type ChartActionId = "addPlusButton" | "chartProperties" | "compareOrAdd" | "scalesProperties" | "paneObjectTree" | "insertIndicator" | "symbolSearch" | "changeInterval" | "timeScaleReset" | "chartReset" | "seriesHide" | "studyHide" | "lineToggleLock" | "lineHide" | "scaleSeriesOnly" | "drawingToolbarAction" | "stayInDrawingModeAction" | "hideAllMarks" | "showCountdown" | "showSeriesLastValue" | "showSymbolLabelsAction" | "showStudyLastValue" | "showStudyPlotNamesAction" | "undo" | "redo" | "paneRemoveAllStudiesDrawingTools" | "showSymbolInfoDialog";
+export type ChartActionId = "chartProperties" | "compareOrAdd" | "scalesProperties" | "paneObjectTree" | "insertIndicator" | "symbolSearch" | "changeInterval" | "timeScaleReset" | "chartReset" | "seriesHide" | "studyHide" | "lineToggleLock" | "lineHide" | "scaleSeriesOnly" | "drawingToolbarAction" | "stayInDrawingModeAction" | "hideAllMarks" | "showCountdown" | "showSeriesLastValue" | "showSymbolLabelsAction" | "showStudyLastValue" | "showStudyPlotNamesAction" | "undo" | "redo" | "paneRemoveAllStudiesDrawingTools" | "showSymbolInfoDialog";
 /**
  * Function to provide a description of the chart described by the context data
  */
@@ -29609,23 +29403,7 @@ export type ChartingLibraryFeatureset =
  * The tooltip displays detailed OHLC values and the price change for the selected bar.
  * @default true
  */
-"long_press_floating_tooltip" | 
-/**
- * Enables dynamic coloring of bar change values in the legend based on their value (positive, negative, or zero). Applies only to non-OHLC chart types.
- * @default false
- */
-"legend_bar_change_colors_based_on_value" | 
-/**
- * Enables chart drag event handling.
- * See [Enable drag-to-export feature](https://www.tradingview.com/charting-library-docs/latest/ui_elements/Chart#enable-drag-to-export-feature) for more implementation details.
- * @default false
- */
-"chart_drag_export" | 
-/**
- * Keeps symbol-type [indicator inputs](https://www.tradingview.com/charting-library-docs/latest/custom_studies/metainfo/Custom-Studies-Inputs) (`StudySymbolInputInfo`) visible in the legend, even when other indicator inputs are hidden.
- * @default false
- */
-"always_show_study_symbol_input_values_in_legend";
+"long_press_floating_tooltip";
 /**
  * A color gradient from lightest to darkest to override one of the default color theme colors.
  */
@@ -29750,7 +29528,7 @@ export type DrawingEventType = "click" | "move" | "remove" | "hide" | "show" | "
  *   - PERCENTAGE = 'percents'
  *   - MONEY = 'money'
  */
-export type DrawingOverrides = FivepointspatternLineToolOverrides | AbcdLineToolOverrides | AnchoredvpLineToolOverrides | AnchoredvwapLineToolOverrides | ArcLineToolOverrides | ArrowLineToolOverrides | ArrowmarkdownLineToolOverrides | ArrowmarkerLineToolOverrides | ArrowmarkleftLineToolOverrides | ArrowmarkrightLineToolOverrides | ArrowmarkupLineToolOverrides | BalloonLineToolOverrides | BarspatternLineToolOverrides | BeziercubicLineToolOverrides | BezierquadroLineToolOverrides | BrushLineToolOverrides | CalloutLineToolOverrides | CircleLineToolOverrides | CommentLineToolOverrides | CrosslineLineToolOverrides | CypherpatternLineToolOverrides | DateandpricerangeLineToolOverrides | DaterangeLineToolOverrides | DisjointangleLineToolOverrides | ElliottcorrectionLineToolOverrides | ElliottdoublecomboLineToolOverrides | ElliottimpulseLineToolOverrides | ElliotttriangleLineToolOverrides | ElliotttriplecomboLineToolOverrides | EllipseLineToolOverrides | EmojiLineToolOverrides | ExecutionLineToolOverrides | ExtendedLineToolOverrides | FibchannelLineToolOverrides | FibcirclesLineToolOverrides | FibretracementLineToolOverrides | FibspeedresistancearcsLineToolOverrides | FibspeedresistancefanLineToolOverrides | FibtimezoneLineToolOverrides | FibwedgeLineToolOverrides | FlagmarkLineToolOverrides | FlatbottomLineToolOverrides | GanncomplexLineToolOverrides | GannfanLineToolOverrides | GannfixedLineToolOverrides | GannsquareLineToolOverrides | GhostfeedLineToolOverrides | HeadandshouldersLineToolOverrides | HighlighterLineToolOverrides | HorzlineLineToolOverrides | HorzrayLineToolOverrides | IconLineToolOverrides | ImageLineToolOverrides | InfolineLineToolOverrides | InsidepitchforkLineToolOverrides | OrderLineToolOverrides | ParallelchannelLineToolOverrides | PathLineToolOverrides | PitchfanLineToolOverrides | PitchforkLineToolOverrides | PolylineLineToolOverrides | PositionLineToolOverrides | PredictionLineToolOverrides | PricelabelLineToolOverrides | ProjectionLineToolOverrides | RayLineToolOverrides | RegressiontrendLineToolOverrides | RiskrewardlongLineToolOverrides | RiskrewardshortLineToolOverrides | RotatedrectangleLineToolOverrides | SchiffpitchforkLineToolOverrides | Schiffpitchfork2LineToolOverrides | SignpostLineToolOverrides | SinelineLineToolOverrides | StickerLineToolOverrides | TextLineToolOverrides | TextabsoluteLineToolOverrides | ThreedriversLineToolOverrides | TimecyclesLineToolOverrides | TrendangleLineToolOverrides | TrendbasedfibextensionLineToolOverrides | TrendbasedfibtimeLineToolOverrides | TrendlineLineToolOverrides | TriangleLineToolOverrides | TrianglepatternLineToolOverrides | VertlineLineToolOverrides;
+export type DrawingOverrides = FivepointspatternLineToolOverrides | AbcdLineToolOverrides | AnchoredvpLineToolOverrides | AnchoredvwapLineToolOverrides | ArcLineToolOverrides | ArrowLineToolOverrides | ArrowmarkdownLineToolOverrides | ArrowmarkerLineToolOverrides | ArrowmarkleftLineToolOverrides | ArrowmarkrightLineToolOverrides | ArrowmarkupLineToolOverrides | BalloonLineToolOverrides | BarspatternLineToolOverrides | BeziercubicLineToolOverrides | BezierquadroLineToolOverrides | BrushLineToolOverrides | CalloutLineToolOverrides | CircleLineToolOverrides | CommentLineToolOverrides | CrosslineLineToolOverrides | CypherpatternLineToolOverrides | DisjointangleLineToolOverrides | ElliottcorrectionLineToolOverrides | ElliottdoublecomboLineToolOverrides | ElliottimpulseLineToolOverrides | ElliotttriangleLineToolOverrides | ElliotttriplecomboLineToolOverrides | EllipseLineToolOverrides | EmojiLineToolOverrides | ExecutionLineToolOverrides | ExtendedLineToolOverrides | FibchannelLineToolOverrides | FibcirclesLineToolOverrides | FibretracementLineToolOverrides | FibspeedresistancearcsLineToolOverrides | FibspeedresistancefanLineToolOverrides | FibtimezoneLineToolOverrides | FibwedgeLineToolOverrides | FlagmarkLineToolOverrides | FlatbottomLineToolOverrides | GanncomplexLineToolOverrides | GannfanLineToolOverrides | GannfixedLineToolOverrides | GannsquareLineToolOverrides | GhostfeedLineToolOverrides | HeadandshouldersLineToolOverrides | HighlighterLineToolOverrides | HorzlineLineToolOverrides | HorzrayLineToolOverrides | IconLineToolOverrides | ImageLineToolOverrides | InfolineLineToolOverrides | InsidepitchforkLineToolOverrides | OrderLineToolOverrides | ParallelchannelLineToolOverrides | PathLineToolOverrides | PitchfanLineToolOverrides | PitchforkLineToolOverrides | PolylineLineToolOverrides | PositionLineToolOverrides | PredictionLineToolOverrides | PricelabelLineToolOverrides | ProjectionLineToolOverrides | RayLineToolOverrides | RegressiontrendLineToolOverrides | RiskrewardlongLineToolOverrides | RiskrewardshortLineToolOverrides | RotatedrectangleLineToolOverrides | SchiffpitchforkLineToolOverrides | Schiffpitchfork2LineToolOverrides | SignpostLineToolOverrides | SinelineLineToolOverrides | StickerLineToolOverrides | TextLineToolOverrides | TextabsoluteLineToolOverrides | ThreedriversLineToolOverrides | TimecyclesLineToolOverrides | TrendangleLineToolOverrides | TrendbasedfibextensionLineToolOverrides | TrendbasedfibtimeLineToolOverrides | TrendlineLineToolOverrides | TriangleLineToolOverrides | TrianglepatternLineToolOverrides | VertlineLineToolOverrides;
 export type DrawingToolIdentifier = "arrow" | "cursor" | "dot" | "eraser" | "LineTool5PointsPattern" | "LineToolABCD" | "LineToolArc" | "LineToolArrow" | "LineToolArrowMarkDown" | "LineToolArrowMarker" | "LineToolArrowMarkLeft" | "LineToolArrowMarkRight" | "LineToolArrowMarkUp" | "LineToolBarsPattern" | "LineToolBezierCubic" | "LineToolBezierQuadro" | "LineToolBrush" | "LineToolCallout" | "LineToolCircle" | "LineToolCircleLines" | "LineToolComment" | "LineToolCrossLine" | "LineToolCypherPattern" | "LineToolDateAndPriceRange" | "LineToolDateRange" | "LineToolDisjointAngle" | "LineToolElliottCorrection" | "LineToolElliottDoubleCombo" | "LineToolElliottImpulse" | "LineToolElliottTriangle" | "LineToolElliottTripleCombo" | "LineToolEllipse" | "LineToolExtended" | "LineToolFibChannel" | "LineToolFibCircles" | "LineToolFibRetracement" | "LineToolFibSpeedResistanceArcs" | "LineToolFibSpeedResistanceFan" | "LineToolFibSpiral" | "LineToolFibTimeZone" | "LineToolFibWedge" | "LineToolFixedRangeVolumeProfile" | "LineToolFlagMark" | "LineToolFlatBottom" | "LineToolGannComplex" | "LineToolGannFan" | "LineToolGannFixed" | "LineToolGannSquare" | "LineToolGhostFeed" | "LineToolHeadAndShoulders" | "LineToolHighlighter" | "LineToolHorzLine" | "LineToolHorzRay" | "LineToolInfoLine" | "LineToolInsidePitchfork" | "LineToolNote" | "LineToolNoteAbsolute" | "LineToolParallelChannel" | "LineToolPath" | "LineToolPitchfan" | "LineToolPitchfork" | "LineToolPolyline" | "LineToolPrediction" | "LineToolPriceLabel" | "LineToolTextNote" | "LineToolPriceRange" | "LineToolPriceRange" | "LineToolProjection" | "LineToolRay" | "LineToolRectangle" | "LineToolRegressionTrend" | "LineToolRiskRewardLong" | "LineToolRiskRewardShort" | "LineToolRotatedRectangle" | "LineToolSchiffPitchfork" | "LineToolSchiffPitchfork2" | "LineToolSignpost" | "LineToolSineLine" | "LineToolText" | "LineToolTextAbsolute" | "LineToolThreeDrivers" | "LineToolTimeCycles" | "LineToolTrendAngle" | "LineToolTrendBasedFibExtension" | "LineToolTrendBasedFibTime" | "LineToolTrendLine" | "LineToolTriangle" | "LineToolTrianglePattern" | "LineToolVertLine";
 /** Dropdown options which can be adjusted on an existing menu. */
 export type DropdownUpdateParams = Partial<Omit<DropdownParams, "align">>;
@@ -29926,14 +29704,13 @@ export type RawStudyMetaInformation = Omit<RawStudyMetaInfo, "defaults" | "plots
  * Months | `xM` | `1M` — one month
  * Years | `xM` months | `12M` — one year
  *
- * Refer to [Resolution](https://www.tradingview.com/charting-library-docs/latest/ui_elements/Resolution) for more information.
+ * Refer to [Resolution](https://www.tradingview.com/charting-library-docs/latest/core_concepts/Resolution) for more information.
  */
 export type ResolutionString = Nominal<string, "ResolutionString">;
 export type ResolveCallback = (symbolInfo: LibrarySymbolInfo) => void;
 /** RSS news feed. */
 export type RssNewsFeedItem = RssNewsFeedInfo | RssNewsFeedInfo[];
 export type SearchSymbolsCallback = (items: SearchSymbolResultItem[]) => void;
-export type SearchSymbolsPaginatedCallback = (items: SearchSymbolResultItem[], symbolsRemaining: number) => void;
 /** An event related to the series. Currently the only possible value for this argument is `price_scale_changed` */
 export type SeriesEventType = "price_scale_changed";
 export type SeriesFormat = "price" | "volume";
@@ -30180,12 +29957,7 @@ export type TradingTerminalFeatureset = ChartingLibraryFeatureset |
  * Enables cross-tab synchronization for [watchlists](https://www.tradingview.com/charting-library-docs/latest/trading_terminal/Watch-List).
  * @default true
  */
-"watchlist_cross_tab_sync" | 
-/**
- * Enables the DOM widget's static mode.
- * @default false
- */
-"static_dom";
+"watchlist_cross_tab_sync";
 export type VisiblePlotsSet = "ohlcv" | "ohlc" | "c" | "hlc";
 export type WatchListSymbolListAddedCallback = (listId: string, symbols: string[]) => void;
 export type WatchListSymbolListChangedCallback = (listId: string) => void;
