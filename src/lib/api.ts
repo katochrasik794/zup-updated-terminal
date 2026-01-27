@@ -8,6 +8,8 @@
 
 // Use a specific env var for the backend API, or default to localhost:5000
 // Priority: NEXT_PUBLIC_BACKEND_API_URL > NEXT_PUBLIC_API_BASE_URL > default
+// IMPORTANT: In Next.js, NEXT_PUBLIC_* variables are embedded at build time
+// Make sure to set these in Vercel environment variables before building
 const getBackendUrl = () => {
   // First check for explicit backend URL (highest priority)
   if (process.env.NEXT_PUBLIC_BACKEND_API_URL) {
@@ -21,6 +23,7 @@ const getBackendUrl = () => {
   }
 
   // Default to localhost:5000 (only for local development)
+  // In production, this should never be reached if env vars are set correctly in Vercel
   return 'http://localhost:5000';
 };
 
@@ -29,9 +32,16 @@ const API_BASE_URL = getBackendUrl();
 // Log the base URL for debugging
 if (typeof window !== 'undefined') {
   console.log('[API Client] Initialized with base URL:', API_BASE_URL);
+  console.log('[API Client] Environment variables:', {
+    NEXT_PUBLIC_BACKEND_API_URL: process.env.NEXT_PUBLIC_BACKEND_API_URL || 'NOT SET',
+    NEXT_PUBLIC_API_BASE_URL: process.env.NEXT_PUBLIC_API_BASE_URL || 'NOT SET',
+  });
   if (API_BASE_URL.includes('metaapi')) {
     console.warn('[API Client] WARNING: API base URL points to MetaAPI instead of local backend!');
     console.warn('[API Client] Set NEXT_PUBLIC_BACKEND_API_URL=http://localhost:5000 in .env.local');
+  }
+  if (API_BASE_URL.includes('localhost')) {
+    console.warn('[API Client] WARNING: Using localhost:5000 - make sure NEXT_PUBLIC_BACKEND_API_URL is set in production!');
   }
 }
 
@@ -50,6 +60,31 @@ class ApiClient {
 
   constructor(baseURL: string) {
     this.baseURL = baseURL;
+  }
+
+  /**
+   * Get the current base URL, re-evaluating environment variables at runtime
+   * This ensures production builds use the correct API URL from environment variables
+   * In Next.js, NEXT_PUBLIC_* variables are embedded at build time and available at runtime
+   */
+  getBaseURL(): string {
+    // Re-evaluate environment variables at runtime
+    // In Next.js, process.env.NEXT_PUBLIC_* vars are available in browser
+    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_API_URL;
+    if (backendUrl) {
+      console.log('[API Client] Using NEXT_PUBLIC_BACKEND_API_URL:', backendUrl);
+      return backendUrl;
+    }
+
+    const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
+    if (apiBaseUrl && !apiBaseUrl.includes('metaapi')) {
+      console.log('[API Client] Using NEXT_PUBLIC_API_BASE_URL:', apiBaseUrl);
+      return apiBaseUrl;
+    }
+
+    // Fallback to current baseURL if env vars not available
+    console.warn('[API Client] No environment variables set, using fallback:', this.baseURL || 'http://localhost:5000');
+    return this.baseURL || 'http://localhost:5000';
   }
 
   /**
@@ -101,7 +136,9 @@ class ApiClient {
     }
 
     try {
-      const url = `${this.baseURL}${endpoint}`;
+      // Use getBaseURL() to ensure we use runtime environment variables
+      const baseURL = this.getBaseURL();
+      const url = `${baseURL}${endpoint}`;
       console.log(`[API Client] Making request to: ${url}`);
 
       const response = await fetch(url, {
