@@ -22,11 +22,8 @@ import {
 	Position,
 	PreOrder,
 	Side,
-	StandardFormatterName,
 	TradeContext,
 } from '../../charting_library/broker-api';
-
-import { BottomWidgetBarMode } from '../../charting_library/broker-api';
 
 import { IDatafeedQuotesApi, QuoteData } from '../../charting_library/datafeed-api';
 
