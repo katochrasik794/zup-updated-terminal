@@ -5,6 +5,7 @@ import { FiChevronRight, FiHelpCircle } from 'react-icons/fi'
 import { usePrivacy } from '../../context/PrivacyContext';
 import { useAccount } from '../../context/AccountContext';
 import { formatCurrency, cn } from '../../lib/utils';
+import { apiClient } from '../../lib/api';
 
 export default function AccountDropdown({ isOpen, onClose }) {
   const { hideBalance, toggleHideBalance } = usePrivacy();
@@ -34,7 +35,8 @@ export default function AccountDropdown({ isOpen, onClose }) {
     if (!currentAccountId) return;
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5000/api/accounts/${currentAccountId}/profile`, {
+      const baseURL = apiClient.getBaseURL();
+      const response = await fetch(`${baseURL}/api/accounts/${currentAccountId}/profile`, {
         cache: 'no-store',
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -56,9 +58,10 @@ export default function AccountDropdown({ isOpen, onClose }) {
       const results: Record<string, any> = {};
 
       // Fetch all visible accounts - doing it in parallel
+      const baseURL = apiClient.getBaseURL();
       await Promise.all(mt5Accounts.map(async (acc) => {
         try {
-          const response = await fetch(`http://localhost:5000/api/accounts/${acc.accountId}/profile`, {
+          const response = await fetch(`${baseURL}/api/accounts/${acc.accountId}/profile`, {
             cache: 'no-store',
             headers: { 'Authorization': `Bearer ${token}` }
           });

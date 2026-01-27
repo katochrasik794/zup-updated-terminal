@@ -26,6 +26,7 @@ import { useAccount } from '../../context/AccountContext'
 import { formatCurrency, cn } from '../../lib/utils'
 import { useInstruments } from '../../context/InstrumentContext'
 import { useTrading } from '../../context/TradingContext'
+import { apiClient } from '../../lib/api'
 
 // InstrumentTab Component
 interface Tab {
@@ -119,7 +120,8 @@ export default function Navbar({ logoLarge, logoSmall }: NavbarProps) {
         return;
       }
 
-      const response = await fetch(`http://localhost:5000/api/accounts/${currentAccountId}/profile`, {
+      const baseURL = apiClient.getBaseURL();
+      const response = await fetch(`${baseURL}/api/accounts/${currentAccountId}/profile`, {
         cache: 'no-store',
         headers: {
           'Authorization': `Bearer ${token}`,

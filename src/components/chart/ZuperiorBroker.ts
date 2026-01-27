@@ -1368,10 +1368,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 
 			// Call backend API
 			const token = apiClient.getToken();
-			const baseURL = process.env.NEXT_PUBLIC_BACKEND_API_URL ||
-				(process.env.NEXT_PUBLIC_API_BASE_URL && process.env.NEXT_PUBLIC_API_BASE_URL.includes('localhost')
-					? process.env.NEXT_PUBLIC_API_BASE_URL
-					: 'http://localhost:5000');
+			const baseURL = apiClient.getBaseURL();
 
 			const response = await fetch(`${baseURL}/api/positions/${positionId}/modify`, {
 				method: 'PUT',

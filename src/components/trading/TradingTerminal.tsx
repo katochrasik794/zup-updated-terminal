@@ -13,7 +13,7 @@ import { useSidebar } from '@/context/SidebarContext'
 import { useAccount } from '@/context/AccountContext'
 import { useTrading } from '@/context/TradingContext'
 import { usePositions, Position } from '@/hooks/usePositions'
-import { ordersApi, positionsApi, PlaceMarketOrderParams, PlacePendingOrderParams, ClosePositionParams, CloseAllParams, ModifyPendingOrderParams, ModifyPositionParams } from '@/lib/api'
+import { ordersApi, positionsApi, apiClient, PlaceMarketOrderParams, PlacePendingOrderParams, ClosePositionParams, CloseAllParams, ModifyPendingOrderParams, ModifyPositionParams } from '@/lib/api'
 import { closePositionDirect, placeMarketOrderDirect, placePendingOrderDirect } from '@/lib/metaapi'
 
 import { ImperativePanelHandle } from 'react-resizable-panels'
@@ -372,7 +372,8 @@ export default function TradingTerminal() {
           return;
         }
 
-        const balanceResponse = await fetch(`http://localhost:5000/api/accounts/${currentAccountId}/profile`, {
+        const baseURL = apiClient.getBaseURL();
+        const balanceResponse = await fetch(`${baseURL}/api/accounts/${currentAccountId}/profile`, {
           cache: 'no-store',
           headers: { 'Authorization': `Bearer ${token}` }
         });
@@ -640,7 +641,8 @@ export default function TradingTerminal() {
           return;
         }
 
-        const balanceResponse = await fetch(`http://localhost:5000/api/accounts/${currentAccountId}/profile`, {
+        const baseURL = apiClient.getBaseURL();
+        const balanceResponse = await fetch(`${baseURL}/api/accounts/${currentAccountId}/profile`, {
           cache: 'no-store',
           headers: { 'Authorization': `Bearer ${token}` }
         });

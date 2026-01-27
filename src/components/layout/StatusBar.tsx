@@ -5,6 +5,7 @@ import { GiNetworkBars } from "react-icons/gi";
 import CloseAllPositionsDropdown from "../modals/CloseAllPositionsDropdown";
 import { usePrivacy } from '../../context/PrivacyContext';
 import { formatCurrency } from '../../lib/utils';
+import { apiClient } from '../../lib/api';
 
 export default function StatusBar({ openPositions = [], onCloseAll }: any) {
   const { hideBalance } = usePrivacy();
@@ -19,8 +20,8 @@ export default function StatusBar({ openPositions = [], onCloseAll }: any) {
       const token = localStorage.getItem('token');
       if (!accountId) return;
 
-      const API_URL = 'http://localhost:5000';
-      const response = await fetch(`${API_URL}/api/accounts/${accountId}/profile`, {
+      const baseURL = apiClient.getBaseURL();
+      const response = await fetch(`${baseURL}/api/accounts/${accountId}/profile`, {
         cache: 'no-store',
         headers: {
           'Authorization': `Bearer ${token}`
