@@ -1948,12 +1948,8 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 					if (cleanPosition.takeProfit !== undefined && cleanPosition.takeProfit > 0) {
 						try {
 							const tpBracket = this._createTakeProfitBracket(cleanPosition);
-							// Update status and parentType AFTER creation (matching reference pattern in _updatePositionsBracket)
-							(tpBracket as any).status = OrderStatus.Working;
-							(tpBracket as any).parentType = ParentType.Position;
 							this._orderById[tpBracket.id] = tpBracket;
-							// Use _updateOrder to match reference pattern (it also updates parent entity)
-							this._updateOrder(tpBracket);
+							safeHostCall(this._host, 'orderUpdate', tpBracket);
 							console.log('[ZuperiorBroker] Created TP bracket order:', tpBracket.id, 'limitPrice:', tpBracket.limitPrice);
 						} catch (error) {
 							console.error('[ZuperiorBroker] Error creating TP bracket:', error);
@@ -1962,25 +1958,9 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 
 					if (cleanPosition.stopLoss !== undefined && cleanPosition.stopLoss > 0) {
 						try {
-							// CRITICAL: Ensure stopPrice is set on position - reference uses entity.stopPrice for price field
-							(cleanPosition as any).stopPrice = cleanPosition.stopLoss;
-
 							const slBracket = this._createStopLossBracket(cleanPosition);
-
-							// Update status and parentType AFTER creation (matching reference pattern in _updatePositionsBracket)
-							(slBracket as any).status = OrderStatus.Working;
-							(slBracket as any).parentType = ParentType.Position;
-
-							// CRITICAL FIX: Ensure price is ALWAYS a valid number - TradingView needs this for notifications and chart line
-							// Even if entity.stopPrice was set, double-check and ensure price is valid
-							if ((slBracket as any).price === undefined || (slBracket as any).price === null || !Number.isFinite((slBracket as any).price)) {
-								(slBracket as any).price = slBracket.stopPrice;
-							}
-
-							// Store bracket and update - ALWAYS update, matching reference pattern
 							this._orderById[slBracket.id] = slBracket;
-							// Use _updateOrder to match reference pattern (it also updates parent entity)
-							this._updateOrder(slBracket);
+							safeHostCall(this._host, 'orderUpdate', slBracket);
 							console.log('[ZuperiorBroker] Created SL bracket order:', slBracket.id, 'stopPrice:', slBracket.stopPrice);
 						} catch (error) {
 							console.error('[ZuperiorBroker] Error creating SL bracket:', error);
@@ -2107,203 +2087,210 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 
 		return bracket;
 	}
+	if(Number.isFinite(profitValue)) {
+	(bracket as any).pl = profitValue;
+}
+		}
+
+return bracket;
+	}
 
 	private _getBrackets(parentId: string): Order[] {
-		return Object.values(this._orderById).filter(
-			(order: Order) => order.parentId === parentId &&
-				(order.status === OrderStatus.Working || order.status === OrderStatus.Inactive)
-		);
-	}
+	return Object.values(this._orderById).filter(
+		(order: Order) => order.parentId === parentId &&
+			(order.status === OrderStatus.Working || order.status === OrderStatus.Inactive)
+	);
+}
 
 	private _getTakeProfitBracket(entity: Position | Order): Order | undefined {
-		return this._getBrackets(entity.id).find((bracket: Order) => bracket.limitPrice !== undefined);
-	}
+	return this._getBrackets(entity.id).find((bracket: Order) => bracket.limitPrice !== undefined);
+}
 
 	private _getStopLossBracket(entity: Position | Order): Order | undefined {
-		return this._getBrackets(entity.id).find((bracket: Order) => bracket.stopPrice !== undefined);
-	}
+	return this._getBrackets(entity.id).find((bracket: Order) => bracket.stopPrice !== undefined);
+}
 
 	private _updateOrder(order: Order): void {
-		const hasOrderAlready = Boolean(this._orderById[order.id]);
+	const hasOrderAlready = Boolean(this._orderById[order.id]);
 
-		if (hasOrderAlready) {
-			Object.assign(this._orderById[order.id], order);
-		} else {
-			this._orderById[order.id] = order;
-		}
+	if(hasOrderAlready) {
+		Object.assign(this._orderById[order.id], order);
+	} else {
+		this._orderById[order.id] = order;
+	}
 
 		// Update orders array
 		const orderIndex = this._orders.findIndex(o => o.id === order.id);
-		if (orderIndex >= 0) {
-			this._orders[orderIndex] = order;
-		} else {
-			this._orders.push(order);
+	if(orderIndex >= 0) {
+	this._orders[orderIndex] = order;
+} else {
+	this._orders.push(order);
+}
+
+// Notify TradingView
+if (this._host && typeof this._host.orderUpdate === 'function') {
+	this._host.orderUpdate(order);
+}
+
+// Update parent entity's brackets if applicable
+if (order.parentId !== undefined) {
+	const entity = order.parentType === ParentType.Position
+		? this._positionById[order.parentId]
+		: this._orderById[order.parentId];
+
+	if (entity === undefined) {
+		return;
+	}
+
+	// Update take-profit
+	if (order.limitPrice !== undefined) {
+		(entity as any).takeProfit = order.status !== OrderStatus.Canceled
+			? order.limitPrice
+			: undefined;
+	}
+
+	// Update stop-loss
+	if (order.stopPrice !== undefined) {
+		(entity as any).stopLoss = order.status !== OrderStatus.Canceled
+			? order.stopPrice
+			: undefined;
+	}
+
+	// If parent is a position, update it
+	if (order.parentType === ParentType.Position && entity) {
+		if (this._host && typeof this._host.positionUpdate === 'function') {
+			const cleanPosition = this._createCleanPosition(entity as Position);
+			// Update _positionById with clean position before calling positionUpdate
+			this._positionById[cleanPosition.id] = cleanPosition;
+			this._host.positionUpdate(cleanPosition);
 		}
-
-		// Notify TradingView
-		if (this._host && typeof this._host.orderUpdate === 'function') {
-			this._host.orderUpdate(order);
-		}
-
-		// Update parent entity's brackets if applicable
-		if (order.parentId !== undefined) {
-			const entity = order.parentType === ParentType.Position
-				? this._positionById[order.parentId]
-				: this._orderById[order.parentId];
-
-			if (entity === undefined) {
-				return;
-			}
-
-			// Update take-profit
-			if (order.limitPrice !== undefined) {
-				(entity as any).takeProfit = order.status !== OrderStatus.Canceled
-					? order.limitPrice
-					: undefined;
-			}
-
-			// Update stop-loss
-			if (order.stopPrice !== undefined) {
-				(entity as any).stopLoss = order.status !== OrderStatus.Canceled
-					? order.stopPrice
-					: undefined;
-			}
-
-			// If parent is a position, update it
-			if (order.parentType === ParentType.Position && entity) {
-				if (this._host && typeof this._host.positionUpdate === 'function') {
-					const cleanPosition = this._createCleanPosition(entity as Position);
-					// Update _positionById with clean position before calling positionUpdate
-					this._positionById[cleanPosition.id] = cleanPosition;
-					this._host.positionUpdate(cleanPosition);
-				}
-			}
-		}
+	}
+}
 	}
 
 	private _setCanceledStatusAndUpdate(order: Order): void {
-		order.status = OrderStatus.Canceled;
-		this._updateOrder(order);
-	}
+	order.status = OrderStatus.Canceled;
+	this._updateOrder(order);
+}
 
 	private _updatePositionsBracket(params: {
-		parent: Position;
-		bracket: Order | undefined;
-		bracketType: 0 | 1; // 0 = StopLoss, 1 = TakeProfit
-		newPrice: number | undefined;
-	}): void {
-		const { parent, bracket, bracketType, newPrice } = params;
+	parent: Position;
+	bracket: Order | undefined;
+	bracketType: 0 | 1; // 0 = StopLoss, 1 = TakeProfit
+	newPrice: number | undefined;
+}): void {
+	const { parent, bracket, bracketType, newPrice } = params;
 
-		// Check if bracket should be canceled
-		const shouldCancelBracket = bracket !== undefined && newPrice === undefined;
-		if (shouldCancelBracket) {
-			this._setCanceledStatusAndUpdate(bracket);
+	// Check if bracket should be canceled
+	const shouldCancelBracket = bracket !== undefined && newPrice === undefined;
+	if(shouldCancelBracket) {
+		this._setCanceledStatusAndUpdate(bracket);
+		return;
+	}
+
+		if(newPrice === undefined) {
+	return;
+}
+
+const shouldCreateNewBracket = bracket === undefined;
+
+// Handle Take Profit
+if (bracketType === 1) {
+	if (shouldCreateNewBracket) {
+		// Set parent.takeProfit BEFORE creating bracket
+		parent.takeProfit = newPrice;
+		const takeProfitBracket = this._createTakeProfitBracket(parent);
+		takeProfitBracket.status = OrderStatus.Working;
+		takeProfitBracket.parentType = ParentType.Position;
+
+		if (!takeProfitBracket.symbol || takeProfitBracket.symbol.trim() === '') {
+			console.error('[ZuperiorBroker] Cannot create TP bracket - invalid symbol');
 			return;
 		}
 
-		if (newPrice === undefined) {
+		try {
+			this._updateOrder(takeProfitBracket);
+			// Update parent position after bracket is created
+			if (this._host && typeof this._host.positionUpdate === 'function') {
+				const cleanPosition = this._createCleanPosition(parent);
+				// Update _positionById with clean position before calling positionUpdate
+				this._positionById[cleanPosition.id] = cleanPosition;
+				this._host.positionUpdate(cleanPosition);
+			}
+		} catch (error) {
+			console.error('[ZuperiorBroker] Error creating TP bracket:', error);
+		}
+		return;
+	}
+
+	// Update existing bracket
+	bracket.limitPrice = newPrice;
+	// Also update parent position's takeProfit to match
+	parent.takeProfit = newPrice;
+	if (!bracket.symbol || bracket.symbol.trim() === '') {
+		console.error('[ZuperiorBroker] Cannot update TP bracket - invalid symbol');
+		return;
+	}
+
+	try {
+		this._updateOrder(bracket);
+		// Update parent position after bracket is updated
+		if (this._host && typeof this._host.positionUpdate === 'function') {
+			const cleanPosition = this._createCleanPosition(parent);
+			// Update _positionById with clean position before calling positionUpdate
+			this._positionById[cleanPosition.id] = cleanPosition;
+			this._host.positionUpdate(cleanPosition);
+		}
+	} catch (error) {
+		console.error('[ZuperiorBroker] Error updating TP bracket:', error);
+	}
+	return;
+}
+
+// Handle Stop Loss
+if (bracketType === 0) {
+	if (shouldCreateNewBracket) {
+		// Set parent.stopLoss BEFORE creating bracket
+		parent.stopLoss = newPrice;
+		const stopLossBracket = this._createStopLossBracket(parent);
+		stopLossBracket.status = OrderStatus.Working;
+		stopLossBracket.parentType = ParentType.Position;
+
+		if (!stopLossBracket.symbol || stopLossBracket.symbol.trim() === '') {
+			console.error('[ZuperiorBroker] Cannot create SL bracket - invalid symbol');
 			return;
 		}
 
-		const shouldCreateNewBracket = bracket === undefined;
-
-		// Handle Take Profit
-		if (bracketType === 1) {
-			if (shouldCreateNewBracket) {
-				// Set parent.takeProfit BEFORE creating bracket
-				parent.takeProfit = newPrice;
-				const takeProfitBracket = this._createTakeProfitBracket(parent);
-				takeProfitBracket.status = OrderStatus.Working;
-				takeProfitBracket.parentType = ParentType.Position;
-
-				if (!takeProfitBracket.symbol || takeProfitBracket.symbol.trim() === '') {
-					console.error('[ZuperiorBroker] Cannot create TP bracket - invalid symbol');
-					return;
-				}
-
-				try {
-					this._updateOrder(takeProfitBracket);
-					// Update parent position after bracket is created
-					if (this._host && typeof this._host.positionUpdate === 'function') {
-						const cleanPosition = this._createCleanPosition(parent);
-						// Update _positionById with clean position before calling positionUpdate
-						this._positionById[cleanPosition.id] = cleanPosition;
-						this._host.positionUpdate(cleanPosition);
-					}
-				} catch (error) {
-					console.error('[ZuperiorBroker] Error creating TP bracket:', error);
-				}
-				return;
-			}
-
-			// Update existing bracket
-			bracket.limitPrice = newPrice;
-			// Also update parent position's takeProfit to match
-			parent.takeProfit = newPrice;
-			if (!bracket.symbol || bracket.symbol.trim() === '') {
-				console.error('[ZuperiorBroker] Cannot update TP bracket - invalid symbol');
-				return;
-			}
-
-			try {
-				this._updateOrder(bracket);
-				// Update parent position after bracket is updated
-				if (this._host && typeof this._host.positionUpdate === 'function') {
-					const cleanPosition = this._createCleanPosition(parent);
-					// Update _positionById with clean position before calling positionUpdate
-					this._positionById[cleanPosition.id] = cleanPosition;
-					this._host.positionUpdate(cleanPosition);
-				}
-			} catch (error) {
-				console.error('[ZuperiorBroker] Error updating TP bracket:', error);
-			}
-			return;
+		try {
+			this._updateOrder(stopLossBracket);
+		} catch (error) {
+			console.error('[ZuperiorBroker] Error creating SL bracket:', error);
 		}
+		return;
+	}
 
-		// Handle Stop Loss
-		if (bracketType === 0) {
-			if (shouldCreateNewBracket) {
-				// Set parent.stopLoss BEFORE creating bracket
-				parent.stopLoss = newPrice;
-				const stopLossBracket = this._createStopLossBracket(parent);
-				stopLossBracket.status = OrderStatus.Working;
-				stopLossBracket.parentType = ParentType.Position;
+	// Update existing bracket
+	bracket.stopPrice = newPrice;
+	// Also update parent position's stopLoss to match
+	parent.stopLoss = newPrice;
+	if (!bracket.symbol || bracket.symbol.trim() === '') {
+		console.error('[ZuperiorBroker] Cannot update SL bracket - invalid symbol');
+		return;
+	}
 
-				if (!stopLossBracket.symbol || stopLossBracket.symbol.trim() === '') {
-					console.error('[ZuperiorBroker] Cannot create SL bracket - invalid symbol');
-					return;
-				}
-
-				try {
-					this._updateOrder(stopLossBracket);
-				} catch (error) {
-					console.error('[ZuperiorBroker] Error creating SL bracket:', error);
-				}
-				return;
-			}
-
-			// Update existing bracket
-			bracket.stopPrice = newPrice;
-			// Also update parent position's stopLoss to match
-			parent.stopLoss = newPrice;
-			if (!bracket.symbol || bracket.symbol.trim() === '') {
-				console.error('[ZuperiorBroker] Cannot update SL bracket - invalid symbol');
-				return;
-			}
-
-			try {
-				this._updateOrder(bracket);
-				// Update parent position after bracket is updated
-				if (this._host && typeof this._host.positionUpdate === 'function') {
-					const cleanPosition = this._createCleanPosition(parent);
-					// Update _positionById with clean position before calling positionUpdate
-					this._positionById[cleanPosition.id] = cleanPosition;
-					this._host.positionUpdate(cleanPosition);
-				}
-			} catch (error) {
-				console.error('[ZuperiorBroker] Error updating SL bracket:', error);
-			}
-			return;
+	try {
+		this._updateOrder(bracket);
+		// Update parent position after bracket is updated
+		if (this._host && typeof this._host.positionUpdate === 'function') {
+			const cleanPosition = this._createCleanPosition(parent);
+			// Update _positionById with clean position before calling positionUpdate
+			this._positionById[cleanPosition.id] = cleanPosition;
+			this._host.positionUpdate(cleanPosition);
 		}
+	} catch (error) {
+		console.error('[ZuperiorBroker] Error updating SL bracket:', error);
+	}
+	return;
+}
 	}
 }

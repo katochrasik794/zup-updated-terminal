@@ -198,6 +198,8 @@ export const TVChartContainer = () => {
                     'header_symbol_search',
                     'symbol_search_hot_key',
                     'header_compare',
+                    'trading_account_manager',
+                    'open_account_manager',
                 ],
                 enabled_features: ['study_templates'],
                 charts_storage_url: 'https://saveload.tradingview.com',
