@@ -11,8 +11,7 @@ import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { cn } from "@/lib/utils"
 import { LoadingWave } from "@/components/ui/loading-wave"
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'
+import { authApi, apiClient } from "@/lib/api"
 
 export default function LoginPage() {
   const [showPassword, setShowPassword] = React.useState(false)
@@ -48,14 +47,7 @@ export default function LoginPage() {
         const accountId = params.get('accountId')
 
         try {
-          const response = await fetch(`${API_BASE_URL}/api/auth/sso-login`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            credentials: 'include',
-            body: JSON.stringify({ token, clientId }),
-          })
-
-          const data = await response.json()
+          const data = await authApi.ssoLogin(token, clientId)
 
           if (data.success) {
             // Store token if provided
@@ -88,8 +80,8 @@ export default function LoginPage() {
           } else {
             setError(data.message || "Auto-login failed. Please login manually.")
           }
-        } catch {
-          setError("Auto-login error. Please login manually.")
+        } catch (err: any) {
+          setError(err.message || "Auto-login error. Please login manually.")
         } finally {
           setIsLoading(false)
         }
@@ -112,14 +104,7 @@ export default function LoginPage() {
     setIsLoading(true)
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: 'include',
-        body: JSON.stringify({ email: signInEmail, password: signInPassword }),
-      })
-
-      const data = await response.json()
+      const data = await authApi.login(signInEmail, signInPassword)
 
       if (data.success) {
         // Store token if provided
@@ -167,19 +152,7 @@ export default function LoginPage() {
     setIsLoading(true)
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/auth/register`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: 'include',
-        body: JSON.stringify({
-          email: signUpEmail,
-          password: signUpPassword,
-          name: signUpName,
-          phone: signUpPhone
-        }),
-      })
-
-      const data = await response.json()
+      const data = await authApi.register(signUpEmail, signUpPassword, signUpName, signUpPhone)
 
       if (data.success) {
         // Store token if provided
@@ -193,8 +166,8 @@ export default function LoginPage() {
       } else {
         setError(data.message || "Registration failed. Please try again.")
       }
-    } catch (err) {
-      setError("An error occurred. Please try again.")
+    } catch (err: any) {
+      setError(err.message || "Registration failed. Please try again.")
     } finally {
       setIsLoading(false)
     }
