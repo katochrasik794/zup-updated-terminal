@@ -969,10 +969,8 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 
 		try {
 			const token = apiClient.getToken();
-			const baseURL = process.env.NEXT_PUBLIC_BACKEND_API_URL ||
-				(process.env.NEXT_PUBLIC_API_BASE_URL && process.env.NEXT_PUBLIC_API_BASE_URL.includes('localhost')
-					? process.env.NEXT_PUBLIC_API_BASE_URL
-					: 'http://localhost:5000');
+			// Use apiClient's baseURL which handles environment variables correctly
+			const baseURL = apiClient.baseURL;
 
 			// Map TV PreOrder to backend payload
 			// TV PreOrder: { symbol, qty, side (1/-1), type (1=Limit, 2=Market, 3=Stop), limitPrice, stopPrice, takeProfit, stopLoss }
@@ -1062,11 +1060,8 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 		try {
 			// Call API to cancel order - use fetch directly since we need DELETE with body
 			const token = apiClient.getToken();
-			// Get base URL from environment or default to localhost:5000
-			const baseURL = process.env.NEXT_PUBLIC_BACKEND_API_URL ||
-				(process.env.NEXT_PUBLIC_API_BASE_URL && process.env.NEXT_PUBLIC_API_BASE_URL.includes('localhost')
-					? process.env.NEXT_PUBLIC_API_BASE_URL
-					: 'http://localhost:5000');
+			// Use apiClient's baseURL which handles environment variables correctly
+			const baseURL = apiClient.baseURL;
 
 			const response = await fetch(`${baseURL}/api/trading/pending/order/${orderId}`, {
 				method: 'DELETE',
@@ -1112,10 +1107,8 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			}
 
 			const token = apiClient.getToken();
-			const baseURL = process.env.NEXT_PUBLIC_BACKEND_API_URL ||
-				(process.env.NEXT_PUBLIC_API_BASE_URL && process.env.NEXT_PUBLIC_API_BASE_URL.includes('localhost')
-					? process.env.NEXT_PUBLIC_API_BASE_URL
-					: 'http://localhost:5000');
+			// Use apiClient's baseURL which handles environment variables correctly
+			const baseURL = apiClient.baseURL;
 
 			const response = await fetch(`${baseURL}/api/trading/close`, {
 				method: 'POST',
@@ -1209,10 +1202,8 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 
 			// Call API to update position
 			const token = apiClient.getToken();
-			const baseURL = process.env.NEXT_PUBLIC_BACKEND_API_URL ||
-				(process.env.NEXT_PUBLIC_API_BASE_URL && process.env.NEXT_PUBLIC_API_BASE_URL.includes('localhost')
-					? process.env.NEXT_PUBLIC_API_BASE_URL
-					: 'http://localhost:5000');
+			// Use apiClient's baseURL which handles environment variables correctly
+			const baseURL = apiClient.baseURL;
 
 			// Use the correct endpoint for modifying positions found in backend routes
 			const response = await fetch(`${baseURL}/api/positions/${positionId}/modify`, {

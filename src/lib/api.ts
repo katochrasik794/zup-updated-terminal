@@ -7,20 +7,20 @@
  */
 
 // Use a specific env var for the backend API, or default to localhost:5000
-// Priority: NEXT_PUBLIC_BACKEND_API_URL > NEXT_PUBLIC_API_BASE_URL (if it's localhost) > default
+// Priority: NEXT_PUBLIC_BACKEND_API_URL > NEXT_PUBLIC_API_BASE_URL > default
 const getBackendUrl = () => {
-  // First check for explicit backend URL
+  // First check for explicit backend URL (highest priority)
   if (process.env.NEXT_PUBLIC_BACKEND_API_URL) {
     return process.env.NEXT_PUBLIC_BACKEND_API_URL;
   }
 
-  // Check if NEXT_PUBLIC_API_BASE_URL is set and is localhost (not metaapi)
+  // Check if NEXT_PUBLIC_API_BASE_URL is set (use it if it's not metaapi)
   const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
-  if (apiBaseUrl && (apiBaseUrl.includes('localhost') || apiBaseUrl.includes('127.0.0.1'))) {
+  if (apiBaseUrl && !apiBaseUrl.includes('metaapi')) {
     return apiBaseUrl;
   }
 
-  // Default to localhost:5000
+  // Default to localhost:5000 (only for local development)
   return 'http://localhost:5000';
 };
 
