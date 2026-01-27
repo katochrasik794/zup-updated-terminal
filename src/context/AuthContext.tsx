@@ -50,7 +50,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       const response = await authApi.getCurrentUser() as any;
       if (response.success && response.user) {
-.email);
         setUser(response.user);
       } else {
 
