@@ -46,7 +46,7 @@ export interface ApiResponse<T = any> {
 }
 
 class ApiClient {
-  private baseURL: string;
+  public baseURL: string;
 
   constructor(baseURL: string) {
     this.baseURL = baseURL;
