@@ -154,11 +154,11 @@ export default function Navbar({ logoLarge, logoSmall }: NavbarProps) {
   // Initialize default tabs only once when instruments first load
   useEffect(() => {
     if (instruments.length > 0 && tabs.length === 0) {
-      const btcSymbol = instruments.find(i => i.symbol.toUpperCase().startsWith('BTCUSD'))?.symbol || 'BTCUSD';
+      const eurSymbol = instruments.find(i => i.symbol.toUpperCase().startsWith('EURUSD'))?.symbol || 'EURUSD';
       const xauSymbol = instruments.find(i => i.symbol.toUpperCase().startsWith('XAUUSD'))?.symbol || 'XAUUSD';
 
       setTabs([
-        { id: '1', symbol: btcSymbol, flagType: btcSymbol.toLowerCase(), isActive: true },
+        { id: '1', symbol: eurSymbol, flagType: eurSymbol.toLowerCase(), isActive: true },
         { id: '2', symbol: xauSymbol, flagType: xauSymbol.toLowerCase(), isActive: false }
       ]);
     }
@@ -182,7 +182,27 @@ export default function Navbar({ logoLarge, logoSmall }: NavbarProps) {
   const [isDepositPopupOpen, setIsDepositPopupOpen] = useState(false)
   const addTabButtonRef = useRef<HTMLButtonElement>(null)
 
-  const { setSymbol, setAddNavbarTab } = useTrading();
+  const { symbol, setSymbol, setAddNavbarTab } = useTrading();
+
+  // Sync active tab with current symbol from TradingContext
+  useEffect(() => {
+    if (tabs.length > 0 && symbol) {
+      // Find tab that matches the current symbol
+      const matchingTab = tabs.find(tab =>
+        tab.symbol.toUpperCase() === symbol.toUpperCase()
+      );
+
+      if (matchingTab && !matchingTab.isActive) {
+        // Update tabs to make the matching tab active
+        setTabs(prevTabs =>
+          prevTabs.map(tab => ({
+            ...tab,
+            isActive: tab.symbol.toUpperCase() === symbol.toUpperCase()
+          }))
+        );
+      }
+    }
+  }, [symbol, tabs.length]); // Only re-run when symbol changes or tabs are initialized
 
   const handleTabClick = (tabId: string) => {
     const clickedTab = tabs.find(tab => tab.id === tabId);

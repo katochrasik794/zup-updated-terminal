@@ -18,9 +18,20 @@ const InstrumentRow = ({ item, isVisible, toggleFavorite, lastQuote, handleDragS
 
   // Live Data or Static Fallback
   const quote = lastQuote || {};
-  // Display bid and ask with 5 decimal places
-  const bid = quote.bid !== undefined ? quote.bid.toFixed(5) : (item.bid ? Number(item.bid).toFixed(5) : '0.00000');
-  const ask = quote.ask !== undefined ? quote.ask.toFixed(5) : (item.ask ? Number(item.ask).toFixed(5) : '0.00000');
+
+  // Format to 6 significant digits total
+  const formatPrice = (price: number | undefined | null): string => {
+    if (price === undefined || price === null) return '0.00000';
+
+    const priceNum = Number(price);
+    if (isNaN(priceNum) || priceNum === 0) return '0.00000';
+
+    // Use toPrecision(6) for exactly 6 significant digits
+    return parseFloat(priceNum.toPrecision(6)).toString();
+  };
+
+  const bid = formatPrice(quote.bid ?? item.bid);
+  const ask = formatPrice(quote.ask ?? item.ask);
 
   // Spread calculation
   const spread = quote.spread !== undefined ? quote.spread : (item.spread || 0);
@@ -252,6 +263,13 @@ export default function WatchlistPanel({ onClose }) {
 
     return filtered;
   }, [items, selectedCategory, searchTerm]);
+
+  // Automatically switch to 'All instruments' if Favorites is selected but empty
+  useEffect(() => {
+    if (selectedCategory === 'Favorites' && filteredItems.length === 0 && items.length > 0) {
+      setSelectedCategory('All instruments');
+    }
+  }, [selectedCategory, filteredItems.length, items.length]);
 
   // Handle Subscriptions
   useEffect(() => {

@@ -131,12 +131,47 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 		// CRITICAL: Update bracket orders FIRST, then positions
 		// This is the correct order for TradingView to display TP/SL lines
 
-		// 1. DO NOT send bracket orders via orderUpdate()
-		// TradingView will display TP/SL lines from position's takeProfit/stopLoss fields
-		// Sending bracket orders via orderUpdate() causes them to appear in Account Manager
-		// Bracket orders should only exist in _orderById for internal tracking (getBrackets, modifyOrder)
-		// They should NOT be sent to TradingView via orderUpdate()
-		// TradingView automatically displays brackets from position data
+		// 1. Send bracket orders via orderUpdate() with status: Inactive and parentId/parentType set
+		// According to TradingView docs, bracket orders MUST be sent via orderUpdate() for chart display
+		// They should have status: Inactive and parentType: ParentType.Position
+		// TradingView should automatically filter them from Account Manager Orders tab
+		bracketOrders.forEach(bracket => {
+			try {
+				if (this._host && typeof this._host.orderUpdate === 'function') {
+					// Ensure bracket has correct structure for positions
+					bracket.status = OrderStatus.Inactive;
+					bracket.parentType = ParentType.Position;
+					
+					// CRITICAL: Calculate projected P/L at bracket price for correct display
+					// TradingView may recalculate P/L based on bracket qty (which is divided by 10000)
+					// So we need to calculate using FULL volume and multiply by 100 to compensate
+					if (bracket.parentId) {
+						const parentPosition = this._positionById[bracket.parentId];
+						if (parentPosition && parentPosition.avgPrice) {
+							const bracketPrice = (bracket as any).limitPrice || (bracket as any).stopPrice;
+							if (bracketPrice && parentPosition.avgPrice) {
+								// Calculate using FULL volume (multiply qty by 10000)
+								const fullVolume = parentPosition.qty * 10000;
+								const priceDiff = bracketPrice - parentPosition.avgPrice;
+								const plAtBracket = priceDiff * fullVolume * (parentPosition.side === Side.Sell ? -1 : 1);
+								// Multiply by 100 to compensate for TradingView's recalculation
+								(bracket as any).pl = plAtBracket * 100;
+							} else if ((parentPosition as any).pl !== undefined && (parentPosition as any).pl !== null) {
+								// Fallback: Use position's P/L and multiply by 100
+								(bracket as any).pl = (parentPosition as any).pl * 100;
+							}
+						} else if (parentPosition && (parentPosition as any).pl !== undefined && (parentPosition as any).pl !== null) {
+							// Fallback: Use position's P/L and multiply by 100
+							(bracket as any).pl = (parentPosition as any).pl * 100;
+						}
+					}
+					
+					this._host.orderUpdate(bracket);
+				}
+			} catch (error) {
+				// Error notifying bracket order - silently handle
+			}
+		});
 
 		// 2. Update regular orders (for Account Manager)
 		regularOrders.forEach(o => {
@@ -597,13 +632,64 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 					console.log(`[ZuperiorBroker] No positions to send (count: ${tvPositions.length})`);
 				}
 
-				// Step 2: DO NOT send bracket orders via orderUpdate()
-				// TradingView automatically displays TP/SL lines from position's takeProfit/stopLoss fields
-				// Bracket orders are stored in _orderById for internal tracking only (getBrackets, modifyOrder)
-				// Sending them via orderUpdate() causes them to appear in Account Manager Orders tab
-				// According to TradingView docs, bracket orders with parentId/parentType should be filtered,
-				// but Account Manager still shows them, so we don't send them at all
-				console.log(`[ZuperiorBroker] Created ${bracketOrders.length} bracket orders for internal tracking (not sent to TradingView)`);
+				// Step 2: Send bracket orders via orderUpdate() with correct structure
+				// According to TradingView docs, bracket orders MUST be sent via orderUpdate() for chart display
+				// They should have status: Inactive and parentType: ParentType.Position
+				// TradingView should automatically filter them from Account Manager Orders tab
+				if (Array.isArray(bracketOrders) && bracketOrders.length > 0) {
+					bracketOrders.forEach(bracket => {
+						try {
+							if (bracket && this._host && typeof this._host.orderUpdate === 'function') {
+								// Ensure bracket has correct structure for positions
+								bracket.status = OrderStatus.Inactive;
+								bracket.parentType = ParentType.Position;
+								
+								// CRITICAL: Calculate projected P/L at bracket price for correct display
+								// TradingView may recalculate P/L based on bracket qty (which is divided by 10000)
+								// So we need to calculate using FULL volume and multiply by 100 to compensate
+								if (bracket.parentId) {
+									const parentPosition = this._positionById[bracket.parentId];
+									const position = tvPositions.find(p => p.id === bracket.parentId);
+									
+									if (position && position.avgPrice) {
+										const bracketPrice = (bracket as any).limitPrice || (bracket as any).stopPrice;
+										if (bracketPrice && position.avgPrice) {
+											// Calculate using FULL volume (multiply qty by 10000)
+											const fullVolume = position.qty * 10000;
+											const priceDiff = bracketPrice - position.avgPrice;
+											const plAtBracket = priceDiff * fullVolume * (position.side === Side.Sell ? -1 : 1);
+											// Multiply by 100 to compensate for TradingView's recalculation
+											(bracket as any).pl = plAtBracket * 100;
+										} else if (parentPosition && (parentPosition as any).pl !== undefined && (parentPosition as any).pl !== null) {
+											// Fallback: Use position's P/L and multiply by 100
+											(bracket as any).pl = (parentPosition as any).pl * 100;
+										}
+									} else if (parentPosition && (parentPosition as any).pl !== undefined && (parentPosition as any).pl !== null) {
+										// Fallback: Use position's P/L and multiply by 100
+										(bracket as any).pl = (parentPosition as any).pl * 100;
+									}
+								}
+								
+								console.log(`[ZuperiorBroker] Step 2: Sending bracket order:`, {
+									id: bracket.id,
+									symbol: bracket.symbol,
+									type: bracket.type,
+									parentId: bracket.parentId,
+									parentType: bracket.parentType,
+									status: bracket.status,
+									limitPrice: (bracket as any).limitPrice,
+									stopPrice: (bracket as any).stopPrice,
+									pl: (bracket as any).pl,
+								});
+								this._host.orderUpdate(bracket);
+							}
+						} catch (error) {
+							console.error('[ZuperiorBroker] Error updating bracket order:', error, bracket);
+						}
+					});
+				} else {
+					console.log(`[ZuperiorBroker] No bracket orders to send (count: ${bracketOrders.length})`);
+				}
 
 				// Step 3: Update pending orders
 				if (Array.isArray(tvOrders)) {
@@ -2200,15 +2286,43 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 
 					// Step 2: Create bracket orders AFTER position is updated
 					// TradingView will match these to the position's brackets
-					// DO NOT send bracket orders via orderUpdate()
-					// TradingView automatically displays TP/SL lines from position's takeProfit/stopLoss fields
-					// Store bracket orders in _orderById for internal tracking only (getBrackets, modifyOrder)
+					// Send bracket orders via orderUpdate() with correct structure
+					// According to TradingView docs, bracket orders MUST be sent for chart display and draggability
+					// They should have status: Inactive and parentType: ParentType.Position
 					if (cleanPosition.takeProfit !== undefined && cleanPosition.takeProfit > 0) {
 						try {
 							const tpBracket = this._createTakeProfitBracket(cleanPosition);
+							// Ensure correct structure for positions
+							tpBracket.status = OrderStatus.Inactive;
+							tpBracket.parentType = ParentType.Position;
+							// CRITICAL: Calculate projected P/L at TP price for bracket order
+							// TradingView may recalculate P/L based on bracket qty, so we need to set it correctly
+							// The bracket order's qty is 0.01 (divided by 10000), but P/L should be calculated using full volume
+							// Calculate projected P/L at TP price using FULL volume
+							const fullVolume = cleanPosition.qty * 10000; // Get actual volume (qty is divided by 10000)
+							const priceDiff = cleanPosition.takeProfit - cleanPosition.avgPrice;
+							const plAtTP = priceDiff * fullVolume * (cleanPosition.side === Side.Sell ? -1 : 1);
+							
+							// CRITICAL: TradingView might recalculate P/L as (priceDiff * qty * pipValue * contractSize)
+							// If qty is 0.01 and TradingView divides by 100 somewhere, we need to compensate
+							// Since it's showing 0.49 instead of 49 (100x smaller), multiply by 100
+							(tpBracket as any).pl = plAtTP * 100;
+							
+							console.log('[ZuperiorBroker] TP bracket P/L calculation:', {
+								bracketId: tpBracket.id,
+								limitPrice: cleanPosition.takeProfit,
+								avgPrice: cleanPosition.avgPrice,
+								priceDiff,
+								qty: cleanPosition.qty,
+								fullVolume,
+								plAtTP,
+								plSet: (tpBracket as any).pl,
+								positionPL: (cleanPosition as any).pl,
+							});
 							this._orderById[tpBracket.id] = tpBracket;
-							// Do NOT send via orderUpdate() - causes bracket orders to appear in Account Manager
-							console.log('[ZuperiorBroker] Created TP bracket order (internal only):', tpBracket.id, 'limitPrice:', tpBracket.limitPrice);
+							// Send via orderUpdate() for chart display
+							safeHostCall(this._host, 'orderUpdate', tpBracket);
+							console.log('[ZuperiorBroker] Created TP bracket order:', tpBracket.id, 'limitPrice:', tpBracket.limitPrice, 'pl:', (tpBracket as any).pl);
 						} catch (error) {
 							console.error('[ZuperiorBroker] Error creating TP bracket:', error);
 						}
@@ -2217,9 +2331,37 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 					if (cleanPosition.stopLoss !== undefined && cleanPosition.stopLoss > 0) {
 						try {
 							const slBracket = this._createStopLossBracket(cleanPosition);
+							// Ensure correct structure for positions
+							slBracket.status = OrderStatus.Inactive;
+							slBracket.parentType = ParentType.Position;
+							// CRITICAL: Calculate projected P/L at SL price for bracket order
+							// TradingView may recalculate P/L based on bracket qty, so we need to set it correctly
+							// The bracket order's qty is 0.01 (divided by 10000), but P/L should be calculated using full volume
+							// Calculate projected P/L at SL price using FULL volume
+							const fullVolume = cleanPosition.qty * 10000; // Get actual volume (qty is divided by 10000)
+							const priceDiff = cleanPosition.stopLoss - cleanPosition.avgPrice;
+							const plAtSL = priceDiff * fullVolume * (cleanPosition.side === Side.Sell ? -1 : 1);
+							
+							// CRITICAL: TradingView might recalculate P/L as (priceDiff * qty * pipValue * contractSize)
+							// If qty is 0.01 and TradingView divides by 100 somewhere, we need to compensate
+							// Since it's showing 0.49 instead of 49 (100x smaller), multiply by 100
+							(slBracket as any).pl = plAtSL * 100;
+							
+							console.log('[ZuperiorBroker] SL bracket P/L calculation:', {
+								bracketId: slBracket.id,
+								stopPrice: cleanPosition.stopLoss,
+								avgPrice: cleanPosition.avgPrice,
+								priceDiff,
+								qty: cleanPosition.qty,
+								fullVolume,
+								plAtSL,
+								plSet: (slBracket as any).pl,
+								positionPL: (cleanPosition as any).pl,
+							});
 							this._orderById[slBracket.id] = slBracket;
-							// Do NOT send via orderUpdate() - causes bracket orders to appear in Account Manager
-							console.log('[ZuperiorBroker] Created SL bracket order (internal only):', slBracket.id, 'stopPrice:', slBracket.stopPrice);
+							// Send via orderUpdate() for chart display
+							safeHostCall(this._host, 'orderUpdate', slBracket);
+							console.log('[ZuperiorBroker] Created SL bracket order:', slBracket.id, 'stopPrice:', slBracket.stopPrice, 'pl:', (slBracket as any).pl);
 						} catch (error) {
 							console.error('[ZuperiorBroker] Error creating SL bracket:', error);
 						}
@@ -2313,16 +2455,19 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			throw new Error(`Invalid symbol for TP bracket: ${entity.symbol} (entity id: ${entity.id})`);
 		}
 
-		// Match reference implementation EXACTLY - no isPosition check, always Order/Inactive initially
+		// Determine if entity is a Position (has avgPrice) or Order
+		// For positions, use ParentType.Position; for orders, use ParentType.Order
+		const isPosition = 'avgPrice' in entity;
+		
 		const bracket: Order = {
 			symbol: entity.symbol.trim(),
 			qty: entity.qty,
 			id: `tp_${entity.id}`,
 			parentId: entity.id,
-			parentType: ParentType.Order, // Match reference - will be updated to Position later
+			parentType: isPosition ? ParentType.Position : ParentType.Order,
 			limitPrice: entity.takeProfit,
 			side: changeSide(entity.side),
-			status: OrderStatus.Inactive, // Match reference - will be updated to Working later
+			status: OrderStatus.Inactive, // Bracket orders should be Inactive according to TradingView docs
 			type: OrderType.Limit,
 		} as Order;
 
@@ -2334,7 +2479,10 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			throw new Error(`Invalid symbol for SL bracket: ${entity.symbol} (entity id: ${entity.id})`);
 		}
 
-		// Match reference implementation EXACTLY - no validation, just use the values directly
+		// Determine if entity is a Position (has avgPrice) or Order
+		// For positions, use ParentType.Position; for orders, use ParentType.Order
+		const isPosition = 'avgPrice' in entity;
+		
 		// Reference: stopPrice: entity.stopLoss, price: entity.stopPrice
 		// For positions, we set stopPrice = stopLoss before calling this method
 		// CRITICAL: Reference uses entity.stopPrice for price field - must match exactly
@@ -2349,11 +2497,11 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			qty: entity.qty,
 			id: `sl_${entity.id}`,
 			parentId: entity.id,
-			parentType: ParentType.Order, // Match reference - will be updated to Position later
+			parentType: isPosition ? ParentType.Position : ParentType.Order,
 			stopPrice: stopPriceValue, // Match reference exactly - no Number() conversion
 			price: priceValue, // Match reference exactly - uses entity.stopPrice with fallback to stopLoss
 			side: changeSide(entity.side),
-			status: OrderStatus.Inactive, // Match reference - will be updated to Working later
+			status: OrderStatus.Inactive, // Bracket orders should be Inactive according to TradingView docs
 			type: OrderType.Stop,
 		} as Order;
 

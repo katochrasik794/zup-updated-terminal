@@ -40,9 +40,9 @@ export function TradingProvider({ children }) {
     const [symbol, setSymbolState] = useState<string>(() => {
         if (typeof window !== 'undefined' && currentAccountId) {
             const key = `zup-symbol-${currentAccountId}`;
-            return localStorage.getItem(key) || 'BTCUSD';
+            return localStorage.getItem(key) || 'EURUSD';
         }
-        return 'BTCUSD';
+        return 'EURUSD';
     });
 
     const [modifyModalState, setModifyModalState] = useState<ModifyModalState>({ isOpen: false, position: null });
@@ -57,7 +57,7 @@ export function TradingProvider({ children }) {
             if (savedSymbol) {
                 setSymbolState(savedSymbol);
             } else {
-                setSymbolState('BTCUSD');
+                setSymbolState('EURUSD');
             }
         }
     }, [currentAccountId]);
