@@ -183,6 +183,7 @@ export const TVChartContainer = () => {
                     'header_symbol_search',
                     'symbol_search_hot_key',
                     'header_compare',
+                    'buy_sell_buttons',
                     'trading_account_manager',
                     'open_account_manager',
                 ],

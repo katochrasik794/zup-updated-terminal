@@ -114,7 +114,7 @@ export class BrokerDemo extends AbstractBrokerMinimal {
             console.log('Durations are not implemented in this sample.');
         }
         // Open the Account Manager
-        this._host.setAccountManagerVisibilityMode("normal" /* BottomWidgetBarMode.Normal */);
+        // this._host.setAccountManagerVisibilityMode(BottomWidgetBarMode.Normal);
         if ((preOrder.type === OrderType.Market || preOrder.type === undefined)
             && this._getBrackets(preOrder.symbol).length > 0) {
             this._updateOrder(this._createOrder(preOrder));
@@ -181,13 +181,13 @@ export class BrokerDemo extends AbstractBrokerMinimal {
             {
                 text: 'Balance',
                 wValue: this._balanceValue,
-                formatter: "fixed" /* StandardFormatterName.Fixed */, // Default value
+                formatter: 'fixed', // StandardFormatterName.Fixed
                 isDefault: true,
             },
             {
                 text: 'Equity',
                 wValue: this._equityValue,
-                formatter: "fixed" /* StandardFormatterName.Fixed */, // Default value
+                formatter: 'fixed', // StandardFormatterName.Fixed
                 isDefault: true,
             },
         ];

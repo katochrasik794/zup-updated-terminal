@@ -59,37 +59,47 @@ export async function closePositionDirect({
     comment = 'Closed from Terminal'
 }: ClosePositionDirectParams): Promise<ClosePositionResponse> {
     try {
-        const url = `${METAAPI_BASE_URL}/api/client/position/${positionId}`;
+        // Build query parameters for DELETE request (DELETE shouldn't have body)
+        const params = new URLSearchParams();
+        if (volume && volume > 0) params.set('volume', String(volume));
+        if (price && price > 0) params.set('price', String(price));
+        if (comment) params.set('comment', comment);
+
+        const queryString = params.toString();
+        const url = `${METAAPI_BASE_URL}/api/client/position/${positionId}${queryString ? `?${queryString}` : ''}`;
 
         const response = await fetch(url, {
             method: 'DELETE',
             headers: {
                 'Authorization': `Bearer ${accessToken}`,
                 'AccountId': accountId,
-                'Content-Type': 'application/json',
+                'Accept': 'application/json',
             },
-            body: JSON.stringify({
-                volume,
-                price,
-                comment,
-            }),
         });
 
         if (!response.ok) {
             const errorText = await response.text().catch(() => '');
+            console.error(`[ClosePosition] Failed: ${response.status} - ${errorText}`);
             return {
                 success: false,
                 message: `Failed to close position: ${response.status} - ${errorText}`,
             };
         }
 
-        const data = await response.json();
+        // Handle both JSON and empty responses (204 No Content)
+        let data = null;
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+            data = await response.json();
+        }
+
+        console.log(`[ClosePosition] Success: Position ${positionId} closed`);
         return {
             success: true,
             data,
         };
     } catch (error: any) {
-
+        console.error(`[ClosePosition] Error:`, error);
         return {
             success: false,
             message: error.message || 'Network error',

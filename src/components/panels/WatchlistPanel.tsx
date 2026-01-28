@@ -18,9 +18,9 @@ const InstrumentRow = ({ item, isVisible, toggleFavorite, lastQuote, handleDragS
 
   // Live Data or Static Fallback
   const quote = lastQuote || {};
-  // "only use upto 2 decimals"
-  const bid = quote.bid !== undefined ? quote.bid.toFixed(2) : (item.bid ? Number(item.bid).toFixed(2) : '0.00');
-  const ask = quote.ask !== undefined ? quote.ask.toFixed(2) : (item.ask ? Number(item.ask).toFixed(2) : '0.00');
+  // Display bid and ask with 5 decimal places
+  const bid = quote.bid !== undefined ? quote.bid.toFixed(5) : (item.bid ? Number(item.bid).toFixed(5) : '0.00000');
+  const ask = quote.ask !== undefined ? quote.ask.toFixed(5) : (item.ask ? Number(item.ask).toFixed(5) : '0.00000');
 
   // Spread calculation
   const spread = quote.spread !== undefined ? quote.spread : (item.spread || 0);
