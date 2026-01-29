@@ -572,7 +572,8 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
 
     const margin = (vol * contractSize * price) / leverage
     const tradeValue = vol * contractSize * price
-    const fees = tradeValue * 0.001
+    const spread = quote.spread || 0
+    const fees = vol * spread * 100
     const calculatedPipValue = contractSize * pipValue * vol
     const swapLong = -(tradeValue * 0.0001)
     const swapShort = 0
@@ -591,7 +592,7 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
       volumeInUSD,
       credit
     }
-  }, [volume, currentBuyPrice, openPrice, orderType, symbol, currentBalance])
+  }, [volume, currentBuyPrice, openPrice, orderType, symbol, currentBalance, quote.spread])
 
   // Render financial details section
   const renderFinancialDetails = () => (
