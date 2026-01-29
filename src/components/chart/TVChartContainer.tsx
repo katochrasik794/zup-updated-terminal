@@ -177,7 +177,7 @@ export const TVChartContainer = () => {
             let createReversePositionButtonListener: any = null;
 
             const widgetOptions = {
-                symbol: symbol || 'BTCUSD',
+                symbol: symbol || 'XAUUSD',
                 interval: '5',
                 container: containerRef.current!,
                 datafeed: datafeed,
@@ -282,16 +282,41 @@ export const TVChartContainer = () => {
                 },
                 broker_config: {
                     configFlags: {
-                        supportNativeReversePosition: true,
-                        supportClosePosition: true,
-                        supportPLUpdate: true,
-                        supportLevel2Data: false,
-                        showQuantityInsteadOfAmount: true,
-                        supportEditAmount: false,
-                        supportOrderBrackets: true,
-                        supportMarketBrackets: true,
-                        supportPositionBrackets: true,
-                        supportOrdersHistory: false,
+                        // Position management flags
+                        supportPositions: true, // Enable positions (default: true, we have positions() implemented)
+                        supportPositionBrackets: true, // Enable position brackets (TP/SL) - requires editPositionBrackets()
+                        supportModifyPosition: true, // Enable position modification (dragging TP/SL lines) - requires editPositionBrackets()
+                        supportPLUpdate: true, // Use custom P&L calculations (default: true, we calculate P&L)
+                        supportClosePosition: true, // Enable position closing - requires closePosition()
+                        supportPartialClosePosition: false, // Disable partial closing (default: false, we don't implement it)
+                        supportPartialCloseIndividualPosition: false, // Disable partial individual closing (default: false)
+                        supportReversePosition: true, // Enable position reversing - requires reversePosition()
+                        supportNativeReversePosition: true, // Use native reverse implementation
+                        supportPositionNetting: false, // Disable position netting (default: false, we don't use netting)
+                        supportPreviewClosePosition: false, // Disable preview close dialog (default: false)
+                        
+                        // Order management flags
+                        supportOrderBrackets: true, // Enable order brackets (TP/SL for orders)
+                        supportModifyOrder: true, // Enable order modification (dragging order lines and TP/SL) - requires modifyOrder()
+                        supportCancelOrder: true, // Enable order cancellation - requires cancelOrder()
+                        supportMarketBrackets: true, // Enable market brackets
+                        supportOrdersHistory: false, // Disable orders history (default: true, we don't implement ordersHistory())
+                        supportPlaceOrderPreview: false, // Disable order preview (default: false, we don't implement previewOrder())
+                        
+                        // Order type flags
+                        supportStopLoss: true, // Enable stop loss orders (default: true)
+                        supportStopOrders: true, // Enable stop orders (default: true)
+                        supportStopLimitOrders: false, // Disable stop-limit orders (default: false)
+                        supportStopOrdersInBothDirections: false, // Disable stop orders in both directions (default: false)
+                        supportStopLimitOrdersInBothDirections: false, // Disable stop-limit in both directions (default: false)
+                        supportTrailingStop: false, // Disable trailing stop (default: false)
+                        supportStrictCheckingLimitOrderPrice: false, // Disable strict limit price checking (default: false)
+                        
+                        // Other flags
+                        supportSymbolSearch: false, // Disable symbol search (default: false)
+                        supportLevel2Data: false, // Disable Level 2 data
+                        showQuantityInsteadOfAmount: true, // Show quantity instead of amount
+                        supportEditAmount: false, // Disable amount editing
                     },
                     durations: [{ name: 'DAY', value: 'DAY' }, { name: 'GTT', value: 'GTT' }],
                     customUI: {
