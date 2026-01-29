@@ -156,6 +156,8 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
     await fetchAccounts()
   }, [fetchAccounts])
 
+  // Pre-fetch MetaAPI token when account changes
+
   // Get MetaAPI access token for an account
   const getMetaApiToken = useCallback(async (accountId: string): Promise<string | null> => {
     // Check cache first
@@ -177,6 +179,14 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
 
     return null;
   }, [metaApiTokens])
+
+
+  // Pre-fetch MetaAPI token when account changes
+  useEffect(() => {
+    if (currentAccountId && isAuthenticated) {
+      getMetaApiToken(currentAccountId);
+    }
+  }, [currentAccountId, isAuthenticated, getMetaApiToken]);
 
   return (
     <AccountContext.Provider

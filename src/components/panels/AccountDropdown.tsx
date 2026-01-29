@@ -114,7 +114,8 @@ export default function AccountDropdown({ isOpen, onClose }) {
   const margin = currentData?.Margin ?? 0;
   const freeMargin = currentData?.MarginFree ?? 0;
   const marginLevel = currentData?.MarginLevel ?? 0;
-  const leverage = (currentData?.Leverage || currentData?.MarginLeverage) ? `1:${currentData.Leverage || currentData.MarginLeverage}` : '1:200';
+  const rawLeverage = currentData?.Leverage || currentData?.MarginLeverage || '2000';
+  const leverage = String(rawLeverage).startsWith('1:') ? rawLeverage : `1:${rawLeverage}`;
   const credit = currentData?.Credit ?? 0;
   // Calculate P/L: Use Profit field from API (same as StatusBar)
   const profitLoss = currentData?.Profit ?? 0;

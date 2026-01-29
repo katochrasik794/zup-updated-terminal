@@ -65,10 +65,38 @@ export function TradingProvider({ children }) {
 
     // Wrapper to persist symbol to localStorage per account
     const setSymbol = (newSymbol: string) => {
-        setSymbolState(newSymbol);
-        if (typeof window !== 'undefined' && currentAccountId) {
-            const key = `zup-symbol-${currentAccountId}`;
-            localStorage.setItem(key, newSymbol);
+        // Try to find the matching instrument to preserve casing (e.g. XAUUSDm)
+        // We can't use useInstruments here because it would cause a circular dependency
+        // if InstrumentProvider uses TradingProvider (it doesn't, but let's be safe)
+        // Actually, we can just use the instruments from localStorage cache if available
+        let symbolToSet = newSymbol;
+
+        if (typeof window !== 'undefined') {
+            // Try to find correct casing from cached instruments
+            try {
+                const keys = Object.keys(localStorage);
+                const instrumentKey = keys.find(k => k.startsWith('zup-instruments-'));
+                if (instrumentKey) {
+                    const cached = localStorage.getItem(instrumentKey);
+                    if (cached) {
+                        const { data } = JSON.parse(cached);
+                        if (Array.isArray(data)) {
+                            const match = data.find(inst => inst.symbol.toUpperCase() === newSymbol.toUpperCase());
+                            if (match) {
+                                symbolToSet = match.symbol;
+                            }
+                        }
+                    }
+                }
+            } catch (e) { }
+
+            setSymbolState(symbolToSet);
+            if (currentAccountId) {
+                const key = `zup-symbol-${currentAccountId}`;
+                localStorage.setItem(key, symbolToSet);
+            }
+        } else {
+            setSymbolState(newSymbol);
         }
     };
 

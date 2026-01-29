@@ -565,9 +565,10 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
       pipValue = symbolUpper.includes('JPY') ? 0.01 : 0.0001
     }
 
-    const leverageStr = String(currentBalance?.leverage || "1:400")
-    const leverageMatch = leverageStr.match(/:?(\d+)/)
-    const leverage = leverageMatch ? parseInt(leverageMatch[1], 10) : 400
+    const leverageStr = String(currentBalance?.leverage || "1:2000")
+    // Correctly parse leverage from strings like "1:2000" or "2000"
+    const leverageMatch = leverageStr.match(/(\d+)$/)
+    const leverage = leverageMatch ? parseInt(leverageMatch[1], 10) : 2000
 
     const margin = (vol * contractSize * price) / leverage
     const tradeValue = vol * contractSize * price
@@ -608,7 +609,7 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
       <div className="flex items-center justify-between text-xs">
         <span className="text-white/60">Leverage:</span>
         <div className="flex items-center gap-1">
-          <span className="text-white price-font">{calculateFinancialMetrics.leverage}</span>
+          <span className="text-white price-font">{calculateFinancialMetrics.leverage.startsWith('1:') ? calculateFinancialMetrics.leverage : `1:${calculateFinancialMetrics.leverage}`}</span>
           <Tooltip text="Account leverage ratio">
             <HelpCircle className="h-3 w-3 text-white/40" />
           </Tooltip>

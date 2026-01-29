@@ -63,7 +63,7 @@ export async function closePositionDirect({
     try {
         const API_BASE = METAAPI_BASE_URL.endsWith('/api') ? METAAPI_BASE_URL : `${METAAPI_BASE_URL}/api`;
         const positionIdNum = typeof positionId === 'string' ? parseInt(positionId, 10) : positionId;
-        
+
         // Build query parameters for DELETE request (only volume, not comment/price)
         const params = new URLSearchParams();
         if (volume && volume > 0) params.set('volume', String(volume));
@@ -96,19 +96,19 @@ export async function closePositionDirect({
         if (!response.ok && response.status !== 204) {
             const isAuthError = response.status === 401 || response.status === 403;
             const isMethodError = response.status === 405 || response.status === 415;
-            
+
             // Skip fallback 1 if auth error - go directly to Trading endpoint
             let shouldTryFallback2 = isAuthError || isMethodError;
-            
+
             if (!isAuthError && !isMethodError) {
                 // Only log as debug/info, not error, since this is expected fallback behavior
                 console.debug(`[ClosePosition] DELETE failed with ${response.status}, trying POST fallbacks`);
-                
+
                 // Fallback 1: POST /client/position/close with JSON payload (camelCase)
                 try {
                     const payload: any = { positionId: positionIdNum };
                     if (volume && volume > 0) payload.volume = Number(volume);
-                    
+
                     const postUrl = `${API_BASE}/client/position/close`;
                     const fallback1Response = await fetch(postUrl, {
                         method: 'POST',
@@ -125,7 +125,7 @@ export async function closePositionDirect({
                         shouldTryFallback2 = false; // Success, don't try fallback 2
                     } else {
                         // Check if it's an auth/method error - skip to Trading endpoint
-                        if (fallback1Response.status === 401 || fallback1Response.status === 403 || 
+                        if (fallback1Response.status === 401 || fallback1Response.status === 403 ||
                             fallback1Response.status === 405 || fallback1Response.status === 415) {
                             console.debug(`[ClosePosition] POST fallback 1 not supported (${fallback1Response.status}), trying Trading endpoint`);
                             shouldTryFallback2 = true;
@@ -142,7 +142,7 @@ export async function closePositionDirect({
                 // Auth or method error on DELETE - skip fallback 1
                 console.debug(`[ClosePosition] DELETE endpoint issue (${response.status}), skipping to Trading endpoint`);
             }
-            
+
             // Fallback 2: POST /Trading/position/close with PascalCase payload (always try this as last resort)
             if (shouldTryFallback2) {
                 try {
@@ -152,13 +152,13 @@ export async function closePositionDirect({
                     if (isNaN(accountIdNum)) {
                         throw new Error(`Invalid accountId: ${accountId}`);
                     }
-                    
+
                     // Trading endpoint requires Volume in MT5 internal format
                     // Volume must be multiples of 100 (step 100) where 100 = 1 lot
                     // But volumes < 100 are also valid (e.g., 1 = 0.01 lot, 10 = 0.1 lot)
                     // If volume is 0 (full close), use positionVolumeMT5 if provided, otherwise fetch position
                     let volumeToSend = 0;
-                    
+
                     if (volume && volume > 0) {
                         // Partial close: convert lots to MT5 format (multiply by 100)
                         volumeToSend = Math.round(volume * 100);
@@ -170,7 +170,7 @@ export async function closePositionDirect({
                         // Full close: positionVolumeMT5 is already in MT5 format from TradingTerminal
                         // (it was converted from lots to MT5 by multiplying by 100)
                         volumeToSend = Number(positionVolumeMT5);
-                        
+
                         // If >= 100, ensure it's a multiple of 100
                         if (volumeToSend >= 100) {
                             volumeToSend = Math.round(volumeToSend / 100) * 100;
@@ -183,19 +183,19 @@ export async function closePositionDirect({
                                 method: 'GET',
                                 headers: baseHeaders,
                             });
-                            
+
                             if (positionsResponse.ok) {
                                 const positionsData = await positionsResponse.json() as any;
                                 const positions = positionsData?.positions || positionsData?.data || positionsData || [];
-                                const position = positions.find((p: any) => 
+                                const position = positions.find((p: any) =>
                                     (p.PositionId || p.positionId || p.Id || p.id) === positionIdNum
                                 );
-                                
+
                                 if (position) {
                                     // Get volume - prefer Volume (MT5 format), otherwise VolumeLots (convert to MT5)
                                     const rawVolume = position.Volume || position.volume || 0;
                                     const posVolumeLots = position.VolumeLots || position.volumeLots;
-                                    
+
                                     if (rawVolume > 0) {
                                         // Already in MT5 format
                                         volumeToSend = Number(rawVolume);
@@ -220,16 +220,16 @@ export async function closePositionDirect({
                             throw new Error('Cannot determine position volume for closing');
                         }
                     }
-                    
+
                     // Trading endpoint requires Volume - use MT5 format volume directly
                     const tradingPayload: any = {
                         Login: accountIdNum, // Must be integer
                         PositionId: positionIdNum, // Must be integer
                         Volume: volumeToSend, // Volume in MT5 format (e.g., 1 = 0.01 lot, 100 = 1 lot)
                     };
-                    
+
                     console.log(`[ClosePosition] Trading payload (Volume: ${volumeToSend} MT5 units):`, tradingPayload);
-                    
+
                     const tradingUrl = `${API_BASE}/Trading/position/close`;
                     const fallback2Response = await fetch(tradingUrl, {
                         method: 'POST',
@@ -266,7 +266,7 @@ export async function closePositionDirect({
                 message: `Failed to close position: ${finalResponse.status} - ${errorText}`,
             };
         }
-        
+
         // Success - log which method worked
         if (finalResponse === response) {
             console.log(`[ClosePosition] Success via DELETE method`);
@@ -279,7 +279,7 @@ export async function closePositionDirect({
         const contentType = response.headers.get('content-type');
         if (contentType && contentType.includes('application/json')) {
             try {
-            data = await response.json();
+                data = await response.json();
             } catch {
                 // Response might be empty, that's okay
             }
@@ -316,7 +316,7 @@ export async function cancelPendingOrderDirect({
 }): Promise<ClosePositionResponse> {
     try {
         const API_BASE = METAAPI_BASE_URL.endsWith('/api') ? METAAPI_BASE_URL : `${METAAPI_BASE_URL}/api`;
-        
+
         // Parse order ID - handle both string and number, remove "Generated-" prefix if present
         let orderIdNum: number;
         if (typeof orderId === 'string') {
@@ -326,7 +326,7 @@ export async function cancelPendingOrderDirect({
         } else {
             orderIdNum = orderId;
         }
-        
+
         // Validate order ID
         if (isNaN(orderIdNum) || orderIdNum <= 0) {
             console.error(`[CancelOrder] Invalid order ID: ${orderId} (parsed as ${orderIdNum})`);
@@ -338,7 +338,7 @@ export async function cancelPendingOrderDirect({
 
         // Use DELETE /api/client/order/{orderId} as per documentation
         const cancelUrl = `${API_BASE}/client/order/${orderIdNum}`;
-        
+
         // Request body with optional Comment
         const payload: any = {};
         if (comment) {
@@ -349,6 +349,7 @@ export async function cancelPendingOrderDirect({
             method: 'DELETE',
             headers: {
                 'Authorization': `Bearer ${accessToken}`,
+                'AccountId': String(accountId),
                 'Content-Type': 'application/json',
             },
             body: Object.keys(payload).length > 0 ? JSON.stringify(payload) : undefined,
@@ -449,6 +450,7 @@ export async function placeMarketOrderDirect({
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${accessToken}`,
+                'AccountId': String(accountId),
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify(payload),
@@ -520,6 +522,7 @@ export async function placePendingOrderDirect({
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${accessToken}`,
+                'AccountId': String(accountId),
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify(payload),

@@ -80,7 +80,7 @@ export default function TradingTerminal() {
       return {
         symbol,
         type: pos.type,
-        volume: (pos.volume / 10000).toFixed(2), // Divide by 1000 and format to 2 decimal places
+        volume: (pos.volume / 10000).toFixed(2), // Divide by 10000 to get lots
         openPrice: pos.openPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 }),
         currentPrice: pos.currentPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 }),
         tp: pos.takeProfit && pos.takeProfit !== 0 ? pos.takeProfit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 }) : 'Add',
@@ -187,10 +187,10 @@ export default function TradingTerminal() {
 
     try {
       // Check if this is a pending order (Type 2-5: Buy Limit, Sell Limit, Buy Stop, Sell Stop)
-      const isPendingOrder = position.orderType !== undefined && 
-                            typeof position.orderType === 'number' && 
-                            position.orderType >= 2 && position.orderType <= 5;
-      
+      const isPendingOrder = position.orderType !== undefined &&
+        typeof position.orderType === 'number' &&
+        position.orderType >= 2 && position.orderType <= 5;
+
       // Also check by type string
       const typeStr = (position.type || '').toString();
       const isPendingOrderByType = typeStr.includes('Limit') || typeStr.includes('Stop');
@@ -200,7 +200,7 @@ export default function TradingTerminal() {
         // For pending orders, prefer orderId field, then ticket, then id
         // orderId is set from OrderId field in API response for pending orders
         let orderId = position.orderId || position.ticket || position.id;
-        
+
         // Validate order ID - must be a valid number > 0
         const orderIdNum = typeof orderId === 'string' ? parseInt(orderId, 10) : Number(orderId);
         if (!orderId || orderIdNum === 0 || isNaN(orderIdNum)) {
@@ -255,7 +255,7 @@ export default function TradingTerminal() {
       // Trading endpoint expects MT5 format (e.g., 1 = 0.01 lot, 100 = 1 lot)
       // Convert lots to MT5 format: multiply by 100
       const positionVolumeMT5 = position.volume ? Math.round(Number(position.volume) * 100) : undefined;
-      
+
       const response = await closePositionDirect({
         positionId: positionId,
         accountId: currentAccountId,
@@ -954,12 +954,12 @@ export default function TradingTerminal() {
 
   useEffect(() => {
     if (!lastModification || !currentAccountId) return;
-    
+
     // Prevent duplicate processing
     if (isProcessingModification.current) return;
-    if (lastModificationRef.current?.id === lastModification.id && 
-        lastModificationRef.current?.tp === lastModification.tp && 
-        lastModificationRef.current?.sl === lastModification.sl) {
+    if (lastModificationRef.current?.id === lastModification.id &&
+      lastModificationRef.current?.tp === lastModification.tp &&
+      lastModificationRef.current?.sl === lastModification.sl) {
       return; // Already processed this exact modification
     }
 

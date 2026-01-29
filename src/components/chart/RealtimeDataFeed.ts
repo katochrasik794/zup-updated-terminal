@@ -67,12 +67,10 @@ const resolutionToTimeframe = (resolution: string): string => {
 // Normalizes symbols by stripping lowercase suffixes (e.g., BTCUSDm -> BTCUSD)
 const normalizeSymbol = (symbol: string): string => {
     if (!symbol) return '';
-    // Strip trailing suffixes like m, a, c, f, h, r (case-insensitive) and dots
-    return symbol.trim()
-        .replace(/[macfhrMACFHR]+$/, '') // Strip specific suffixes requested by user
-        .replace(/[a-z]+$/, '')         // Strip any remaining lowercase suffixes
-        .replace(/\.$/, '')             // Strip trailing dots
-        .toUpperCase();
+    const s = symbol.split('.')[0].trim();
+    // Strip trailing suffixes like m, a, c, f, h, r (case-insensitive)
+    // Matches BTCUSDm, BTCUSDM, BTCUSD.i, etc.
+    return s.replace(/[macfhrMACFHR]+$/, '').toUpperCase();
 };
 
 // Inverse map for initial configuration if needed, but not strictly required by this logic.
