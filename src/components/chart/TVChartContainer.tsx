@@ -21,8 +21,21 @@ export const TVChartContainer = () => {
     const containerRef = useRef<HTMLDivElement>(null);
     const brokerRef = useRef<any>(null);
     const { lastOrder, symbol, setSymbol, setModifyModalState, lastModification, modifyModalState } = useTrading();
-    const { currentAccountId } = useAccount();
+    const { currentAccountId, getMetaApiToken } = useAccount();
     const modifyModalPromiseResolve = useRef<((value: boolean) => void) | null>(null);
+
+    // Update broker token function when it becomes available
+    useEffect(() => {
+        if (brokerRef.current && getMetaApiToken) {
+            if (brokerRef.current.setMetaApiTokenFunction) {
+                brokerRef.current.setMetaApiTokenFunction(getMetaApiToken);
+            }
+            // Also store in window for fallback
+            if (typeof window !== 'undefined') {
+                (window as any).__GET_METAAPI_TOKEN__ = getMetaApiToken;
+            }
+        }
+    }, [getMetaApiToken]);
 
     useEffect(() => {
         if (lastModification && brokerRef.current) {
@@ -210,8 +223,18 @@ export const TVChartContainer = () => {
                 toolbar_bg: '#02040d',
 
                 broker_factory: (host: any) => {
-                    const broker = new ZuperiorBroker(host, datafeed, currentAccountId);
+                    const broker = new ZuperiorBroker(host, datafeed, currentAccountId, getMetaApiToken);
                     brokerRef.current = broker; // Expose broker instance
+                    
+                    // Store token function in window for fallback access
+                    if (typeof window !== 'undefined' && getMetaApiToken) {
+                        (window as any).__GET_METAAPI_TOKEN__ = getMetaApiToken;
+                    }
+                    
+                    // Update broker if token function becomes available later
+                    if (getMetaApiToken && broker.setMetaApiTokenFunction) {
+                        broker.setMetaApiTokenFunction(getMetaApiToken);
+                    }
 
                     // CRITICAL: Sync broker with live positions data from TradingTerminal
                     // This ensures Account Manager shows the same data as the open positions table

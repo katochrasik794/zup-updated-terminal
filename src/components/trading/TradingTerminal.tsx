@@ -14,7 +14,7 @@ import { useAccount } from '@/context/AccountContext'
 import { useTrading } from '@/context/TradingContext'
 import { usePositions, Position } from '@/hooks/usePositions'
 import { ordersApi, positionsApi, apiClient, PlaceMarketOrderParams, PlacePendingOrderParams, ClosePositionParams, CloseAllParams, ModifyPendingOrderParams, ModifyPositionParams } from '@/lib/api'
-import { closePositionDirect, placeMarketOrderDirect, placePendingOrderDirect } from '@/lib/metaapi'
+import { closePositionDirect, placeMarketOrderDirect, placePendingOrderDirect, cancelPendingOrderDirect } from '@/lib/metaapi'
 
 import { ImperativePanelHandle } from 'react-resizable-panels'
 
@@ -24,7 +24,7 @@ import OrderPlacedToast from '@/components/ui/OrderPlacedToast'
 export default function TradingTerminal() {
   const { isSidebarExpanded, setIsSidebarExpanded } = useSidebar();
   const { currentAccountId, currentBalance, getMetaApiToken } = useAccount();
-  const { symbol, lastModification } = useTrading();
+  const { symbol, lastModification, clearLastModification } = useTrading();
   const leftPanelRef = useRef<ImperativePanelHandle>(null)
   const [closedToast, setClosedToast] = useState<any>(null)
   const [orderToast, setOrderToast] = useState<any>(null)
@@ -186,14 +186,63 @@ export default function TradingTerminal() {
     }
 
     try {
-      // Extract position ID from the position object
+      // Check if this is a pending order (Type 2-5: Buy Limit, Sell Limit, Buy Stop, Sell Stop)
+      const isPendingOrder = position.orderType !== undefined && 
+                            typeof position.orderType === 'number' && 
+                            position.orderType >= 2 && position.orderType <= 5;
+      
+      // Also check by type string
+      const typeStr = (position.type || '').toString();
+      const isPendingOrderByType = typeStr.includes('Limit') || typeStr.includes('Stop');
+
+      if (isPendingOrder || isPendingOrderByType) {
+        // Cancel pending order
+        // For pending orders, prefer orderId field, then ticket, then id
+        // orderId is set from OrderId field in API response for pending orders
+        let orderId = position.orderId || position.ticket || position.id;
+        
+        // Validate order ID - must be a valid number > 0
+        const orderIdNum = typeof orderId === 'string' ? parseInt(orderId, 10) : Number(orderId);
+        if (!orderId || orderIdNum === 0 || isNaN(orderIdNum)) {
+          console.error('[ClosePosition] Invalid order ID for pending order:', {
+            orderId: position.orderId,
+            ticket: position.ticket,
+            id: position.id,
+            positionId: position.positionId,
+            orderType: position.orderType,
+            type: position.type,
+            fullPosition: position
+          });
+          return;
+        }
+
+        // Get MetaAPI access token
+        const accessToken = await getMetaApiToken(currentAccountId);
+        if (!accessToken) {
+          return;
+        }
+
+        const response = await cancelPendingOrderDirect({
+          orderId: orderId,
+          accountId: currentAccountId,
+          accessToken: accessToken,
+          comment: "Cancelled from Terminal"
+        });
+
+        if (!response.success) {
+          console.error('[ClosePosition] Failed to cancel pending order:', response.message);
+        } else {
+          // Refresh positions/orders to update UI
+          refetchPositions();
+        }
+        return;
+      }
+
+      // Close open position
       const positionId = position.ticket || position.id || position.positionId;
       if (!positionId) {
         return;
       }
-
-      // Show toast immediately for better UX (optimistic update)
-      // setClosedToast(position); // MOVED TO AFTER SUCCESS
 
       // Get MetaAPI access token
       const accessToken = await getMetaApiToken(currentAccountId);
@@ -201,10 +250,18 @@ export default function TradingTerminal() {
         return;
       }
 
+      // Get position volume for full close (if volume is 0, we need actual position volume for Trading endpoint)
+      // position.volume is stored in lots format (e.g., 0.01 = 0.01 lot, 1.0 = 1 lot)
+      // Trading endpoint expects MT5 format (e.g., 1 = 0.01 lot, 100 = 1 lot)
+      // Convert lots to MT5 format: multiply by 100
+      const positionVolumeMT5 = position.volume ? Math.round(Number(position.volume) * 100) : undefined;
+      
       const response = await closePositionDirect({
         positionId: positionId,
         accountId: currentAccountId,
         accessToken: accessToken,
+        volume: 0, // 0 = full close
+        positionVolumeMT5: positionVolumeMT5, // Actual position volume in MT5 format for Trading endpoint fallback
         comment: "Closed from Terminal (Fast)"
       });
 
@@ -215,6 +272,7 @@ export default function TradingTerminal() {
         setClosedToast(position);
       }
     } catch (error) {
+      console.error('[ClosePosition] Error:', error);
     }
   }
 
@@ -243,10 +301,15 @@ export default function TradingTerminal() {
         const positionId = pos.ticket || pos.id || pos.positionId;
         if (!positionId) return Promise.resolve({ success: false });
 
+        // Get position volume in MT5 format (convert from lots to MT5 format)
+        const positionVolumeMT5 = pos.volume ? Math.round(Number(pos.volume) * 100) : undefined;
+
         return closePositionDirect({
           positionId: positionId,
           accountId: currentAccountId,
           accessToken: accessToken,
+          volume: 0, // 0 = full close
+          positionVolumeMT5: positionVolumeMT5, // Actual position volume in MT5 format
           comment: "Group Closed from Terminal (Fast)"
         });
       });
@@ -302,10 +365,15 @@ export default function TradingTerminal() {
         const positionId = pos.ticket || pos.id || pos.positionId;
         if (!positionId) return Promise.resolve({ success: false });
 
+        // Get position volume in MT5 format (convert from lots to MT5 format)
+        const positionVolumeMT5 = pos.volume ? Math.round(Number(pos.volume) * 100) : undefined;
+
         return closePositionDirect({
           positionId: positionId,
           accountId: currentAccountId,
           accessToken: accessToken,
+          volume: 0, // 0 = full close
+          positionVolumeMT5: positionVolumeMT5, // Actual position volume in MT5 format
           comment: "Close All from Terminal (Fast)"
         });
       });
@@ -881,8 +949,22 @@ export default function TradingTerminal() {
   };
 
   // Handle modify position/order requests
+  const lastModificationRef = useRef<any | null>(null);
+  const isProcessingModification = useRef(false);
+
   useEffect(() => {
     if (!lastModification || !currentAccountId) return;
+    
+    // Prevent duplicate processing
+    if (isProcessingModification.current) return;
+    if (lastModificationRef.current?.id === lastModification.id && 
+        lastModificationRef.current?.tp === lastModification.tp && 
+        lastModificationRef.current?.sl === lastModification.sl) {
+      return; // Already processed this exact modification
+    }
+
+    isProcessingModification.current = true;
+    lastModificationRef.current = lastModification;
 
     const handleModify = async () => {
       try {
@@ -1005,11 +1087,21 @@ export default function TradingTerminal() {
           profit: null,
           error: error?.message || 'Failed to modify order',
         });
+      } finally {
+        // Clear processing flag and reset after a delay to allow for new modifications
+        setTimeout(() => {
+          isProcessingModification.current = false;
+          // Clear lastModification to prevent re-triggering
+          if (lastModificationRef.current?.id === lastModification?.id) {
+            lastModificationRef.current = null;
+            clearLastModification(); // Clear from context to prevent re-triggering
+          }
+        }, 500); // Reduced delay to 500ms for faster response
       }
     };
 
     handleModify();
-  }, [lastModification, currentAccountId, rawPendingOrders, symbol]);
+  }, [lastModification, currentAccountId, symbol]); // Removed rawPendingOrders from dependencies to prevent re-triggering
 
   // Resize the left panel when it expands or collapses
   useEffect(() => {

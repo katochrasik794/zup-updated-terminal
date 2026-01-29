@@ -30,7 +30,8 @@ import {
 import { IDatafeedQuotesApi, QuoteData } from '../../trading_platform-master/charting_library/datafeed-api';
 import { AbstractBrokerMinimal } from '../../trading_platform-master/broker-sample/src/abstract-broker-minimal';
 import { ordersPageColumns, positionsPageColumns } from '../../trading_platform-master/broker-sample/src/columns';
-import { apiClient, positionsApi } from '@/lib/api';
+import { apiClient } from '@/lib/api';
+import { placeMarketOrderDirect, placePendingOrderDirect, closePositionDirect } from '@/lib/metaapi';
 
 interface SimpleMap<TValue> {
 	[key: string]: TValue;
@@ -76,12 +77,24 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 	private _pollInterval: NodeJS.Timeout | null = null;
 	private _isPolling = false;
 	private _isWidgetReady = false;
+	private _getMetaApiToken: ((accountId: string) => Promise<string | null>) | null = null;
 
-	public constructor(host: IBrokerConnectionAdapterHost, quotesProvider: IDatafeedQuotesApi, accountId: string | null) {
+	public constructor(
+		host: IBrokerConnectionAdapterHost,
+		quotesProvider: IDatafeedQuotesApi,
+		accountId: string | null,
+		getMetaApiToken?: (accountId: string) => Promise<string | null>
+	) {
 		super(host, quotesProvider);
 		this._accountId = accountId;
+		this._getMetaApiToken = getMetaApiToken || null;
 		// Start fetching immediately so positions()/orders() have data when TradingView queries
 		this._startPolling();
+	}
+
+	// Method to update token function after broker creation
+	public setMetaApiTokenFunction(getMetaApiToken: (accountId: string) => Promise<string | null>) {
+		this._getMetaApiToken = getMetaApiToken;
 	}
 
 	public setWidgetReady(ready: boolean) {
@@ -222,39 +235,39 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			return;
 		}
 
-		try {
-			const response = await apiClient.get<{
-				success: boolean;
-				positions?: any[];
-				pendingOrders?: any[];
-				data?: {
+		// CRITICAL: Clean Slate Approach
+		// We strictly use window.__LIVE_POSITIONS_DATA__ because it contains the exact data shown in the Pending Orders table.
+		// This ensures 100% consistency between Account Manager and the bottom panel.
+
+		let positionsArray: any[] = [];
+		let pendingArray: any[] = [];
+		let usingWindowData = false;
+
+		// 1. Try to get data from shared window object (Primary Source)
+		if (typeof window !== 'undefined' && (window as any).__LIVE_POSITIONS_DATA__) {
+			const liveData = (window as any).__LIVE_POSITIONS_DATA__;
+			if (liveData.pendingOrders) {
+				console.log('[ZuperiorBroker] Using shared window data (Clean Slate)');
+				positionsArray = liveData.openPositions || [];
+				pendingArray = liveData.pendingOrders || [];
+				usingWindowData = true;
+			}
+		}
+
+		// 2. Fallback to API fetch if window data is not available
+		if (!usingWindowData) {
+			console.log('[ZuperiorBroker] Window data not available, falling back to API');
+
+			try {
+				const response = await apiClient.get<{
+					success: boolean;
 					positions?: any[];
 					pendingOrders?: any[];
-				};
-			}>(`/api/positions/${this._accountId}`);
-
-			// CRITICAL: Clean Slate Approach
-			// We strictly use window.__LIVE_POSITIONS_DATA__ because it contains the exact data shown in the Pending Orders table.
-			// This ensures 100% consistency between Account Manager and the bottom panel.
-
-			let positionsArray: any[] = [];
-			let pendingArray: any[] = [];
-			let usingWindowData = false;
-
-			// 1. Try to get data from shared window object (Primary Source)
-			if (typeof window !== 'undefined' && (window as any).__LIVE_POSITIONS_DATA__) {
-				const liveData = (window as any).__LIVE_POSITIONS_DATA__;
-				if (liveData.pendingOrders) {
-					console.log('[ZuperiorBroker] Using shared window data (Clean Slate)');
-					positionsArray = liveData.openPositions || [];
-					pendingArray = liveData.pendingOrders || [];
-					usingWindowData = true;
-				}
-			}
-
-			// 2. Fallback to API fetch if window data is not available
-			if (!usingWindowData) {
-				console.log('[ZuperiorBroker] Window data not available, falling back to API');
+					data?: {
+						positions?: any[];
+						pendingOrders?: any[];
+					};
+				}>(`/api/positions/${this._accountId}`);
 
 				// Check if response exists
 				if (!response) {
@@ -278,8 +291,20 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 					}
 					pendingArray = Array.isArray(pendingSource) ? pendingSource : [];
 				}
+			} catch (error: any) {
+				// Handle 401 Unauthorized gracefully
+				if (error?.status === 401) {
+					console.warn('[ZuperiorBroker] 401 Unauthorized - This is expected if not logged in or token expired.');
+					return; // Silently return, don't process empty data
+				}
+				// For other errors, log but continue with empty arrays
+				console.error('[ZuperiorBroker] Error fetching positions/orders:', error);
+				return;
 			}
+		}
 
+		// Process data only if we have arrays (from either window or API)
+		if (positionsArray.length > 0 || pendingArray.length > 0 || usingWindowData) {
 			console.log(`[ZuperiorBroker] Processing ${positionsArray.length} positions and ${pendingArray.length} pending orders`);
 
 			console.log(`[ZuperiorBroker] Raw data - positions: ${positionsArray.length}, orders: ${pendingArray.length}`);
@@ -706,8 +731,9 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			}
 
 			console.log(`[ZuperiorBroker] Updated ${tvPositions.length} positions, ${tvOrders.length} pending orders, ${bracketOrders.length} bracket orders`);
-		} catch (error) {
-			console.error('[ZuperiorBroker] Error fetching positions/orders:', error);
+		} else {
+			// No data available, skip processing
+			console.log('[ZuperiorBroker] No positions/orders data available to process');
 		}
 	}
 
@@ -1224,7 +1250,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			this._host.orderUpdate(order);
 		}
 
-		// Handle bracket updates
+		// Handle bracket updates and persist to MetaAPI
 		if (order.parentId !== undefined) {
 			const entity = order.parentType === ParentType.Position
 				? this._positionById[order.parentId]
@@ -1232,11 +1258,97 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 
 			if (entity) {
 				// Update TP/SL on parent
+				const updatedStopLoss = order.stopPrice !== undefined ? order.stopPrice : (entity as any).stopLoss;
+				const updatedTakeProfit = order.limitPrice !== undefined ? order.limitPrice : (entity as any).takeProfit;
+
 				if (order.limitPrice !== undefined) {
 					(entity as any).takeProfit = order.limitPrice;
 				}
 				if (order.stopPrice !== undefined) {
 					(entity as any).stopLoss = order.stopPrice;
+				}
+
+				// Persist changes to MetaAPI if accountId and token function are available
+				if (order.parentType === ParentType.Position && this._accountId && this._getMetaApiToken) {
+					try {
+						const accessToken = await this._getMetaApiToken(this._accountId);
+						if (accessToken) {
+							const METAAPI_BASE_URL = 'https://metaapi.zuperior.com';
+							const API_BASE = METAAPI_BASE_URL.endsWith('/api') ? METAAPI_BASE_URL : `${METAAPI_BASE_URL}/api`;
+							const modifyUrl = `${API_BASE}/client/position/modify`;
+
+							const payload: any = {
+								positionId: parseInt(order.parentId, 10),
+								comment: 'Modified TP/SL from Chart',
+							};
+
+							if (updatedStopLoss !== undefined && updatedStopLoss !== null && Number(updatedStopLoss) > 0) {
+								payload.stopLoss = Number(updatedStopLoss);
+							}
+							if (updatedTakeProfit !== undefined && updatedTakeProfit !== null && Number(updatedTakeProfit) > 0) {
+								payload.takeProfit = Number(updatedTakeProfit);
+							}
+
+							const response = await fetch(modifyUrl, {
+								method: 'POST',
+								headers: {
+									'Content-Type': 'application/json',
+									'Authorization': `Bearer ${accessToken}`,
+								},
+								body: JSON.stringify(payload),
+							});
+
+							if (!response.ok) {
+								const errorText = await response.text().catch(() => '');
+								console.error('[ZuperiorBroker] Failed to persist bracket changes:', errorText);
+								// Don't throw - UI update already happened
+							} else {
+								console.log('[ZuperiorBroker] Bracket changes persisted to MetaAPI');
+							}
+						}
+					} catch (error) {
+						console.error('[ZuperiorBroker] Error persisting bracket changes:', error);
+						// Don't throw - UI update already happened
+					}
+				} else if (order.parentType === ParentType.Order && this._accountId && this._getMetaApiToken) {
+					// Handle pending order modification
+					try {
+						const accessToken = await this._getMetaApiToken(this._accountId);
+						if (accessToken) {
+							const METAAPI_BASE_URL = 'https://metaapi.zuperior.com';
+							const API_BASE = METAAPI_BASE_URL.endsWith('/api') ? METAAPI_BASE_URL : `${METAAPI_BASE_URL}/api`;
+							const modifyUrl = `${API_BASE}/client/Orders/ModifyPendingOrder`;
+
+							const payload: any = {
+								OrderId: parseInt(order.parentId.replace('Generated-', ''), 10),
+							};
+
+							if (order.limitPrice !== undefined) {
+								payload.PriceTP = order.limitPrice > 0 ? order.limitPrice : 0;
+							}
+							if (order.stopPrice !== undefined) {
+								payload.PriceSL = order.stopPrice > 0 ? order.stopPrice : 0;
+							}
+
+							const response = await fetch(modifyUrl, {
+								method: 'POST',
+								headers: {
+									'Content-Type': 'application/json',
+									'Authorization': `Bearer ${accessToken}`,
+								},
+								body: JSON.stringify(payload),
+							});
+
+							if (!response.ok) {
+								const errorText = await response.text().catch(() => '');
+								console.error('[ZuperiorBroker] Failed to persist pending order bracket changes:', errorText);
+							} else {
+								console.log('[ZuperiorBroker] Pending order bracket changes persisted to MetaAPI');
+							}
+						}
+					} catch (error) {
+						console.error('[ZuperiorBroker] Error persisting pending order bracket changes:', error);
+					}
 				}
 
 				// Update parent position
@@ -1301,37 +1413,47 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			throw new Error('No account ID');
 		}
 
+		if (!this._getMetaApiToken) {
+			throw new Error('MetaAPI token function not available');
+		}
+
 		try {
-			const token = apiClient.getToken();
-			const baseURL = process.env.NEXT_PUBLIC_BACKEND_API_URL ||
-				(process.env.NEXT_PUBLIC_API_BASE_URL && process.env.NEXT_PUBLIC_API_BASE_URL.includes('localhost')
-					? process.env.NEXT_PUBLIC_API_BASE_URL
-					: 'http://localhost:5000');
+			// Get MetaAPI access token from backend (backend authenticates with password from MT5Account)
+			const accessToken = await this._getMetaApiToken(this._accountId);
+			if (!accessToken) {
+				throw new Error('Failed to get MetaAPI access token');
+			}
 
-			// Map TV PreOrder to backend payload
+			// Map TV PreOrder to MetaAPI payload
 			// TV PreOrder: { symbol, qty, side (1/-1), type (1=Limit, 2=Market, 3=Stop), limitPrice, stopPrice, takeProfit, stopLoss }
-
 			const side = preOrder.side === 1 ? 'buy' : 'sell';
 			const isMarket = preOrder.type === 2; // Market
 
-			let endpoint = '';
-			let payload: any = {};
+			let response: { success: boolean; message?: string; data?: any };
 
 			if (isMarket) {
-				endpoint = '/api/orders/market';
-				payload = {
+				// Place market order directly via MetaAPI using token from backend
+				console.log('[ZuperiorBroker] Placing market order via direct MetaAPI:', {
 					accountId: this._accountId,
 					symbol: preOrder.symbol,
 					side: side,
 					volume: preOrder.qty,
-					stopLoss: preOrder.stopLoss,
-					takeProfit: preOrder.takeProfit,
-				};
+					stopLoss: preOrder.stopLoss || 0,
+					takeProfit: preOrder.takeProfit || 0,
+				});
+				response = await placeMarketOrderDirect({
+					accountId: this._accountId,
+					accessToken: accessToken,
+					symbol: preOrder.symbol,
+					side: side,
+					volume: preOrder.qty,
+					stopLoss: preOrder.stopLoss || 0,
+					takeProfit: preOrder.takeProfit || 0,
+					comment: `${side === 'buy' ? 'Buy' : 'Sell'} from Chart`
+				});
 			} else {
 				// Pending Order (Limit or Stop)
-				endpoint = '/api/orders/pending';
-
-				let orderType = 'limit';
+				let orderType: 'limit' | 'stop' = 'limit';
 				let price = 0;
 
 				if (preOrder.type === 1) { // Limit
@@ -1341,46 +1463,51 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 					orderType = 'stop';
 					price = preOrder.stopPrice || 0;
 				} else if (preOrder.type === 4) { // StopLimit
-					orderType = 'stop'; // Backend might treat stop-limit as stop for now, or needs specific handling
+					orderType = 'stop'; // Treat stop-limit as stop
 					price = preOrder.limitPrice || 0;
 				}
 
-				payload = {
+				if (!price || price <= 0) {
+					throw new Error('Price is required for pending orders');
+				}
+
+				// Place pending order directly via MetaAPI using token from backend
+				console.log('[ZuperiorBroker] Placing pending order via direct MetaAPI:', {
 					accountId: this._accountId,
 					symbol: preOrder.symbol,
 					side: side,
 					volume: preOrder.qty,
 					price: price,
 					orderType: orderType,
-					stopLoss: preOrder.stopLoss,
-					takeProfit: preOrder.takeProfit,
-				};
+					stopLoss: preOrder.stopLoss || 0,
+					takeProfit: preOrder.takeProfit || 0,
+				});
+				response = await placePendingOrderDirect({
+					accountId: this._accountId,
+					accessToken: accessToken,
+					symbol: preOrder.symbol,
+					side: side,
+					volume: preOrder.qty,
+					price: price,
+					orderType: orderType,
+					stopLoss: preOrder.stopLoss || 0,
+					takeProfit: preOrder.takeProfit || 0,
+					comment: `${side === 'buy' ? 'Buy' : 'Sell'} ${orderType === 'limit' ? 'Limit' : 'Stop'} from Chart`
+				});
 			}
 
-			console.log(`[ZuperiorBroker] Sending order to backend(${endpoint}): `, payload);
-
-			const response = await fetch(`${baseURL}${endpoint} `, {
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json',
-					...(token ? { 'Authorization': `Bearer ${token} ` } : {}),
-				},
-				body: JSON.stringify(payload),
-			});
-
-			if (!response.ok) {
-				const errorData = await response.json().catch(() => ({ message: response.statusText }));
-				throw new Error(errorData.message || `Failed to place order: ${response.statusText} `);
+			if (!response.success) {
+				throw new Error(response.message || 'Failed to place order');
 			}
 
-			const result = await response.json();
-			console.log('[ZuperiorBroker] Order placed successfully:', result);
+			console.log('[ZuperiorBroker] Order placed successfully:', response.data);
 
-			// Refresh data
-			this._fetchPositionsAndOrders();
+			// Let polling handle updates - don't call _fetchPositionsAndOrders() here to avoid blocking
+			// The polling will pick up the new order/position automatically
 
-			return { orderId: result.orderId || result.id || 'unknown' };
-		} catch (error) {
+			const orderId = response.data?.OrderId || response.data?.orderId || response.data?.id || response.data?.PositionId || response.data?.positionId || 'unknown';
+			return { orderId: String(orderId) };
+		} catch (error: any) {
 			console.error('[ZuperiorBroker] Error placing order:', error);
 			throw error;
 		}
@@ -1393,29 +1520,38 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			throw new Error('No account ID');
 		}
 
-		try {
-			// Call API to cancel order - use fetch directly since we need DELETE with body
-			const token = apiClient.getToken();
-			// Get base URL from environment or default to localhost:5000
-			const baseURL = process.env.NEXT_PUBLIC_BACKEND_API_URL ||
-				(process.env.NEXT_PUBLIC_API_BASE_URL && process.env.NEXT_PUBLIC_API_BASE_URL.includes('localhost')
-					? process.env.NEXT_PUBLIC_API_BASE_URL
-					: 'http://localhost:5000');
+		if (!this._getMetaApiToken) {
+			throw new Error('MetaAPI token function not available');
+		}
 
-			const response = await fetch(`${baseURL} /api/trading / pending / order / ${orderId} `, {
-				method: 'DELETE',
+		try {
+			// Get MetaAPI access token from backend
+			const accessToken = await this._getMetaApiToken(this._accountId);
+			if (!accessToken) {
+				throw new Error('Failed to get MetaAPI access token');
+			}
+
+			// Cancel order directly via MetaAPI using token from backend
+			const METAAPI_BASE_URL = 'https://metaapi.zuperior.com';
+			const API_BASE = METAAPI_BASE_URL.endsWith('/api') ? METAAPI_BASE_URL : `${METAAPI_BASE_URL}/api`;
+			const cancelUrl = `${API_BASE}/client/Orders/CancelPendingOrder`;
+
+			const payload = {
+				OrderId: parseInt(orderId.replace('Generated-', ''), 10), // Remove prefix if present
+			};
+
+			const response = await fetch(cancelUrl, {
+				method: 'POST', // MetaAPI uses POST for CancelPendingOrder
 				headers: {
+					'Authorization': `Bearer ${accessToken}`,
 					'Content-Type': 'application/json',
-					...(token ? { 'Authorization': `Bearer ${token} ` } : {}),
 				},
-				body: JSON.stringify({
-					accountId: this._accountId,
-					comment: 'Cancel via chart',
-				}),
+				body: JSON.stringify(payload),
 			});
 
 			if (!response.ok) {
-				throw new Error(`Failed to cancel order: ${response.statusText} `);
+				const errorText = await response.text().catch(() => '');
+				throw new Error(`Failed to cancel order: ${response.status} - ${errorText}`);
 			}
 
 			// Remove from local state
@@ -1425,8 +1561,8 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 				delete this._orderById[orderId];
 			}
 
-			// Refresh positions/orders
-			await this._fetchPositionsAndOrders();
+			// Let polling handle updates
+			console.log('[ZuperiorBroker] Order canceled successfully:', orderId);
 		} catch (error) {
 			console.error('[ZuperiorBroker] Error canceling order:', error);
 			throw error;
@@ -1438,35 +1574,27 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			throw new Error('No account ID');
 		}
 
+		if (!this._getMetaApiToken) {
+			throw new Error('MetaAPI token function not available');
+		}
+
 		try {
-			// Call API to close position - use fetch directly for DELETE with body
-			const position = this._positionById[positionId];
-			if (!position) {
-				throw new Error('Position not found');
+			// Get MetaAPI access token from backend
+			const accessToken = await this._getMetaApiToken(this._accountId);
+			if (!accessToken) {
+				throw new Error('Failed to get MetaAPI access token');
 			}
 
-			const token = apiClient.getToken();
-			const baseURL = process.env.NEXT_PUBLIC_BACKEND_API_URL ||
-				(process.env.NEXT_PUBLIC_API_BASE_URL && process.env.NEXT_PUBLIC_API_BASE_URL.includes('localhost')
-					? process.env.NEXT_PUBLIC_API_BASE_URL
-					: 'http://localhost:5000');
-
-			const response = await fetch(`${baseURL} /api/trading / close`, {
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json',
-					...(token ? { 'Authorization': `Bearer ${token} ` } : {}),
-				},
-				body: JSON.stringify({
-					accountId: this._accountId,
-					positionId: positionId,
-					symbol: position.symbol,
-				}),
+			// Close position directly via MetaAPI using token from backend
+			const response = await closePositionDirect({
+				positionId: positionId,
+				accountId: this._accountId,
+				accessToken: accessToken,
+				comment: 'Closed from Chart'
 			});
 
-			if (!response.ok) {
-				const errorData = await response.json().catch(() => ({ message: response.statusText }));
-				throw new Error(errorData.message || `Failed to close position: ${response.statusText} `);
+			if (!response.success) {
+				throw new Error(response.message || 'Failed to close position');
 			}
 
 			// Remove from local state
@@ -1476,8 +1604,8 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 				delete this._positionById[positionId];
 			}
 
-			// Refresh positions/orders
-			await this._fetchPositionsAndOrders();
+			// Let polling handle updates
+			console.log('[ZuperiorBroker] Position closed successfully:', positionId);
 		} catch (error) {
 			console.error('[ZuperiorBroker] Error closing position:', error);
 			throw error;
@@ -1541,30 +1669,50 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 				}
 			}
 
-			// Call API to update position
-			const token = apiClient.getToken();
-			const baseURL = process.env.NEXT_PUBLIC_BACKEND_API_URL ||
-				(process.env.NEXT_PUBLIC_API_BASE_URL && process.env.NEXT_PUBLIC_API_BASE_URL.includes('localhost')
-					? process.env.NEXT_PUBLIC_API_BASE_URL
-					: 'http://localhost:5000');
+			// Call MetaAPI directly using token from backend
+			if (!this._getMetaApiToken) {
+				console.warn('[ZuperiorBroker] MetaAPI token function not available, attempting to get from context');
+				// Try to get token function from window context if available
+				if (typeof window !== 'undefined' && (window as any).__GET_METAAPI_TOKEN__) {
+					this._getMetaApiToken = (window as any).__GET_METAAPI_TOKEN__;
+				} else {
+					throw new Error('MetaAPI token function not available. Please ensure you are logged in.');
+				}
+			}
 
-			// Use the correct endpoint for modifying positions found in backend routes
-			const response = await fetch(`${baseURL} /api/positions / ${positionId}/modify`, {
-				method: 'PUT',
+			const accessToken = await this._getMetaApiToken(this._accountId);
+			if (!accessToken) {
+				throw new Error('Failed to get MetaAPI access token');
+			}
+
+			const METAAPI_BASE_URL = 'https://metaapi.zuperior.com';
+			const API_BASE = METAAPI_BASE_URL.endsWith('/api') ? METAAPI_BASE_URL : `${METAAPI_BASE_URL}/api`;
+			const modifyUrl = `${API_BASE}/client/position/modify`;
+
+			const payload: any = {
+				positionId: parseInt(positionId, 10),
+				comment: 'Modified TP/SL from Chart',
+			};
+
+			if (finalStopLoss !== undefined && finalStopLoss !== null && Number(finalStopLoss) > 0) {
+				payload.stopLoss = Number(finalStopLoss);
+			}
+			if (finalTakeProfit !== undefined && finalTakeProfit !== null && Number(finalTakeProfit) > 0) {
+				payload.takeProfit = Number(finalTakeProfit);
+			}
+
+			const response = await fetch(modifyUrl, {
+				method: 'POST',
 				headers: {
 					'Content-Type': 'application/json',
-					...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+					'Authorization': `Bearer ${accessToken}`,
 				},
-				body: JSON.stringify({
-					accountId: this._accountId,
-					stopLoss: finalStopLoss,
-					takeProfit: finalTakeProfit,
-				}),
+				body: JSON.stringify(payload),
 			});
 
 			if (!response.ok) {
-				const errorData = await response.json().catch(() => ({ message: response.statusText }));
-				throw new Error(errorData.message || `Failed to update position brackets: ${response.statusText}`);
+				const errorText = await response.text().catch(() => '');
+				throw new Error(`Failed to update position brackets: ${response.status} - ${errorText}`);
 			}
 
 			// Update local position state

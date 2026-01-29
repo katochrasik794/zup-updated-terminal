@@ -7,6 +7,7 @@ export interface Position {
   id: string;
   ticket: number;
   positionId?: number;
+  orderId?: number; // Order ID for pending orders (OrderId from API)
   symbol: string;
   type: 'Buy' | 'Sell' | 'Buy Limit' | 'Sell Limit' | 'Buy Stop' | 'Sell Stop' | 'Hedged';
   volume: number;
@@ -57,14 +58,20 @@ const formatPosition = (pos: any, isClosedTrade: boolean = false): Position => {
     return `generated-${Math.abs(hash)}`;
   };
 
+  // Get Type field for order type mapping (for pending orders) - MUST be before ticketId calculation
+  const orderType = pos.Type ?? pos.type ?? pos.OrderType ?? pos.orderType;
+  
   // For closed trades from tradehistory, use OrderId or DealId as ticket
+  // For pending orders (Type 2-5), prefer OrderId or Ticket
+  // For open positions, use PositionId or Ticket
+  const isPendingOrderType = typeof orderType === 'number' && orderType >= 2 && orderType <= 5;
+  
   const ticketId = isClosedTrade
     ? (pos.OrderId ?? pos.orderId ?? pos.DealId ?? pos.dealId ?? pos.PositionId ?? pos.PositionID ?? pos.Ticket ?? pos.ticket ?? pos.Id ?? pos.id ?? generateStableId())
-    : (pos.PositionId ?? pos.PositionID ?? pos.Ticket ?? pos.ticket ?? pos.Id ?? pos.id ?? generateStableId());
+    : isPendingOrderType
+      ? (pos.OrderId ?? pos.orderId ?? pos.Ticket ?? pos.ticket ?? pos.PositionId ?? pos.PositionID ?? pos.Id ?? pos.id ?? generateStableId())
+      : (pos.PositionId ?? pos.PositionID ?? pos.Ticket ?? pos.ticket ?? pos.Id ?? pos.id ?? generateStableId());
   const id = String(ticketId);
-
-  // Get Type field for order type mapping (for pending orders)
-  const orderType = pos.Type ?? pos.type ?? pos.OrderType ?? pos.orderType;
 
   // Map order types: 0=Buy, 1=Sell, 2=Buy Limit, 3=Sell Limit, 4=Buy Stop, 5=Sell Stop
   let mappedType: 'Buy' | 'Sell' | 'Buy Limit' | 'Sell Limit' | 'Buy Stop' | 'Sell Stop' | 'Hedged';
@@ -174,10 +181,15 @@ const formatPosition = (pos: any, isClosedTrade: boolean = false): Position => {
     openTime = pos.TimeCreate ?? pos.timeCreate ?? pos.TimeSetup ?? pos.timeSetup ?? pos.OpenTime ?? pos.openTime ?? new Date().toISOString();
   }
 
+  // For pending orders, also store OrderId separately if available
+  // Use isPendingOrderType (defined earlier) for consistency
+  const orderId = isPendingOrderType ? (pos.OrderId ?? pos.orderId ?? ticketId) : undefined;
+  
   return {
     id,
     ticket: Number(ticketId) || 0,
     positionId: Number(pos.PositionId ?? pos.PositionID ?? 0) || undefined,
+    orderId: orderId ? Number(orderId) : undefined, // Store OrderId for pending orders
     symbol: pos.Symbol || pos.symbol || '',
     type: mappedType,
     orderType: typeof orderType === 'number' ? orderType : undefined,
@@ -271,9 +283,24 @@ export function usePositions({ accountId, enabled = true }: UsePositionsProps): 
         const pendingArray = response.pendingOrders || [];
         const closedArray = response.closedPositions || [];
 
+        console.log('[usePositions] Raw API response:', {
+          positionsCount: positionsArray.length,
+          pendingCount: pendingArray.length,
+          closedCount: closedArray.length,
+          samplePosition: positionsArray[0],
+          samplePending: pendingArray[0]
+        });
+
         const formattedPositions = formatPositions(positionsArray, false);
         const formattedPending = formatPositions(pendingArray, false);
         const formattedClosed = formatPositions(closedArray, true); // Mark as closed trades for proper formatting
+
+        console.log('[usePositions] Formatted positions:', {
+          positionsCount: formattedPositions.length,
+          pendingCount: formattedPending.length,
+          closedCount: formattedClosed.length,
+          sampleFormattedPosition: formattedPositions[0]
+        });
 
         if (isMountedRef.current) {
           setPositions(formattedPositions);
@@ -289,8 +316,17 @@ export function usePositions({ accountId, enabled = true }: UsePositionsProps): 
         return;
       }
 
-
       if (isMountedRef.current) {
+        // CRITICAL: Handle 401 Unauthorized specifically
+        if (err.status === 401) {
+          console.warn('[usePositions] 401 Unauthorized - Clearing positions. This is expected if not logged in or token expired.');
+          setPositions([]);
+          setPendingOrders([]);
+          setClosedPositions([]);
+          setError(null); // Don't set a blocking error message for 401, as it's part of the expected auth flow
+          return;
+        }
+
         // If account not found, don't show a blocking error, just set error state
         setError(err.message || 'Failed to fetch positions');
 

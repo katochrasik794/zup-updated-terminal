@@ -26,6 +26,7 @@ interface TradingContextType {
     setModifyModalState: (state: ModifyModalState) => void;
     lastModification: any | null;
     requestModifyPosition: (modification: any) => void;
+    clearLastModification: () => void;
     addNavbarTab: ((symbol: string) => void) | null;
     setAddNavbarTab: (fn: (symbol: string) => void) => void;
 }
@@ -77,8 +78,11 @@ export function TradingProvider({ children }) {
     };
 
     const requestModifyPosition = (modification: any) => {
-
         setLastModification(modification);
+    };
+
+    const clearLastModification = () => {
+        setLastModification(null);
     };
 
     return (
@@ -91,6 +95,7 @@ export function TradingProvider({ children }) {
             setModifyModalState,
             lastModification,
             requestModifyPosition,
+            clearLastModification,
             addNavbarTab,
             setAddNavbarTab
         }}>

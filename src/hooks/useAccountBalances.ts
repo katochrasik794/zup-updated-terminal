@@ -147,8 +147,16 @@ export function useMultiAccountBalancePolling(accountIds: string[]) {
         throw new Error(response.message || 'API Error')
       }
     } catch (e: any) {
-
-      setErrors(prev => ({ ...prev, [accountId]: e.message }))
+      // Handle 401 Unauthorized gracefully - don't set error for auth issues
+      if (e.status === 401) {
+        // Silently handle 401 - user may not be authenticated yet
+        setErrors(prev => ({ ...prev, [accountId]: null }))
+        // Don't clear balance data on 401 - keep cached data if available
+        return
+      }
+      
+      // For other errors, set error message but don't clear balance (keep cached)
+      setErrors(prev => ({ ...prev, [accountId]: e.message || 'Failed to fetch balance' }))
     } finally {
       setIsLoading(prev => ({ ...prev, [accountId]: false }))
     }
