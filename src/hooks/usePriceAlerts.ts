@@ -37,7 +37,7 @@ export function usePriceAlerts(accountId?: string) {
     setError(null);
     try {
       const params = accountId ? { accountId } : {};
-      const response = await apiClient.get<{ success: boolean; data: PriceAlert[] }>('/api/alerts', params);
+      const response = await apiClient.get<PriceAlert[]>('/api/alerts', params);
       if (response.success && response.data) {
         setAlerts(response.data);
       } else {
@@ -53,7 +53,7 @@ export function usePriceAlerts(accountId?: string) {
 
   const createAlert = useCallback(async (input: CreatePriceAlertInput): Promise<PriceAlert | null> => {
     try {
-      const response = await apiClient.post<{ success: boolean; data: PriceAlert }>('/api/alerts', input);
+      const response = await apiClient.post<PriceAlert>('/api/alerts', input);
       if (response.success && response.data) {
         setAlerts(prev => [...prev, response.data!]);
         return response.data;
@@ -67,7 +67,7 @@ export function usePriceAlerts(accountId?: string) {
 
   const updateAlert = useCallback(async (id: string, input: UpdatePriceAlertInput): Promise<PriceAlert | null> => {
     try {
-      const response = await apiClient.put<{ success: boolean; data: PriceAlert }>(`/api/alerts/${id}`, input);
+      const response = await apiClient.put<PriceAlert>(`/api/alerts/${id}`, input);
       if (response.success && response.data) {
         setAlerts(prev => prev.map(alert => alert.id === id ? response.data! : alert));
         return response.data;
