@@ -5,6 +5,7 @@ import {
 	AccountMetainfo,
 	ActionMetaInfo,
 	Brackets,
+	CellAlignment,
 	CommonAccountManagerColumnId,
 	ConnectionStatus,
 	DefaultContextMenuActionsParams,
@@ -239,28 +240,28 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			return;
 		}
 
-		// CRITICAL: Clean Slate Approach
-		// We strictly use window.__LIVE_POSITIONS_DATA__ because it contains the exact data shown in the Pending Orders table.
-		// This ensures 100% consistency between Account Manager and the bottom panel.
+			// CRITICAL: Clean Slate Approach
+			// We strictly use window.__LIVE_POSITIONS_DATA__ because it contains the exact data shown in the Pending Orders table.
+			// This ensures 100% consistency between Account Manager and the bottom panel.
 
-		let positionsArray: any[] = [];
-		let pendingArray: any[] = [];
-		let usingWindowData = false;
+			let positionsArray: any[] = [];
+			let pendingArray: any[] = [];
+			let usingWindowData = false;
 
-		// 1. Try to get data from shared window object (Primary Source)
-		if (typeof window !== 'undefined' && (window as any).__LIVE_POSITIONS_DATA__) {
-			const liveData = (window as any).__LIVE_POSITIONS_DATA__;
-			if (liveData.pendingOrders) {
-				console.log('[ZuperiorBroker] Using shared window data (Clean Slate)');
-				positionsArray = liveData.openPositions || [];
-				pendingArray = liveData.pendingOrders || [];
-				usingWindowData = true;
+			// 1. Try to get data from shared window object (Primary Source)
+			if (typeof window !== 'undefined' && (window as any).__LIVE_POSITIONS_DATA__) {
+				const liveData = (window as any).__LIVE_POSITIONS_DATA__;
+				if (liveData.pendingOrders) {
+					console.log('[ZuperiorBroker] Using shared window data (Clean Slate)');
+					positionsArray = liveData.openPositions || [];
+					pendingArray = liveData.pendingOrders || [];
+					usingWindowData = true;
+				}
 			}
-		}
 
-		// 2. Fallback to API fetch if window data is not available
-		if (!usingWindowData) {
-			console.log('[ZuperiorBroker] Window data not available, falling back to API');
+			// 2. Fallback to API fetch if window data is not available
+			if (!usingWindowData) {
+				console.log('[ZuperiorBroker] Window data not available, falling back to API');
 
 			try {
 				const response = await apiClient.get<{
@@ -1189,9 +1190,9 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			const orderId = String(o.id);
 			if (!orderId.startsWith('Generated-')) {
 				console.log('[ZuperiorBroker] Filtering out order from orders() (not Generated- prefix):', {
-					id: o.id,
-					symbol: o.symbol,
-					type: o.type,
+				id: o.id,
+				symbol: o.symbol,
+				type: o.type,
 				});
 				return false;
 			}
@@ -1201,8 +1202,8 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 				console.log('[ZuperiorBroker] Filtering out bracket order from orders() (detected by helper):', {
 					id: o.id,
 					symbol: o.symbol,
-					parentId: o.parentId,
-					parentType: o.parentType,
+				parentId: o.parentId,
+				parentType: o.parentType,
 					status: o.status,
 				});
 				return false;
@@ -1273,7 +1274,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			console.warn('[ZuperiorBroker] Order not found in _orderById:', order.id);
 			// Still try to process if it has parentId (might be a new bracket)
 			if (!order.parentId) {
-				return;
+			return;
 			}
 		}
 
@@ -1283,9 +1284,9 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 		// Update orders array - but only if it's NOT a bracket order
 		// Bracket orders should NOT be in _orders array (only in _orderById for internal tracking)
 		if (!this._isBracketOrder(order)) {
-			const orderIndex = this._orders.findIndex(o => o.id === order.id);
-			if (orderIndex >= 0) {
-				this._orders[orderIndex] = order;
+		const orderIndex = this._orders.findIndex(o => o.id === order.id);
+		if (orderIndex >= 0) {
+			this._orders[orderIndex] = order;
 			}
 		} else {
 			// If it's a bracket order, remove it from _orders if it exists there
@@ -1725,7 +1726,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			// This ensures both chart and table cancellation work the same way
 			const response = await cancelPendingOrderDirect({
 				orderId: orderId,
-				accountId: this._accountId,
+					accountId: this._accountId,
 				accessToken: accessToken,
 				comment: "Cancelled from Chart"
 			});
@@ -1843,9 +1844,9 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 
 				// Remove from cache
 				delete this._positionById[positionId];
-				const posIndex = this._positions.findIndex(p => p.id === positionId);
-				if (posIndex >= 0) {
-					this._positions.splice(posIndex, 1);
+			const posIndex = this._positions.findIndex(p => p.id === positionId);
+			if (posIndex >= 0) {
+				this._positions.splice(posIndex, 1);
 				}
 
 				console.log('[ZuperiorBroker] 🔄 closePosition: Notifying TradingView of closed position:', {
@@ -2302,34 +2303,34 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 		const orderColumns = [
 			{
 				label: 'Symbol',
-				formatter: StandardFormatterName.Symbol,
-				id: CommonAccountManagerColumnId.Symbol,
+				formatter: 'symbol' as any,
+				id: 'symbol' as any,
 				dataFields: ['symbol', 'symbol', 'message'],
 			},
 			{
 				label: 'Side',
 				id: 'side',
 				dataFields: ['side'],
-				formatter: StandardFormatterName.Side,
+				formatter: 'side' as any,
 			},
 			{
 				label: 'Type',
 				id: 'type',
 				dataFields: ['type', 'parentId', 'stopType'],
-				formatter: StandardFormatterName.Type,
+				formatter: 'type' as any,
 			},
 			{
 				label: 'Qty',
-				alignment: 'right',
+				alignment: 'right' as CellAlignment,
 				id: 'qty',
 				dataFields: ['qty'],
-				formatter: StandardFormatterName.FormatQuantity,
+				formatter: 'formatQuantity' as any,
 			},
 			{
 				label: 'Status',
 				id: 'status',
 				dataFields: ['status'],
-				formatter: StandardFormatterName.Status,
+				formatter: 'status' as any,
 			},
 			{
 				label: 'Order ID',
@@ -2342,22 +2343,22 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 		const positionColumns = [
 			{
 				label: 'Symbol',
-				formatter: StandardFormatterName.Symbol,
-				id: CommonAccountManagerColumnId.Symbol,
+				formatter: 'symbol' as any,
+				id: 'symbol' as any,
 				dataFields: ['symbol', 'symbol', 'message'],
 			},
 			{
 				label: 'Side',
 				id: 'side',
 				dataFields: ['side'],
-				formatter: StandardFormatterName.Side,
+				formatter: 'side' as any,
 			},
 			{
 				label: 'Qty',
-				alignment: 'right',
+				alignment: 'right' as CellAlignment,
 				id: 'qty',
 				dataFields: ['qty'],
-				formatter: StandardFormatterName.FormatQuantity,
+				formatter: 'formatQuantity' as any,
 			},
 		];
 
@@ -2912,8 +2913,8 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 						type = OrderType.Limit;
 					} else if (orderTypeNum === 4 || orderTypeNum === 5) {
 						type = OrderType.Stop;
-					} else {
-						type = OrderType.Market;
+				} else {
+					type = OrderType.Market;
 					}
 				} else {
 					// Fallback to type string
@@ -3121,14 +3122,14 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 		// Update orders array - but only if it's NOT a bracket order
 		// Bracket orders should NOT be in _orders array (only in _orderById for internal tracking)
 		if (!this._isBracketOrder(order)) {
-			const orderIndex = this._orders.findIndex(o => o.id === order.id);
-			if (orderIndex >= 0) {
-				this._orders[orderIndex] = order;
-			} else {
+		const orderIndex = this._orders.findIndex(o => o.id === order.id);
+		if (orderIndex >= 0) {
+			this._orders[orderIndex] = order;
+		} else {
 				// Additional validation: only add orders with "Generated-" prefix
 				const orderId = String(order.id);
 				if (orderId.startsWith('Generated-')) {
-					this._orders.push(order);
+			this._orders.push(order);
 				} else {
 					console.warn('[ZuperiorBroker] Preventing non-Generated order from being added to _orders:', {
 						id: order.id,
@@ -3224,7 +3225,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 				// Status is already set correctly by _createTakeProfitBracket (Working for positions, Inactive for orders)
 				// Only ensure parentType is set if not already set
 				if (takeProfitBracket.parentType === undefined) {
-					takeProfitBracket.parentType = ParentType.Position;
+				takeProfitBracket.parentType = ParentType.Position;
 				}
 
 				if (!takeProfitBracket.symbol || takeProfitBracket.symbol.trim() === '') {
@@ -3280,7 +3281,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 				// Status is already set correctly by _createStopLossBracket (Working for positions, Inactive for orders)
 				// Only ensure parentType is set if not already set
 				if (stopLossBracket.parentType === undefined) {
-					stopLossBracket.parentType = ParentType.Position;
+				stopLossBracket.parentType = ParentType.Position;
 				}
 
 				if (!stopLossBracket.symbol || stopLossBracket.symbol.trim() === '') {

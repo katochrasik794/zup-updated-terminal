@@ -130,8 +130,10 @@ export const TVChartContainer = () => {
     }, [symbol]);
 
     useEffect(() => {
+        // Add version query parameter to force browser to reload standalone.js
+        // This ensures the browser uses the correct version that matches the bundles
         const scripts = [
-            '/charting_library/charting_library.standalone.js',
+            '/charting_library/charting_library.standalone.js?v=30.3.0',
             '/datafeeds/udf/dist/bundle.js',
             '/broker-sample/dist/bundle.js',
             '/custom-dialogs/dist/bundle.js'

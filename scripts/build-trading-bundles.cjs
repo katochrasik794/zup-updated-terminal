@@ -139,6 +139,21 @@ async function buildBundles() {
     log('✓ Copied custom-dialogs/dist to public/', 'green');
   }
 
+  // 4. Copy charting_library files (including standalone.js) to ensure version match
+  log('\nCopying charting_library files...', 'blue');
+  const chartingLibSrc = path.join(srcDir, 'charting_library');
+  const chartingLibPublic = path.join(publicDir, 'charting_library');
+  
+  // Copy standalone.js specifically to ensure it matches bundles
+  const standaloneSrc = path.join(chartingLibSrc, 'charting_library.standalone.js');
+  const standaloneDest = path.join(chartingLibPublic, 'charting_library.standalone.js');
+  if (fs.existsSync(standaloneSrc)) {
+    fs.copyFileSync(standaloneSrc, standaloneDest);
+    log('✓ Copied charting_library.standalone.js to public/', 'green');
+  } else {
+    log('⚠ charting_library.standalone.js not found in source', 'yellow');
+  }
+
   log('\n=== All bundles built successfully! ===\n', 'green');
 }
 
