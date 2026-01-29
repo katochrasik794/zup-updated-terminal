@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import FlagIcon from '../ui/FlagIcon'
 import IconButton from '../ui/IconButton'
-import WatchlistSettingsPopup from './WatchlistSettingsPopup'
 import { LuGripVertical } from 'react-icons/lu'
 import { FiStar, FiSearch } from 'react-icons/fi'
 import { useAccount } from '../../context/AccountContext'
@@ -180,7 +179,6 @@ export default function WatchlistPanel({ onClose }) {
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('Favorites')
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false)
-  const [showSettings, setShowSettings] = useState(false)
   const [showPriceHighlight, setShowPriceHighlight] = useState(false)
 
   // Columns configuration based on "Image 2"
@@ -330,27 +328,6 @@ export default function WatchlistPanel({ onClose }) {
 
         {/* Actions: Settings + Close */}
         <div className="flex items-center gap-1">
-          <div className="relative">
-            <button
-              onClick={() => setShowSettings(!showSettings)}
-              className="p-1.5 text-gray-400 hover:text-white hover:bg-gray-800 rounded transition-colors"
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="1" />
-                <circle cx="12" cy="5" r="1" />
-                <circle cx="12" cy="19" r="1" />
-              </svg>
-            </button>
-            {showSettings && (
-              <WatchlistSettingsPopup
-                columns={columns}
-                onToggleColumn={toggleColumn}
-                showPriceHighlight={showPriceHighlight}
-                onTogglePriceHighlight={() => setShowPriceHighlight(!showPriceHighlight)}
-                onClose={() => setShowSettings(false)}
-              />
-            )}
-          </div>
 
           <button
             onClick={onClose}

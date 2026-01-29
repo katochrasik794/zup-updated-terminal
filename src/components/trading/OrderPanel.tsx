@@ -56,7 +56,8 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
   // Use live prices if available, otherwise fall back to defaults
   const currentSellPrice = quote.bid ?? 0
   const currentBuyPrice = quote.ask ?? 0
-  const currentSpread = quote.spread !== undefined ? `${quote.spread.toFixed(2)} pips` : '0.00 pips'
+  const spreadVal = (quote.spread || 0) * 100
+  const currentSpread = `${spreadVal.toFixed(2)} pips`
 
   const [formType, setFormType] = React.useState<FormType>("regular")
   const [orderType, setOrderType] = React.useState<"market" | "limit" | "pending">("market")
@@ -572,8 +573,8 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
 
     const margin = (vol * contractSize * price) / leverage
     const tradeValue = vol * contractSize * price
-    const spread = quote.spread || 0
-    const fees = vol * spread * 100
+    const spread = (quote.spread || 0) * 100
+    const fees = vol * spread * 10
     const calculatedPipValue = contractSize * pipValue * vol
     const swapLong = -(tradeValue * 0.0001)
     const swapShort = 0
