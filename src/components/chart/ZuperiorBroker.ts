@@ -138,7 +138,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 		// _orders should only contain real pending orders, bracket orders are in _orderById
 		const allOrdersFromMap = Object.values(this._orderById);
 		const bracketOrders = allOrdersFromMap.filter(o => this._isBracketOrder(o));
-		
+
 		// Regular orders are in _orders array (already filtered to exclude brackets)
 		const regularOrders = this._orders.filter(o => o && !this._isBracketOrder(o));
 
@@ -159,7 +159,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 					if (bracket.parentType === undefined) {
 						bracket.parentType = ParentType.Position;
 					}
-					
+
 					// CRITICAL: Calculate projected P/L at bracket price for correct display
 					// TradingView may recalculate P/L based on bracket qty (which is divided by 10000)
 					// So we need to calculate using FULL volume and multiply by 100 to compensate
@@ -183,7 +183,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 							(bracket as any).pl = (parentPosition as any).pl * 100;
 						}
 					}
-					
+
 					this._host.orderUpdate(bracket);
 				}
 			} catch (error) {
@@ -240,28 +240,28 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			return;
 		}
 
-			// CRITICAL: Clean Slate Approach
-			// We strictly use window.__LIVE_POSITIONS_DATA__ because it contains the exact data shown in the Pending Orders table.
-			// This ensures 100% consistency between Account Manager and the bottom panel.
+		// CRITICAL: Clean Slate Approach
+		// We strictly use window.__LIVE_POSITIONS_DATA__ because it contains the exact data shown in the Pending Orders table.
+		// This ensures 100% consistency between Account Manager and the bottom panel.
 
-			let positionsArray: any[] = [];
-			let pendingArray: any[] = [];
-			let usingWindowData = false;
+		let positionsArray: any[] = [];
+		let pendingArray: any[] = [];
+		let usingWindowData = false;
 
-			// 1. Try to get data from shared window object (Primary Source)
-			if (typeof window !== 'undefined' && (window as any).__LIVE_POSITIONS_DATA__) {
-				const liveData = (window as any).__LIVE_POSITIONS_DATA__;
-				if (liveData.pendingOrders) {
-					console.log('[ZuperiorBroker] Using shared window data (Clean Slate)');
-					positionsArray = liveData.openPositions || [];
-					pendingArray = liveData.pendingOrders || [];
-					usingWindowData = true;
-				}
+		// 1. Try to get data from shared window object (Primary Source)
+		if (typeof window !== 'undefined' && (window as any).__LIVE_POSITIONS_DATA__) {
+			const liveData = (window as any).__LIVE_POSITIONS_DATA__;
+			if (liveData.pendingOrders) {
+				console.log('[ZuperiorBroker] Using shared window data (Clean Slate)');
+				positionsArray = liveData.openPositions || [];
+				pendingArray = liveData.pendingOrders || [];
+				usingWindowData = true;
 			}
+		}
 
-			// 2. Fallback to API fetch if window data is not available
-			if (!usingWindowData) {
-				console.log('[ZuperiorBroker] Window data not available, falling back to API');
+		// 2. Fallback to API fetch if window data is not available
+		if (!usingWindowData) {
+			console.log('[ZuperiorBroker] Window data not available, falling back to API');
 
 			try {
 				const response = await apiClient.get<{
@@ -550,7 +550,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 					}
 					return true;
 				});
-				
+
 				this._orders.length = 0;
 				this._orders.push(...validPendingOrders);
 				console.log(`[ZuperiorBroker] Stored ${validPendingOrders.length} real pending orders (excluding ${bracketOrders.length} brackets)`);
@@ -677,14 +677,14 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 								if (bracket.parentType === undefined) {
 									bracket.parentType = ParentType.Position;
 								}
-								
+
 								// CRITICAL: Calculate projected P/L at bracket price for correct display
 								// TradingView may recalculate P/L based on bracket qty (which is divided by 10000)
 								// So we need to calculate using FULL volume and multiply by 100 to compensate
 								if (bracket.parentId) {
 									const parentPosition = this._positionById[bracket.parentId];
 									const position = tvPositions.find(p => p.id === bracket.parentId);
-									
+
 									if (position && position.avgPrice) {
 										const bracketPrice = (bracket as any).limitPrice || (bracket as any).stopPrice;
 										if (bracketPrice && position.avgPrice) {
@@ -703,7 +703,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 										(bracket as any).pl = (parentPosition as any).pl * 100;
 									}
 								}
-								
+
 								console.log(`[ZuperiorBroker] Step 2: Sending bracket order:`, {
 									id: bracket.id,
 									symbol: bracket.symbol,
@@ -918,11 +918,12 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 
 		// Ensure bracket fields are always present (even if undefined)
 		// This is required for TradingView Account Manager to show TP/SL columns
+		// Use null to ensure TP/SL buttons appear on chart line
 		if (!('stopLoss' in position)) {
-			position.stopLoss = undefined;
+			position.stopLoss = null as any;
 		}
 		if (!('takeProfit' in position)) {
-			position.takeProfit = undefined;
+			position.takeProfit = null as any;
 		}
 
 		// Final verification - log if values are missing but should be there
@@ -1150,29 +1151,29 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 		if (!order || !order.id) {
 			return false;
 		}
-		
+
 		const orderId = String(order.id).toLowerCase();
-		
+
 		// Check if ID starts with "tp_" or "sl_" (bracket orders)
 		if (orderId.startsWith('tp_') || orderId.startsWith('sl_')) {
 			return true;
 		}
-		
+
 		// Check if order has parentId (bracket orders belong to a position/order)
 		if (order.parentId !== undefined && order.parentId !== null) {
 			return true;
 		}
-		
+
 		// Check if order has parentType set to Position (bracket orders attached to positions)
 		if (order.parentType !== undefined && order.parentType === ParentType.Position) {
 			return true;
 		}
-		
+
 		// Check if order status is Inactive (typically bracket orders)
 		if (order.status === OrderStatus.Inactive) {
 			return true;
 		}
-		
+
 		return false;
 	}
 
@@ -1190,25 +1191,25 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			const orderId = String(o.id);
 			if (!orderId.startsWith('Generated-')) {
 				console.log('[ZuperiorBroker] Filtering out order from orders() (not Generated- prefix):', {
-				id: o.id,
-				symbol: o.symbol,
-				type: o.type,
+					id: o.id,
+					symbol: o.symbol,
+					type: o.type,
 				});
 				return false;
 			}
-			
+
 			// Additional safety checks using helper method
 			if (this._isBracketOrder(o)) {
 				console.log('[ZuperiorBroker] Filtering out bracket order from orders() (detected by helper):', {
 					id: o.id,
 					symbol: o.symbol,
-				parentId: o.parentId,
-				parentType: o.parentType,
+					parentId: o.parentId,
+					parentType: o.parentType,
 					status: o.status,
 				});
 				return false;
 			}
-			
+
 			return true;
 		});
 
@@ -1247,14 +1248,14 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 		// CRITICAL: Handle bracket orders (TP/SL lines) - they might have synthetic IDs during drag
 		// Check if this is a bracket order by ID pattern (tp_* or sl_*) or by parentId
 		const isBracketOrder = this._isBracketOrder(order) || order.parentId !== undefined;
-		
+
 		// For bracket orders, try to find by parentId if direct lookup fails
 		let originalOrder = this._orderById[order.id];
 		if (!originalOrder && isBracketOrder && order.parentId) {
 			// Try to find bracket order by parentId and type
 			const bracketId = order.limitPrice !== undefined ? `tp_${order.parentId}` : `sl_${order.parentId}`;
 			originalOrder = this._orderById[bracketId];
-			
+
 			if (originalOrder) {
 				// Update the order ID to match the found bracket
 				order.id = bracketId;
@@ -1274,7 +1275,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			console.warn('[ZuperiorBroker] Order not found in _orderById:', order.id);
 			// Still try to process if it has parentId (might be a new bracket)
 			if (!order.parentId) {
-			return;
+				return;
 			}
 		}
 
@@ -1284,9 +1285,9 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 		// Update orders array - but only if it's NOT a bracket order
 		// Bracket orders should NOT be in _orders array (only in _orderById for internal tracking)
 		if (!this._isBracketOrder(order)) {
-		const orderIndex = this._orders.findIndex(o => o.id === order.id);
-		if (orderIndex >= 0) {
-			this._orders[orderIndex] = order;
+			const orderIndex = this._orders.findIndex(o => o.id === order.id);
+			if (orderIndex >= 0) {
+				this._orders[orderIndex] = order;
 			}
 		} else {
 			// If it's a bracket order, remove it from _orders if it exists there
@@ -1409,7 +1410,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 				// Update parent position and notify TradingView
 				if (order.parentType === ParentType.Position) {
 					const parentPosition = entity as Position;
-					
+
 					// Update TP/SL fields on parent position
 					if (order.limitPrice !== undefined) {
 						(parentPosition as any).takeProfit = order.limitPrice;
@@ -1417,21 +1418,21 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 					if (order.stopPrice !== undefined) {
 						(parentPosition as any).stopLoss = order.stopPrice;
 					}
-					
+
 					const cleanPosition = this._createCleanPosition(parentPosition);
 					this._positionById[cleanPosition.id] = cleanPosition;
-					
+
 					// Update position in _positions array
 					const posIndex = this._positions.findIndex(p => p.id === cleanPosition.id);
 					if (posIndex >= 0) {
 						this._positions[posIndex] = cleanPosition;
 					}
-					
+
 					// Notify TradingView of position update
 					if (this._host && typeof this._host.positionUpdate === 'function') {
 						this._host.positionUpdate(cleanPosition);
 					}
-					
+
 					console.log('[ZuperiorBroker] Updated parent position after bracket drag:', {
 						positionId: cleanPosition.id,
 						takeProfit: cleanPosition.takeProfit,
@@ -1444,10 +1445,10 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 				if (isBracketOrder && (order.id.startsWith('tp_') || order.id.startsWith('sl_'))) {
 					const parentId = order.id.replace('tp_', '').replace('sl_', '');
 					const parentPosition = this._positionById[parentId];
-					
+
 					if (parentPosition) {
 						console.log('[ZuperiorBroker] Found parent position for bracket order by ID pattern:', parentId);
-						
+
 						// Update TP/SL on parent position
 						if (order.id.startsWith('tp_') && order.limitPrice !== undefined) {
 							(parentPosition as any).takeProfit = order.limitPrice;
@@ -1455,22 +1456,22 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 						if (order.id.startsWith('sl_') && order.stopPrice !== undefined) {
 							(parentPosition as any).stopLoss = order.stopPrice;
 						}
-						
+
 						// Update bracket order with parentId
 						order.parentId = parentId;
 						order.parentType = ParentType.Position;
-						
+
 						// Store bracket order
 						this._orderById[order.id] = order;
-						
+
 						// Update and notify parent position
 						const cleanPosition = this._createCleanPosition(parentPosition);
 						this._positionById[cleanPosition.id] = cleanPosition;
-						
+
 						if (this._host && typeof this._host.positionUpdate === 'function') {
 							this._host.positionUpdate(cleanPosition);
 						}
-						
+
 						// Persist to MetaAPI
 						if (this._accountId && this._getMetaApiToken) {
 							try {
@@ -1683,7 +1684,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 
 			// Store the order in local storage (as per documentation)
 			this._orderById[orderIdStr] = newOrder;
-			
+
 			// Add to _orders array if it's not a bracket order
 			if (!this._isBracketOrder(newOrder)) {
 				this._orders.push(newOrder);
@@ -1694,6 +1695,36 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			if (this._host && typeof this._host.orderUpdate === 'function') {
 				this._host.orderUpdate(newOrder);
 				console.log('[ZuperiorBroker] Called orderUpdate() for new order:', orderIdStr);
+
+				// CRITICAL: Immediately create bracket orders for pending orders
+				// This ensures SL/TP lines appear instantly when order is placed
+				if (!this._isBracketOrder(newOrder) && newOrder.status === OrderStatus.Working) {
+					// 1. Create TP Bracket
+					if (newOrder.takeProfit !== undefined && newOrder.takeProfit > 0) {
+						try {
+							const tpBracket = this._createTakeProfitBracket(newOrder);
+							// Pending order brackets must be Inactive
+							this._orderById[tpBracket.id] = tpBracket;
+							this._host.orderUpdate(tpBracket);
+							console.log('[ZuperiorBroker] Created TP bracket for new pending order:', tpBracket.id);
+						} catch (e) {
+							console.error('[ZuperiorBroker] Custom error creating TP bracket:', e);
+						}
+					}
+
+					// 2. Create SL Bracket
+					if (newOrder.stopLoss !== undefined && newOrder.stopLoss > 0) {
+						try {
+							const slBracket = this._createStopLossBracket(newOrder);
+							// Pending order brackets must be Inactive
+							this._orderById[slBracket.id] = slBracket;
+							this._host.orderUpdate(slBracket);
+							console.log('[ZuperiorBroker] Created SL bracket for new pending order:', slBracket.id);
+						} catch (e) {
+							console.error('[ZuperiorBroker] Custom error creating SL bracket:', e);
+						}
+					}
+				}
 			}
 
 			// Polling will also pick up the order later to sync with backend state
@@ -1726,7 +1757,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			// This ensures both chart and table cancellation work the same way
 			const response = await cancelPendingOrderDirect({
 				orderId: orderId,
-					accountId: this._accountId,
+				accountId: this._accountId,
 				accessToken: accessToken,
 				comment: "Cancelled from Chart"
 			});
@@ -1844,9 +1875,9 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 
 				// Remove from cache
 				delete this._positionById[positionId];
-			const posIndex = this._positions.findIndex(p => p.id === positionId);
-			if (posIndex >= 0) {
-				this._positions.splice(posIndex, 1);
+				const posIndex = this._positions.findIndex(p => p.id === positionId);
+				if (posIndex >= 0) {
+					this._positions.splice(posIndex, 1);
 				}
 
 				console.log('[ZuperiorBroker] 🔄 closePosition: Notifying TradingView of closed position:', {
@@ -1919,6 +1950,17 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 	}
 
 	public async editPositionBrackets(positionId: string, modifiedBrackets: Brackets): Promise<void> {
+		// Check if we should open the modal first
+		// If _skipModal is present, it means the request came from the modal itself
+		if (!(modifiedBrackets as any)._skipModal && typeof window !== 'undefined' && (window as any).__OPEN_MODIFY_POSITION_MODAL__) {
+			const position = this._positionById[positionId];
+			if (position) {
+				console.log('[ZuperiorBroker] Opening modify modal for position:', positionId);
+				await (window as any).__OPEN_MODIFY_POSITION_MODAL__(position, modifiedBrackets);
+				return;
+			}
+		}
+
 		console.log('[ZuperiorBroker] editPositionBrackets called:', {
 			positionId,
 			brackets: {
@@ -2130,6 +2172,13 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 		}
 	}
 
+	// CRITICAL: Implement editIndividualPositionBrackets for individual positions
+	// This is required when supportIndividualPositionBrackets is true
+	public async editIndividualPositionBrackets(positionId: string, modifiedBrackets: Brackets, customFields?: any): Promise<void> {
+		console.log('[ZuperiorBroker] editIndividualPositionBrackets called (delegating to editPositionBrackets):', positionId);
+		return this.editPositionBrackets(positionId, modifiedBrackets);
+	}
+
 	public async editIndividualPositionBrackets(positionId: string, modifiedBrackets: Brackets, customFields?: any): Promise<void> {
 		console.log('[ZuperiorBroker] editIndividualPositionBrackets called:', {
 			positionId,
@@ -2298,7 +2347,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 	public accountManagerInfo(): AccountManagerInfo {
 		// Define Account Manager columns as per TradingView documentation
 		// Using StandardFormatterName and CommonAccountManagerColumnId for consistency
-		
+
 		// Order columns - matching documentation example
 		const orderColumns = [
 			{
@@ -2446,16 +2495,18 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 
 		// CRITICAL: Always include takeProfit and stopLoss fields (even if undefined)
 		// TradingView needs these fields present to show TP/SL buttons on trade lines
+		// Use null (not undefined) to ensure the keys are preserved in JSON and TradingView knows they are "unset but supported"
 		const takeProfitValue = (position.takeProfit !== undefined && position.takeProfit !== null && typeof position.takeProfit === 'number' && isFinite(position.takeProfit) && position.takeProfit > 0)
 			? Number(position.takeProfit)
-			: null; // Use null instead of undefined for TradingView brackets
+			: null;
 		const stopLossValue = (position.stopLoss !== undefined && position.stopLoss !== null && typeof position.stopLoss === 'number' && isFinite(position.stopLoss) && position.stopLoss > 0)
 			? Number(position.stopLoss)
-			: null; // Use null instead of undefined for TradingView brackets
+			: null;
 
 		// Explicitly assign to ensure they're enumerable properties
-		clean.takeProfit = takeProfitValue;
-		clean.stopLoss = stopLossValue;
+		// We must cast to any or use explicit assignment to ensure they are set even if null
+		(clean as any).takeProfit = takeProfitValue;
+		(clean as any).stopLoss = stopLossValue;
 
 		// Add profit field - required by app's position table
 		if ((position as any).pl !== undefined && (position as any).pl !== null && typeof (position as any).pl === 'number' && isFinite((position as any).pl)) {
@@ -2505,6 +2556,9 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			(clean as any).positionId = Number((position as any).positionId);
 		}
 
+		// EXTRA: Explicitly set supportModify to true to ensure context menu appears
+		(clean as any).supportModify = true;
+
 		return clean;
 	}
 
@@ -2522,24 +2576,24 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			// This handles the case when a position is closed from the table
 			const currentPositionIds = new Set((openPositions || []).map(p => String(p.ticket ?? p.id ?? '')));
 			const positionsToRemove: string[] = [];
-			
+
 			// Find positions that exist in our cache but not in the new data
 			for (const positionId in this._positionById) {
 				if (!currentPositionIds.has(positionId)) {
 					positionsToRemove.push(positionId);
 				}
 			}
-			
+
 			// Remove closed positions from chart
 			for (const positionId of positionsToRemove) {
 				const position = this._positionById[positionId];
 				if (position) {
 					console.log('[ZuperiorBroker] Removing closed position from chart:', positionId);
-					
+
 					// Remove bracket orders (TP/SL)
 					const tpBracketId = `tp_${positionId}`;
 					const slBracketId = `sl_${positionId}`;
-					
+
 					if (this._orderById[tpBracketId]) {
 						const tpBracket = { ...this._orderById[tpBracketId], qty: 0, status: OrderStatus.Canceled };
 						if (this._host && typeof this._host.orderUpdate === 'function') {
@@ -2547,7 +2601,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 						}
 						delete this._orderById[tpBracketId];
 					}
-					
+
 					if (this._orderById[slBracketId]) {
 						const slBracket = { ...this._orderById[slBracketId], qty: 0, status: OrderStatus.Canceled };
 						if (this._host && typeof this._host.orderUpdate === 'function') {
@@ -2555,17 +2609,17 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 						}
 						delete this._orderById[slBracketId];
 					}
-					
+
 					// Notify TradingView that position is closed
 					const closedPosition: Position = {
 						...position,
 						qty: 0,
 					};
-					
+
 					if (this._host && typeof this._host.positionUpdate === 'function') {
 						this._host.positionUpdate(closedPosition);
 					}
-					
+
 					// Try positionRemove if available
 					try {
 						if (this._host && typeof (this._host as any).positionRemove === 'function') {
@@ -2574,7 +2628,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 					} catch (e) {
 						// positionRemove might not be available
 					}
-					
+
 					// Remove from cache
 					delete this._positionById[positionId];
 					const posIndex = this._positions.findIndex(p => p.id === positionId);
@@ -2674,9 +2728,9 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 				}
 
 
-				// Set TP/SL fields on position object - use null for TradingView brackets
-				position.takeProfit = takeProfit || null;
-				position.stopLoss = stopLoss || null;
+				// Set TP/SL fields on position object - use undefined for TradingView brackets
+				position.takeProfit = takeProfit || undefined;
+				position.stopLoss = stopLoss || undefined;
 
 				// Add all additional fields required by app's position table
 				// These fields are extracted from API response to match usePositions hook format
@@ -2713,12 +2767,12 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 				// positionId field - app uses this
 				(position as any).positionId = Number(p.PositionId || p.positionId || p.ticket) || undefined;
 
-				// Ensure bracket fields are always present (even if null) for TradingView
+				// Ensure bracket fields are always present (even if undefined) for TradingView
 				if (!('stopLoss' in position)) {
-					position.stopLoss = null;
+					position.stopLoss = undefined;
 				}
 				if (!('takeProfit' in position)) {
-					position.takeProfit = null;
+					position.takeProfit = undefined;
 				}
 
 				// Validate bracket values are numbers
@@ -2790,12 +2844,12 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 							const fullVolume = cleanPosition.qty * 10000; // Get actual volume (qty is divided by 10000)
 							const priceDiff = cleanPosition.takeProfit - cleanPosition.avgPrice;
 							const plAtTP = priceDiff * fullVolume * (cleanPosition.side === Side.Sell ? -1 : 1);
-							
+
 							// CRITICAL: TradingView might recalculate P/L as (priceDiff * qty * pipValue * contractSize)
 							// If qty is 0.01 and TradingView divides by 100 somewhere, we need to compensate
 							// Since it's showing 0.49 instead of 49 (100x smaller), multiply by 100
 							(tpBracket as any).pl = plAtTP * 100;
-							
+
 							console.log('[ZuperiorBroker] TP bracket P/L calculation:', {
 								bracketId: tpBracket.id,
 								limitPrice: cleanPosition.takeProfit,
@@ -2809,7 +2863,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 							});
 							// CRITICAL: Ensure supportModify is set for draggability
 							(tpBracket as any).supportModify = true;
-							
+
 							this._orderById[tpBracket.id] = tpBracket;
 							// Send via orderUpdate() for chart display
 							safeHostCall(this._host, 'orderUpdate', tpBracket);
@@ -2842,12 +2896,12 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 							const fullVolume = cleanPosition.qty * 10000; // Get actual volume (qty is divided by 10000)
 							const priceDiff = cleanPosition.stopLoss - cleanPosition.avgPrice;
 							const plAtSL = priceDiff * fullVolume * (cleanPosition.side === Side.Sell ? -1 : 1);
-							
+
 							// CRITICAL: TradingView might recalculate P/L as (priceDiff * qty * pipValue * contractSize)
 							// If qty is 0.01 and TradingView divides by 100 somewhere, we need to compensate
 							// Since it's showing 0.49 instead of 49 (100x smaller), multiply by 100
 							(slBracket as any).pl = plAtSL * 100;
-							
+
 							console.log('[ZuperiorBroker] SL bracket P/L calculation:', {
 								bracketId: slBracket.id,
 								stopPrice: cleanPosition.stopLoss,
@@ -2861,7 +2915,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 							});
 							// CRITICAL: Ensure supportModify is set for draggability
 							(slBracket as any).supportModify = true;
-							
+
 							this._orderById[slBracket.id] = slBracket;
 							// Send via orderUpdate() for chart display
 							safeHostCall(this._host, 'orderUpdate', slBracket);
@@ -2891,9 +2945,9 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 
 				// CRITICAL: Detect side and order type from orderType NUMBER, not type string
 				// OrderType: 2=Buy Limit, 3=Sell Limit, 4=Buy Stop, 5=Sell Stop
-				const orderTypeNum = typeof o.orderType === 'number' ? o.orderType : 
-				                     typeof o.Type === 'number' ? o.Type :
-				                     typeof o.type === 'number' ? o.type : null;
+				const orderTypeNum = typeof o.orderType === 'number' ? o.orderType :
+					typeof o.Type === 'number' ? o.Type :
+						typeof o.type === 'number' ? o.type : null;
 
 				// Detect side from orderType number (more reliable than string)
 				let side: Side;
@@ -2913,8 +2967,8 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 						type = OrderType.Limit;
 					} else if (orderTypeNum === 4 || orderTypeNum === 5) {
 						type = OrderType.Stop;
-				} else {
-					type = OrderType.Market;
+					} else {
+						type = OrderType.Market;
 					}
 				} else {
 					// Fallback to type string
@@ -2951,6 +3005,13 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 				const limitPrice = (type === OrderType.Limit) ? openPrice : undefined;
 				const stopPrice = (type === OrderType.Stop) ? openPrice : undefined;
 
+				// Validate TP/SL values - only valid positive numbers
+				const takeProfitRaw = o.takeProfit ?? o.TakeProfit ?? o.TP ?? o.tp;
+				const takeProfit = (takeProfitRaw && Number(takeProfitRaw) > 0) ? Number(takeProfitRaw) : undefined;
+
+				const stopLossRaw = o.stopLoss ?? o.StopLoss ?? o.SL ?? o.sl;
+				const stopLoss = (stopLossRaw && Number(stopLossRaw) > 0) ? Number(stopLossRaw) : undefined;
+
 				const order: Order = {
 					id,
 					symbol,
@@ -2960,35 +3021,80 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 					status: OrderStatus.Working,
 					limitPrice,
 					stopPrice,
-					takeProfit: o.takeProfit ?? o.TakeProfit ?? o.TP ?? o.tp ?? undefined,
-					stopLoss: o.stopLoss ?? o.StopLoss ?? o.SL ?? o.sl ?? undefined,
+					takeProfit,
+					stopLoss,
 				} as Order;
 
+				// CRITICAL: Add supportModify property for dragging lines
+				(order as any).supportModify = true;
+				(order as any).supportCancel = true;
+
 				// Debug logging for pending orders to help diagnose issues
-				console.log(`[ZuperiorBroker] Processing pending order:`, {
+				console.log(`[ZuperiorBroker] Processing pending order with brackets:`, {
 					id,
 					symbol,
-					orderTypeNum,
 					side: side === Side.Buy ? 'Buy' : 'Sell',
-					type: type === OrderType.Limit ? 'Limit' : type === OrderType.Stop ? 'Stop' : 'Market',
-					rawVolume,
-					volume,
 					openPrice,
-					limitPrice,
-					stopPrice,
-					originalOrder: o
+					takeProfit,
+					stopLoss
 				});
 
 				this._orderById[id] = order;
 				if (this._isWidgetReady) {
 					safeHostCall(this._host, 'orderUpdate', order);
+
+					// CREATE BRACKET ORDERS FOR PENDING ORDERS (New Logic)
+					// This ensures TP/SL lines appear for pending orders, not just positions
+
+					// 1. Create TP Bracket for Pending Order
+					if (takeProfit !== undefined) {
+						try {
+							const tpBracket = this._createTakeProfitBracket(order);
+							// Pending order brackets must be Inactive (according to TV docs)
+							// _createTakeProfitBracket handles this automatically based on ParentType.Order
+
+							// Ensure supportModify is set
+							(tpBracket as any).supportModify = true;
+
+							this._orderById[tpBracket.id] = tpBracket;
+							safeHostCall(this._host, 'orderUpdate', tpBracket);
+							console.log('[ZuperiorBroker] Created TP bracket for pending order:', {
+								id: tpBracket.id,
+								limitPrice: tpBracket.limitPrice,
+								parentId: tpBracket.parentId
+							});
+						} catch (error) {
+							console.error('[ZuperiorBroker] Error creating TP bracket for pending order:', error);
+						}
+					}
+
+					// 2. Create SL Bracket for Pending Order
+					if (stopLoss !== undefined) {
+						try {
+							const slBracket = this._createStopLossBracket(order);
+							// Pending order brackets must be Inactive
+
+							// Ensure supportModify is set
+							(slBracket as any).supportModify = true;
+
+							this._orderById[slBracket.id] = slBracket;
+							safeHostCall(this._host, 'orderUpdate', slBracket);
+							console.log('[ZuperiorBroker] Created SL bracket for pending order:', {
+								id: slBracket.id,
+								stopPrice: slBracket.stopPrice,
+								parentId: slBracket.parentId
+							});
+						} catch (error) {
+							console.error('[ZuperiorBroker] Error creating SL bracket for pending order:', error);
+						}
+					}
 				}
 			}
 
 			// Update internal arrays
 			this._positions.length = 0;
 			this._positions.push(...Object.values(this._positionById));
-			
+
 			// CRITICAL: Filter out bracket orders (TP/SL) from _orders array
 			// _orderById contains ALL orders including brackets for internal tracking,
 			// but _orders should only contain real pending orders for Account Manager
@@ -2999,15 +3105,15 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 				if (!orderId.startsWith('Generated-')) {
 					return false;
 				}
-				
+
 				// Additional safety check using helper method
 				if (this._isBracketOrder(o)) {
 					return false;
 				}
-				
+
 				return true;
 			});
-			
+
 			this._orders.length = 0;
 			this._orders.push(...pendingOrdersOnly);
 
@@ -3029,7 +3135,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 		// Determine if entity is a Position (has avgPrice) or Order
 		// For positions, use ParentType.Position; for orders, use ParentType.Order
 		const isPosition = 'avgPrice' in entity;
-		
+
 		const bracket: Order = {
 			symbol: entity.symbol.trim(),
 			qty: entity.qty,
@@ -3058,7 +3164,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 		// Determine if entity is a Position (has avgPrice) or Order
 		// For positions, use ParentType.Position; for orders, use ParentType.Order
 		const isPosition = 'avgPrice' in entity;
-		
+
 		// Reference: stopPrice: entity.stopLoss, price: entity.stopPrice
 		// For positions, we set stopPrice = stopLoss before calling this method
 		// CRITICAL: Reference uses entity.stopPrice for price field - must match exactly
@@ -3122,14 +3228,14 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 		// Update orders array - but only if it's NOT a bracket order
 		// Bracket orders should NOT be in _orders array (only in _orderById for internal tracking)
 		if (!this._isBracketOrder(order)) {
-		const orderIndex = this._orders.findIndex(o => o.id === order.id);
-		if (orderIndex >= 0) {
-			this._orders[orderIndex] = order;
-		} else {
+			const orderIndex = this._orders.findIndex(o => o.id === order.id);
+			if (orderIndex >= 0) {
+				this._orders[orderIndex] = order;
+			} else {
 				// Additional validation: only add orders with "Generated-" prefix
 				const orderId = String(order.id);
 				if (orderId.startsWith('Generated-')) {
-			this._orders.push(order);
+					this._orders.push(order);
 				} else {
 					console.warn('[ZuperiorBroker] Preventing non-Generated order from being added to _orders:', {
 						id: order.id,
@@ -3225,7 +3331,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 				// Status is already set correctly by _createTakeProfitBracket (Working for positions, Inactive for orders)
 				// Only ensure parentType is set if not already set
 				if (takeProfitBracket.parentType === undefined) {
-				takeProfitBracket.parentType = ParentType.Position;
+					takeProfitBracket.parentType = ParentType.Position;
 				}
 
 				if (!takeProfitBracket.symbol || takeProfitBracket.symbol.trim() === '') {
@@ -3281,7 +3387,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 				// Status is already set correctly by _createStopLossBracket (Working for positions, Inactive for orders)
 				// Only ensure parentType is set if not already set
 				if (stopLossBracket.parentType === undefined) {
-				stopLossBracket.parentType = ParentType.Position;
+					stopLossBracket.parentType = ParentType.Position;
 				}
 
 				if (!stopLossBracket.symbol || stopLossBracket.symbol.trim() === '') {

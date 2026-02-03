@@ -37,12 +37,36 @@ export const TVChartContainer = () => {
         }
     }, [getMetaApiToken]);
 
+    // Expose openModifyPositionModal to window for Broker to use
+    const openModifyPositionModal = (position: any, brackets?: any) => {
+        const mappedPosition = {
+            ...position,
+            openPrice: position.avg_price || position.avgPrice || position.price,
+            currentPrice: position.currentPrice || position.price,
+            tp: brackets?.takeProfit || position.takeProfit || position.tp,
+            sl: brackets?.stopLoss || position.stopLoss || position.sl,
+            pl: position.profit || position.pl || '0.00',
+            volume: position.qty || position.volume,
+            flag: (position.symbol || '').toLowerCase().replace(/[^a-z0-9]/g, ''),
+        };
+        setModifyModalState({ isOpen: true, position: mappedPosition });
+        return new Promise<boolean>((resolve) => {
+            modifyModalPromiseResolve.current = resolve;
+        });
+    };
+
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            (window as any).__OPEN_MODIFY_POSITION_MODAL__ = openModifyPositionModal;
+        }
+    }, [setModifyModalState]);
+
     useEffect(() => {
         if (lastModification && brokerRef.current) {
 
-            // BrokerDemo uses editPositionBrackets(positionId, modifiedBrackets)
-            // where modifiedBrackets is { stopLoss?: number, takeProfit?: number }
-            if (brokerRef.current.editPositionBrackets) {
+            // Use updatePositionBrackets if available (new method that bypasses modal),
+            // otherwise fall back to editPositionBrackets (old behavior)
+            if (brokerRef.current.updatePositionBrackets) {
                 const sl = lastModification.sl ? parseFloat(lastModification.sl) : undefined;
                 const tp = lastModification.tp ? parseFloat(lastModification.tp) : undefined;
 
@@ -51,10 +75,22 @@ export const TVChartContainer = () => {
                     ...(tp !== undefined && !isNaN(tp) ? { takeProfit: tp } : {}),
                 };
 
+                brokerRef.current.updatePositionBrackets(lastModification.id, modifiedBrackets)
+                    .catch(() => { });
+            } else if (brokerRef.current.editPositionBrackets) {
+                // Fallback for backward compatibility
+                const sl = lastModification.sl ? parseFloat(lastModification.sl) : undefined;
+                const tp = lastModification.tp ? parseFloat(lastModification.tp) : undefined;
+
+                const modifiedBrackets = {
+                    ...(sl !== undefined && !isNaN(sl) ? { stopLoss: sl } : {}),
+                    ...(tp !== undefined && !isNaN(tp) ? { takeProfit: tp } : {}),
+                    _skipModal: true,
+                };
+
 
                 brokerRef.current.editPositionBrackets(lastModification.id, modifiedBrackets)
-                    .catch(() => {});
-            } else {
+                    .catch(() => { });
             }
         }
     }, [lastModification]);
@@ -112,7 +148,7 @@ export const TVChartContainer = () => {
 
 
             brokerRef.current.placeOrder(preOrder)
-                .catch(() => {});
+                .catch(() => { });
         }
     }, [lastOrder]);
 
@@ -153,11 +189,11 @@ export const TVChartContainer = () => {
             // Use our custom RealtimeDataFeed
             const datafeed = new RealtimeDataFeed();
 
-            const onCancelOrderResultCallback = () => {};
-            const onCloseOrderResultCallback = () => {};
-            const onReversePositionResultCallback = () => {};
-            const onOrderResultCallback = () => {};
-            const onPositionResultCallback = () => {};
+            const onCancelOrderResultCallback = () => { };
+            const onCloseOrderResultCallback = () => { };
+            const onReversePositionResultCallback = () => { };
+            const onOrderResultCallback = () => { };
+            const onPositionResultCallback = () => { };
 
             const customCancelOrderDialog = window.CustomDialogs.createCancelOrderDialog(onCancelOrderResultCallback);
             const customClosePositionDialog = window.CustomDialogs.createClosePositionDialog(onCloseOrderResultCallback);
@@ -227,12 +263,12 @@ export const TVChartContainer = () => {
                 broker_factory: (host: any) => {
                     const broker = new ZuperiorBroker(host, datafeed, currentAccountId, getMetaApiToken);
                     brokerRef.current = broker; // Expose broker instance
-                    
+
                     // Store token function in window for fallback access
                     if (typeof window !== 'undefined' && getMetaApiToken) {
                         (window as any).__GET_METAAPI_TOKEN__ = getMetaApiToken;
                     }
-                    
+
                     // Update broker if token function becomes available later
                     if (getMetaApiToken && broker.setMetaApiTokenFunction) {
                         broker.setMetaApiTokenFunction(getMetaApiToken);
@@ -285,40 +321,41 @@ export const TVChartContainer = () => {
                 broker_config: {
                     configFlags: {
                         // Position management flags
-                        supportPositions: true, // Enable positions (default: true, we have positions() implemented)
-                        supportPositionBrackets: true, // Enable position brackets (TP/SL) - requires editPositionBrackets()
-                        supportModifyPosition: true, // Enable position modification (dragging TP/SL lines) - requires editPositionBrackets()
-                        supportPLUpdate: true, // Use custom P&L calculations (default: true, we calculate P&L)
-                        supportClosePosition: true, // Enable position closing - requires closePosition()
-                        supportPartialClosePosition: false, // Disable partial closing (default: false, we don't implement it)
-                        supportPartialCloseIndividualPosition: false, // Disable partial individual closing (default: false)
-                        supportReversePosition: true, // Enable position reversing - requires reversePosition()
+                        supportPositions: true, // Enable positions
+                        supportPositionBrackets: false, // Disable net position brackets (we use individual)
+                        supportIndividualPositionBrackets: true, // Enable individual position brackets
+                        supportModifyPosition: true, // Enable position modification
+                        supportPLUpdate: true, // Use custom P&L calculations
+                        supportClosePosition: true, // Enable position closing
+                        supportPartialClosePosition: false, // Disable partial closing
+                        supportPartialCloseIndividualPosition: false, // Disable partial individual closing
+                        supportReversePosition: true, // Enable position reversing
                         supportNativeReversePosition: true, // Use native reverse implementation
-                        supportPositionNetting: false, // Disable position netting (default: false, we don't use netting)
-                        supportPreviewClosePosition: false, // Disable preview close dialog (default: false)
-                        
+                        supportPositionNetting: false, // Disable position netting
+                        supportPreviewClosePosition: false, // Disable preview close dialog
+
                         // Order management flags
                         supportOrderBrackets: true, // Enable order brackets (TP/SL for orders)
-                        supportModifyOrder: true, // Enable order modification (dragging order lines and TP/SL) - requires modifyOrder()
-                        supportCancelOrder: true, // Enable order cancellation - requires cancelOrder()
+                        supportModifyOrder: true, // Enable order modification
+                        supportCancelOrder: true, // Enable order cancellation
                         supportMarketBrackets: true, // Enable market brackets
-                        supportOrdersHistory: false, // Disable orders history (default: true, we don't implement ordersHistory())
-                        supportPlaceOrderPreview: false, // Disable order preview (default: false, we don't implement previewOrder())
-                        
+                        supportOrdersHistory: false, // Disable orders history
+                        supportPlaceOrderPreview: false, // Disable order preview
+
                         // Order type flags
-                        supportStopLoss: true, // Enable stop loss orders (default: true)
-                        supportStopOrders: true, // Enable stop orders (default: true)
-                        supportStopLimitOrders: false, // Disable stop-limit orders (default: false)
-                        supportStopOrdersInBothDirections: false, // Disable stop orders in both directions (default: false)
-                        supportStopLimitOrdersInBothDirections: false, // Disable stop-limit in both directions (default: false)
-                        supportTrailingStop: false, // Disable trailing stop (default: false)
-                        supportStrictCheckingLimitOrderPrice: false, // Disable strict limit price checking (default: false)
-                        
+                        supportStopLoss: true, // Enable stop loss orders
+                        supportStopOrders: true, // Enable stop orders
+                        supportStopLimitOrders: false, // Disable stop-limit orders
+                        supportStopOrdersInBothDirections: false, // Disable stop orders in both directions
+                        supportStopLimitOrdersInBothDirections: false, // Disable stop-limit in both directions
+                        supportTrailingStop: false, // Disable trailing stop
+                        supportStrictCheckingLimitOrderPrice: false, // Disable strict limit price checking
+
                         // Other flags
-                        supportSymbolSearch: false, // Disable symbol search (default: false)
+                        supportSymbolSearch: false, // Disable symbol search
                         supportLevel2Data: false, // Disable Level 2 data
                         showQuantityInsteadOfAmount: true, // Show quantity instead of amount
-                        supportEditAmount: false, // Disable amount editing
+                        supportEditAmount: true, // Enable amount editing
                     },
                     durations: [{ name: 'DAY', value: 'DAY' }, { name: 'GTT', value: 'GTT' }],
                     customUI: {
@@ -330,11 +367,10 @@ export const TVChartContainer = () => {
                             return Promise.resolve(true);
                         },
                         showPositionDialog: (position: any, brackets: any, focus: any) => {
-                            // Map BrokerDemo position fields to ModifyPositionModal fields
                             const mappedPosition = {
                                 ...position,
                                 openPrice: position.avg_price || position.avgPrice || position.price,
-                                currentPrice: position.currentPrice || position.price, // Might need to fetch current quote if missing
+                                currentPrice: position.currentPrice || position.price,
                                 tp: brackets?.takeProfit || position.takeProfit || position.tp,
                                 sl: brackets?.stopLoss || position.stopLoss || position.sl,
                                 pl: position.profit || position.pl || '0.00',
@@ -350,6 +386,24 @@ export const TVChartContainer = () => {
                             const mappedPosition = {
                                 ...position,
                                 openPrice: position.avg_price || position.avgPrice || position.price,
+                                currentPrice: position.currentPrice || position.price,
+                                tp: brackets?.takeProfit || position.takeProfit || position.tp,
+                                sl: brackets?.stopLoss || position.stopLoss || position.sl,
+                                pl: position.profit || position.pl || '0.00',
+                                volume: position.qty || position.volume,
+                                flag: (position.symbol || '').toLowerCase().replace(/[^a-z0-9]/g, ''),
+                            };
+                            setModifyModalState({ isOpen: true, position: mappedPosition });
+                            return new Promise((resolve) => {
+                                modifyModalPromiseResolve.current = resolve;
+                            });
+                        },
+                        // CRITICAL: Add showIndividualPositionBracketsDialog for individual positions
+                        showIndividualPositionBracketsDialog: (position: any, brackets: any, focus: any) => {
+                            const mappedPosition = {
+                                ...position,
+                                openPrice: position.avg_price || position.avgPrice || position.price,
+                                currentPrice: position.currentPrice || position.price,
                                 tp: brackets?.takeProfit || position.takeProfit || position.tp,
                                 sl: brackets?.stopLoss || position.stopLoss || position.sl,
                                 pl: position.profit || position.pl || '0.00',

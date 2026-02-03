@@ -200,7 +200,7 @@ const ModifyPositionModal = () => {
 
   return ReactDOM.createPortal(
     <div
-      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-[2px]"
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/10"
       onClick={handleBackdropClick}
     >
       <div className="bg-[#02040d] border border-gray-800 rounded-lg w-[400px] shadow-2xl overflow-hidden font-sans text-gray-200">
