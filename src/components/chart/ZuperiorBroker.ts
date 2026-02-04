@@ -26,7 +26,6 @@ import {
 	PreOrder,
 	Side,
 	StandardFormatterName,
-	TradeContext,
 } from '../../trading_platform-master/charting_library/broker-api';
 
 import { IDatafeedQuotesApi, QuoteData } from '../../trading_platform-master/charting_library/datafeed-api';
@@ -205,12 +204,18 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 		// 3. Finally, update positions AFTER brackets exist
 		this._positions.forEach(p => {
 			try {
-				if (this._host && typeof this._host.positionUpdate === 'function') {
+				if (this._host) {
 					const cleanPosition = this._createCleanPosition(p);
 					// Update _positionById with clean position before calling positionUpdate
 					this._positionById[cleanPosition.id] = cleanPosition;
-					this._host.positionUpdate(cleanPosition);
-					if ((cleanPosition as any).pl !== undefined) {
+
+					if (typeof (this._host as any).individualPositionUpdate === 'function') {
+						(this._host as any).individualPositionUpdate(cleanPosition);
+					} else if (typeof this._host.positionUpdate === 'function') {
+						this._host.positionUpdate(cleanPosition);
+					}
+
+					if ((cleanPosition as any).pl !== undefined && typeof (cleanPosition as any).pl === 'number' && typeof this._host.plUpdate === 'function') {
 						this._host.plUpdate(cleanPosition.symbol, (cleanPosition as any).pl);
 					}
 				}
@@ -648,8 +653,12 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 								positionKeys: Object.keys(cleanPosition),
 							});
 
-							if (this._host && typeof this._host.positionUpdate === 'function') {
-								this._host.positionUpdate(cleanPosition);
+							if (this._host) {
+								if (typeof (this._host as any).individualPositionUpdate === 'function') {
+									(this._host as any).individualPositionUpdate(cleanPosition);
+								} else if (typeof this._host.positionUpdate === 'function') {
+									this._host.positionUpdate(cleanPosition);
+								}
 							}
 							if ((cleanPosition as any).pl !== undefined && typeof (cleanPosition as any).pl === 'number' && this._host && typeof this._host.plUpdate === 'function') {
 								this._host.plUpdate(cleanPosition.symbol, (cleanPosition as any).pl);
@@ -1112,6 +1121,37 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 		}
 
 		return order;
+	}
+
+	public config() {
+		const cfg = {
+			configFlags: {
+				supportPositions: true,
+				supportPositionBrackets: true,
+				supportIndividualPositionBrackets: false,
+				supportModifyPosition: true,
+				supportPLUpdate: true,
+				supportClosePosition: true,
+				supportReversePosition: true,
+				supportNativeReversePosition: true,
+				supportOrderBrackets: true,
+				supportOrders: true,
+				supportModifyOrder: true,
+				supportCancelOrder: true,
+				supportMultiposition: true,
+				supportStopLoss: true,
+				supportStopOrders: true,
+				supportMarketBrackets: true,
+				supportModifyOrderBrackets: true,
+				supportIndividualOrderBrackets: true,
+				supportModifyPositionBrackets: true,
+				supportCancelBrackets: true,
+				supportAddBracketsToExistingPosition: true,
+				supportAddBracketsToExistingOrder: true,
+			}
+		};
+		console.log('[ZuperiorBroker] config() called, returning:', cfg);
+		return cfg;
 	}
 
 	public connectionStatus(): ConnectionStatus {
@@ -1999,18 +2039,25 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			}
 
 			// CRITICAL: Preserve unchanged brackets when only one is modified
-			let finalStopLoss = stopLossValue;
-			let finalTakeProfit = takeProfitValue;
+			// If a bracket is 0, it means it should be REMOVED (0 is a valid value for removal in many APIs)
+			// If it's undefined, it means it wasn't mentioned in the current request
 
-			// If only one bracket is being modified, preserve the other from current position
-			if (stopLossValue === undefined && takeProfitValue !== undefined) {
-				// Only TP is being modified - preserve current SL
+			const isRemovingSL = modifiedBrackets.stopLoss === 0 || modifiedBrackets.stopLoss === null;
+			const isRemovingTP = modifiedBrackets.takeProfit === 0 || modifiedBrackets.takeProfit === null;
+
+			let finalStopLoss = isRemovingSL ? 0 : stopLossValue;
+			let finalTakeProfit = isRemovingTP ? 0 : takeProfitValue;
+
+			// If SL is not being changed (neither setting a new value nor removing), preserve current
+			if (modifiedBrackets.stopLoss === undefined) {
 				if (position.stopLoss !== undefined && position.stopLoss !== null) {
 					finalStopLoss = Number(position.stopLoss);
 					console.log('[ZuperiorBroker] Preserving existing SL:', finalStopLoss);
 				}
-			} else if (takeProfitValue === undefined && stopLossValue !== undefined) {
-				// Only SL is being modified - preserve current TP
+			}
+
+			// If TP is not being changed, preserve current
+			if (modifiedBrackets.takeProfit === undefined) {
 				if (position.takeProfit !== undefined && position.takeProfit !== null) {
 					finalTakeProfit = Number(position.takeProfit);
 					console.log('[ZuperiorBroker] Preserving existing TP:', finalTakeProfit);
@@ -2046,10 +2093,10 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 				comment: 'Modified TP/SL from Chart',
 			};
 
-			if (finalStopLoss !== undefined && finalStopLoss !== null && Number(finalStopLoss) > 0) {
+			if (finalStopLoss !== undefined && finalStopLoss !== null) {
 				payload.stopLoss = Number(finalStopLoss);
 			}
-			if (finalTakeProfit !== undefined && finalTakeProfit !== null && Number(finalTakeProfit) > 0) {
+			if (finalTakeProfit !== undefined && finalTakeProfit !== null) {
 				payload.takeProfit = Number(finalTakeProfit);
 			}
 
@@ -2073,9 +2120,13 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			this._positionById[positionId] = position;
 
 			// 1. Notify Position Update
-			if (this._host && typeof this._host.positionUpdate === 'function') {
+			if (this._host) {
 				const cleanPosition = this._createCleanPosition(position);
-				this._host.positionUpdate(cleanPosition);
+				if (typeof (this._host as any).individualPositionUpdate === 'function') {
+					(this._host as any).individualPositionUpdate(cleanPosition);
+				} else if (typeof this._host.positionUpdate === 'function') {
+					this._host.positionUpdate(cleanPosition);
+				}
 			}
 
 			// 2. Handle Take Profit Bracket
@@ -2172,183 +2223,43 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 		}
 	}
 
-	// CRITICAL: Implement editIndividualPositionBrackets for individual positions
-	// This is required when supportIndividualPositionBrackets is true
-	public async editIndividualPositionBrackets(positionId: string, modifiedBrackets: Brackets, customFields?: any): Promise<void> {
+	public async editIndividualPositionBrackets(positionId: string, modifiedBrackets: Brackets, _customFields?: any): Promise<void> {
 		console.log('[ZuperiorBroker] editIndividualPositionBrackets called (delegating to editPositionBrackets):', positionId);
 		return this.editPositionBrackets(positionId, modifiedBrackets);
 	}
 
-	public async editIndividualPositionBrackets(positionId: string, modifiedBrackets: Brackets, customFields?: any): Promise<void> {
-		console.log('[ZuperiorBroker] editIndividualPositionBrackets called:', {
-			positionId,
-			brackets: {
-				stopLoss: modifiedBrackets.stopLoss !== undefined ? modifiedBrackets.stopLoss : 'undefined',
-				takeProfit: modifiedBrackets.takeProfit !== undefined ? modifiedBrackets.takeProfit : 'undefined',
-			},
-		});
-
-		if (!this._accountId) {
-			throw new Error('No account ID');
-		}
-
-		if (!positionId) {
-			throw new Error('Position ID is required');
-		}
-
-		try {
-			// Get current position
-			let position: Position | undefined = this._positionById[positionId];
-			if (!position) {
-				const positions = await this.positions();
-				position = positions.find(p => p.id === positionId);
-			}
-
-			if (!position) {
-				throw new Error('Position not found');
-			}
-
-			// Extract bracket values
-			const stopLossValue = modifiedBrackets.stopLoss !== undefined && modifiedBrackets.stopLoss !== null && Number(modifiedBrackets.stopLoss) > 0
-				? Number(modifiedBrackets.stopLoss)
-				: null;
-			const takeProfitValue = modifiedBrackets.takeProfit !== undefined && modifiedBrackets.takeProfit !== null && Number(modifiedBrackets.takeProfit) > 0
-				? Number(modifiedBrackets.takeProfit)
-				: null;
-
-			// Call backend API
-			const token = apiClient.getToken();
-			const baseURL = process.env.NEXT_PUBLIC_BACKEND_API_URL ||
-				(process.env.NEXT_PUBLIC_API_BASE_URL && process.env.NEXT_PUBLIC_API_BASE_URL.includes('localhost')
-					? process.env.NEXT_PUBLIC_API_BASE_URL
-					: 'http://localhost:5000');
-
-			const response = await fetch(`${baseURL}/api/positions/${positionId}/modify`, {
-				method: 'PUT',
-				headers: {
-					'Content-Type': 'application/json',
-					...(token ? { 'Authorization': `Bearer ${token}` } : {}),
-				},
-				body: JSON.stringify({
-					accountId: this._accountId,
-					stopLoss: stopLossValue,
-					takeProfit: takeProfitValue,
-				}),
-			});
-
-			if (!response.ok) {
-				const errorData = await response.json().catch(() => ({ message: response.statusText }));
-				throw new Error(errorData.message || `Failed to update position brackets: ${response.statusText}`);
-			}
-
-			// Update position locally
-			position.stopLoss = stopLossValue;
-			position.takeProfit = takeProfitValue;
-			this._positionById[positionId] = position;
-
-			// CRITICAL: Call individualPositionUpdate (not positionUpdate) for individual positions
-			if (this._host && typeof this._host.individualPositionUpdate === 'function') {
-				const cleanPosition = this._createCleanPosition(position);
-				// Convert Position to IndividualPosition by adding required date and price fields
-				// IndividualPosition requires: id, date (number), symbol, qty, side, price (number)
-				const individualPosition = {
-					...cleanPosition,
-					date: (position as any).openTime ? new Date((position as any).openTime).getTime() : Date.now(),
-					price: cleanPosition.avgPrice,
-				} as any; // Type assertion needed as IndividualPosition extends Position with additional fields
-				this._host.individualPositionUpdate(individualPosition);
-			} else if (this._host && typeof this._host.positionUpdate === 'function') {
-				// Fallback to positionUpdate if individualPositionUpdate not available
-				const cleanPosition = this._createCleanPosition(position);
-				this._host.positionUpdate(cleanPosition);
-			}
-
-			// Update bracket orders
-			if (takeProfitValue !== null) {
-				const tpOrder: Order = {
-					id: `tp_${positionId}`,
-					symbol: position.symbol,
-					qty: position.qty,
-					parentId: positionId,
-					parentType: ParentType.Position,
-					limitPrice: takeProfitValue,
-					side: changeSide(position.side),
-					status: OrderStatus.Working,
-					type: OrderType.Limit,
-				} as Order;
-
-				this._orderById[tpOrder.id] = tpOrder;
-				if (this._host && typeof this._host.orderUpdate === 'function') {
-					this._host.orderUpdate(tpOrder);
-				}
-			} else {
-				// Remove TP bracket
-				const tpId = `tp_${positionId}`;
-				if (this._orderById[tpId]) {
-					const tpOrder = this._orderById[tpId];
-					tpOrder.status = OrderStatus.Canceled;
-					if (this._host && typeof this._host.orderUpdate === 'function') {
-						this._host.orderUpdate(tpOrder);
-					}
-					delete this._orderById[tpId];
-				}
-			}
-
-			if (stopLossValue !== null) {
-				const slOrder: Order = {
-					id: `sl_${positionId}`,
-					symbol: position.symbol,
-					qty: position.qty,
-					parentId: positionId,
-					parentType: ParentType.Position,
-					stopPrice: stopLossValue,
-					price: stopLossValue,
-					side: changeSide(position.side),
-					status: OrderStatus.Working,
-					type: OrderType.Stop,
-				} as Order;
-
-				this._orderById[slOrder.id] = slOrder;
-				if (this._host && typeof this._host.orderUpdate === 'function') {
-					this._host.orderUpdate(slOrder);
-				}
-			} else {
-				// Remove SL bracket
-				const slId = `sl_${positionId}`;
-				if (this._orderById[slId]) {
-					const slOrder = this._orderById[slId];
-					slOrder.status = OrderStatus.Canceled;
-					if (this._host && typeof this._host.orderUpdate === 'function') {
-						this._host.orderUpdate(slOrder);
-					}
-					delete this._orderById[slId];
-				}
-			}
-
-		} catch (error) {
-			console.error('[ZuperiorBroker] Error editing individual position brackets:', error);
-			throw error;
-		}
-	}
-
 	public async reversePosition(positionId: string): Promise<void> {
-		// Reverse position by closing and opening opposite side
 		const position = this._positionById[positionId];
 		if (!position) {
 			throw new Error('Position not found');
 		}
 
-		// Close current position first, then the placeOrder will handle reversal
-		await this.closePosition(positionId);
-		// Note: Actual reversal logic would place an order in opposite direction with 2x quantity
-		// For now, we'll just close and let user place new order if needed
+		console.log('[ZuperiorBroker] Reversing position:', positionId, position);
+
+		// Calculate volume for reversal (2x current position size)
+		const doubleQty = position.qty * 2;
+		const oppositeSide = position.side === Side.Buy ? Side.Sell : Side.Buy;
+
+		// Create PreOrder object for reversal
+		const preOrder: PreOrder = {
+			symbol: position.symbol,
+			qty: doubleQty,
+			side: oppositeSide,
+			type: OrderType.Market,
+		} as any;
+
+		console.log('[ZuperiorBroker] Placing reversal order:', preOrder);
+
+		try {
+			await this.placeOrder(preOrder);
+			console.log('[ZuperiorBroker] Reversal order placed successfully');
+		} catch (error) {
+			console.error('[ZuperiorBroker] Error reversing position:', error);
+			throw error;
+		}
 	}
 
 	public accountManagerInfo(): AccountManagerInfo {
-		// Define Account Manager columns as per TradingView documentation
-		// Using StandardFormatterName and CommonAccountManagerColumnId for consistency
-
-		// Order columns - matching documentation example
 		const orderColumns = [
 			{
 				label: 'Symbol',
@@ -2376,6 +2287,34 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 				formatter: 'formatQuantity' as any,
 			},
 			{
+				label: 'Limit Price',
+				alignment: 'right' as CellAlignment,
+				id: 'limitPrice',
+				dataFields: ['limitPrice'],
+				formatter: 'formatPrice' as any,
+			},
+			{
+				label: 'Stop Price',
+				alignment: 'right' as CellAlignment,
+				id: 'stopPrice',
+				dataFields: ['stopPrice'],
+				formatter: 'formatPrice' as any,
+			},
+			{
+				label: 'Last',
+				alignment: 'right' as CellAlignment,
+				id: 'last',
+				dataFields: ['last'],
+				formatter: 'formatPrice' as any,
+			},
+			{
+				label: 'Execution',
+				alignment: 'right' as CellAlignment,
+				id: 'avgPrice',
+				dataFields: ['avgPrice'],
+				formatter: 'formatPrice' as any,
+			},
+			{
 				label: 'Status',
 				id: 'status',
 				dataFields: ['status'],
@@ -2388,7 +2327,6 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			},
 		];
 
-		// Position columns - matching documentation example
 		const positionColumns = [
 			{
 				label: 'Symbol',
@@ -2409,24 +2347,55 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 				dataFields: ['qty'],
 				formatter: 'formatQuantity' as any,
 			},
+			{
+				label: 'Avg Fill Price',
+				alignment: 'right' as CellAlignment,
+				id: 'avgPrice',
+				dataFields: ['avgPrice'],
+				formatter: 'formatPrice' as any,
+			},
+			{
+				label: 'Last',
+				alignment: 'right' as CellAlignment,
+				id: 'last',
+				dataFields: ['last'],
+				formatter: 'formatPrice' as any,
+			},
+			{
+				label: 'Profit',
+				alignment: 'right' as CellAlignment,
+				id: 'pl',
+				dataFields: ['pl'],
+				formatter: 'profit' as any,
+			},
+			{
+				label: 'Stop Loss',
+				alignment: 'right' as CellAlignment,
+				id: 'stopLoss',
+				dataFields: ['stopLoss'],
+				formatter: 'formatPrice' as any,
+			},
+			{
+				label: 'Take Profit',
+				alignment: 'right' as CellAlignment,
+				id: 'takeProfit',
+				dataFields: ['takeProfit'],
+				formatter: 'formatPrice' as any,
+			},
+			{
+				label: 'Position ID',
+				id: 'positionId',
+				dataFields: ['id'],
+			},
 		];
 
-		const accountInfo: AccountManagerInfo = {
+		return {
 			accountTitle: 'Trading Account',
 			summary: [],
 			orderColumns: orderColumns,
 			positionColumns: positionColumns,
-			pages: [], // Required field - empty array if no custom pages
+			pages: [],
 		};
-
-		console.log('[ZuperiorBroker] accountManagerInfo:', {
-			accountTitle: accountInfo.accountTitle,
-			orderColumnsCount: accountInfo.orderColumns.length,
-			positionColumnsCount: accountInfo.positionColumns?.length || 0,
-			pagesCount: accountInfo.pages.length,
-		});
-
-		return accountInfo;
 	}
 
 	public async accountsMetainfo(): Promise<AccountMetainfo[]> {
@@ -2439,10 +2408,46 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 	}
 
 	public async chartContextMenuActions(
-		_context: TradeContext,
-		_options?: DefaultContextMenuActionsParams | undefined
+		context: any,
+		options?: any
 	): Promise<ActionMetaInfo[]> {
-		return this._host.defaultContextMenuActions(_context);
+		console.log('[ZuperiorBroker] chartContextMenuActions called:', { context, options });
+		const actions = await this._host.defaultContextMenuActions(context, options);
+		console.log('[ZuperiorBroker] Default actions:', actions.map(a => a.text));
+
+		// The context might be an object or a number depending on the library version
+		// If it's the position context, we want to add our custom actions
+		const isPositionContext = options && options.activeItemId;
+
+		if (isPositionContext) {
+			const activeId = options.activeItemId;
+			console.log('[ZuperiorBroker] Position context for:', activeId);
+
+			// Ensure Protect Position is always there if supported
+			if (!actions.some(a => a.text && a.text.includes('Protect'))) {
+				actions.push({
+					text: 'Protect position...',
+					action: () => {
+						this.editPositionBrackets(activeId, {});
+					}
+				});
+			}
+
+			// Ensure Reverse Position is always there if supported
+			if (!actions.some(a => a.text && a.text.includes('Reverse'))) {
+				actions.push({
+					text: 'Reverse position',
+					action: () => {
+						this.reversePosition(activeId);
+					}
+				});
+			}
+		} else {
+			console.log('[ZuperiorBroker] NOT position context');
+		}
+
+		console.log('[ZuperiorBroker] Final actions:', actions.map(a => a.text));
+		return actions;
 	}
 
 	public destroy() {
@@ -2453,16 +2458,13 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 		this._isPolling = false;
 	}
 
-	// ============================================================================
-	// Helper method to create clean position object for TradingView
-	// ============================================================================
 	private _createCleanPosition(position: Position): Position {
 		// Create a clean position object with ALL fields expected by the app's position table
 		// This ensures Account Manager displays the same data as the app's position table
 		const clean: Position = {
 			id: String(position.id),
 			symbol: String(position.symbol).toUpperCase(),
-			qty: Number(position.qty),
+			qty: Math.abs(Number(position.qty)), // Force positive qty for TradingView
 			side: Number(position.side),
 			avgPrice: Number(position.avgPrice),
 		} as Position;
@@ -2558,6 +2560,10 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 
 		// EXTRA: Explicitly set supportModify to true to ensure context menu appears
 		(clean as any).supportModify = true;
+		(clean as any).supportEdit = true; // Explicitly enable edit button
+		(clean as any).supportClose = true; // Explicitly enable close button
+		(clean as any).supportProtect = true; // Explicitly enable protect position (add brackets)
+		(clean as any).supportReverse = true; // Explicitly enable reverse position
 
 		return clean;
 	}
@@ -3025,8 +3031,10 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 					stopLoss,
 				} as Order;
 
-				// CRITICAL: Add supportModify property for dragging lines
+				// CRITICAL: Add supportModify property for dragging lines AND Edit button in Account Manager
 				(order as any).supportModify = true;
+				(order as any).supportEdit = true; // Just in case, as user requested 'edit' icon
+				(order as any).supportCancel = true;
 				(order as any).supportCancel = true;
 
 				// Debug logging for pending orders to help diagnose issues
@@ -3100,17 +3108,12 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			// but _orders should only contain real pending orders for Account Manager
 			const allOrdersFromMap = Object.values(this._orderById);
 			const pendingOrdersOnly = allOrdersFromMap.filter((o: Order) => {
-				// PRIMARY FILTER: Only include orders with "Generated-" prefix (real pending orders from backend)
-				const orderId = String(o.id);
-				if (!orderId.startsWith('Generated-')) {
-					return false;
-				}
-
-				// Additional safety check using helper method
+				// Filter out bracket orders (tp_..., sl_...) to avoid cluttering the Orders tab
 				if (this._isBracketOrder(o)) {
 					return false;
 				}
 
+				// Allow all other orders (including those from backend with numeric IDs)
 				return true;
 			});
 

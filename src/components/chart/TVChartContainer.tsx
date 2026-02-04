@@ -235,8 +235,6 @@ export const TVChartContainer = () => {
                     'symbol_search_hot_key',
                     'header_compare',
                     'buy_sell_buttons',
-                    'trading_account_manager',
-                    'open_account_manager',
                 ],
                 enabled_features: ['study_templates'],
                 charts_storage_url: 'https://saveload.tradingview.com',
@@ -321,41 +319,51 @@ export const TVChartContainer = () => {
                 broker_config: {
                     configFlags: {
                         // Position management flags
-                        supportPositions: true, // Enable positions
-                        supportPositionBrackets: false, // Disable net position brackets (we use individual)
-                        supportIndividualPositionBrackets: true, // Enable individual position brackets
-                        supportModifyPosition: true, // Enable position modification
-                        supportPLUpdate: true, // Use custom P&L calculations
-                        supportClosePosition: true, // Enable position closing
-                        supportPartialClosePosition: false, // Disable partial closing
-                        supportPartialCloseIndividualPosition: false, // Disable partial individual closing
-                        supportReversePosition: true, // Enable position reversing
-                        supportNativeReversePosition: true, // Use native reverse implementation
-                        supportPositionNetting: false, // Disable position netting
-                        supportPreviewClosePosition: false, // Disable preview close dialog
+                        supportPositions: true,
+                        supportPositionBrackets: true, // Master switch for Protect position
+                        supportIndividualPositionBrackets: false, // Disable to avoid TradingView assertion errors
+                        supportModifyPosition: true,
+                        supportPLUpdate: true,
+                        supportClosePosition: true,
+                        supportReversePosition: true,
+                        supportNativeReversePosition: true,
+                        supportPositionNetting: false,
+                        supportPreviewClosePosition: false,
 
                         // Order management flags
-                        supportOrderBrackets: true, // Enable order brackets (TP/SL for orders)
-                        supportModifyOrder: true, // Enable order modification
-                        supportCancelOrder: true, // Enable order cancellation
-                        supportMarketBrackets: true, // Enable market brackets
-                        supportOrdersHistory: false, // Disable orders history
-                        supportPlaceOrderPreview: false, // Disable order preview
+                        supportOrders: true,
+                        supportOrderBrackets: true,
+                        supportModifyOrder: true,
+                        supportCancelOrder: true,
+                        supportCloseOrder: true,
+                        supportMarketBrackets: true,
+                        supportModifyOrderPrice: true,
+                        supportModifyOrderBrackets: true,
+                        supportIndividualOrderBrackets: true,
+                        supportAddBracketsToExistingOrder: true,
+                        supportAddBracketsToExistingPosition: true,
+                        supportCancelBrackets: true,
 
                         // Order type flags
-                        supportStopLoss: true, // Enable stop loss orders
-                        supportStopOrders: true, // Enable stop orders
-                        supportStopLimitOrders: false, // Disable stop-limit orders
-                        supportStopOrdersInBothDirections: false, // Disable stop orders in both directions
-                        supportStopLimitOrdersInBothDirections: false, // Disable stop-limit in both directions
-                        supportTrailingStop: false, // Disable trailing stop
-                        supportStrictCheckingLimitOrderPrice: false, // Disable strict limit price checking
+                        supportStopLoss: true,
+                        supportStopOrders: true,
+                        supportStopLimitOrders: false,
+                        supportTrailingStop: true,
+                        supportMultiposition: true,
 
-                        // Other flags
-                        supportSymbolSearch: false, // Disable symbol search
-                        supportLevel2Data: false, // Disable Level 2 data
-                        showQuantityInsteadOfAmount: true, // Show quantity instead of amount
-                        supportEditAmount: true, // Enable amount editing
+                        // UI and other flags
+                        showQuantityInsteadOfAmount: true,
+                        supportDOM: false,
+                        supportSymbolSearch: false,
+                        supportStrictCheckingLimitOrderPrice: false,
+                        supportLevel2Data: false,
+                        supportReducePosition: false,
+                        supportWorkOrder: true,
+                        supportModifyPositionBrackets: true,
+                        supportModifyBrackets: true,
+                        supportGuaranteedStop: false,
+                        supportOrdersHistory: false,
+                        supportPlaceOrderPreview: false,
                     },
                     durations: [{ name: 'DAY', value: 'DAY' }, { name: 'GTT', value: 'GTT' }],
                     customUI: {
