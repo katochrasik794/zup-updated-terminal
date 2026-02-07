@@ -160,10 +160,10 @@ export const TVChartContainer = () => {
                     'header_compare',
                     'buy_sell_buttons',
                     'objects_tree_widget', // Hide Object Tree
-                    // 'trading_account_manager',
-                    // 'open_account_manager',
+                    'trading_account_manager',
+                    'open_account_manager',
                 ],
-                enabled_features: ['study_templates', 'order_panel', 'trading_account_manager'], // Ensure standard trading features are on
+                // enabled_features: ['study_templates', 'order_panel', 'trading_account_manager'], // Ensure standard trading features are on
                 charts_storage_url: 'https://saveload.tradingview.com',
                 charts_storage_api_version: '1.1',
                 client_id: 'trading_platform_demo',
