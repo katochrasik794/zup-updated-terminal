@@ -170,10 +170,6 @@ export const TVChartContainer = () => {
                     'open_account_manager',
                 ],
                 enabled_features: [
-                    'study_templates',
-                    'dom_widget',
-                    // 'order_panel',
-                    // 'trading_account_manager',
                     // Enable drag/edit of orders and brackets
                     'trading_bracket_orders',
                     'trading_order_drag',
