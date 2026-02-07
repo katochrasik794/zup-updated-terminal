@@ -160,10 +160,10 @@ export const TVChartContainer = () => {
                     'header_compare',
                     'buy_sell_buttons',
                     'objects_tree_widget', // Hide Object Tree
-                    'trading_account_manager',
-                    'open_account_manager',
+                    // 'trading_account_manager',
+                    // 'open_account_manager',
                 ],
-                // enabled_features: ['study_templates', 'order_panel', 'trading_account_manager'], // Ensure standard trading features are on
+                enabled_features: ['study_templates', 'order_panel', 'trading_account_manager'], // Ensure standard trading features are on
                 charts_storage_url: 'https://saveload.tradingview.com',
                 charts_storage_api_version: '1.1',
                 client_id: 'trading_platform_demo',
@@ -205,8 +205,8 @@ export const TVChartContainer = () => {
                     configFlags: {
                         // Position management flags
                         supportPositions: true,
-                        supportPositionBrackets: true,
-                        supportIndividualPositionBrackets: false,
+                        supportPositionBrackets: true, // Match reference integration
+                        supportIndividualPositionBrackets: true, // Match reference integration
                         supportModifyPosition: true,
                         supportPLUpdate: true,
                         supportClosePosition: true,
@@ -364,6 +364,25 @@ export const TVChartContainer = () => {
             }
         }
     }, [currentAccountId, getMetaApiToken]);
+
+    // Effect to update chart symbol when it changes in context (e.g. clicked in watchlist)
+    useEffect(() => {
+        if (activeSymbol && window.tvWidget) {
+            try {
+                const chart = window.tvWidget.activeChart();
+                if (chart) {
+                    const current = chart.symbol();
+                    // Determine if we need to update (ignore casing differences if broker handles them, but usually strict)
+                    if (current !== activeSymbol) {
+                        console.log('[TVChartContainer] Context symbol changed to', activeSymbol, 'updating chart...');
+                        chart.setSymbol(activeSymbol);
+                    }
+                }
+            } catch (e) {
+                console.warn('[TVChartContainer] Failed to set symbol', e);
+            }
+        }
+    }, [activeSymbol]);
 
     return (
         <div
