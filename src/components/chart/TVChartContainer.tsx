@@ -1,6 +1,9 @@
 'use client';
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+
+import { RealtimeDataFeed } from './RealtimeDataFeed';
+import { ZuperiorBroker } from './ZuperiorBroker';
 
 declare global {
     interface Window {
@@ -9,33 +12,29 @@ declare global {
         Brokers: any;
         CustomDialogs: any;
         tvWidget: any;
+        __GET_METAAPI_TOKEN__: any;
+        __OPEN_MODIFY_POSITION_MODAL__: any;
     }
 }
 
 import { useTrading } from '../../context/TradingContext';
 import { useAccount } from '../../context/AccountContext';
-import { RealtimeDataFeed } from './RealtimeDataFeed';
-import { ZuperiorBroker } from './ZuperiorBroker';
 
 export const TVChartContainer = () => {
     const containerRef = useRef<HTMLDivElement>(null);
     const brokerRef = useRef<any>(null);
-    const { lastOrder, symbol, setSymbol, setModifyModalState, lastModification, modifyModalState } = useTrading();
+    const widgetRef = useRef<any>(null);
+    const { setModifyModalState, lastModification } = useTrading();
     const { currentAccountId, getMetaApiToken } = useAccount();
     const modifyModalPromiseResolve = useRef<((value: boolean) => void) | null>(null);
 
-    // Update broker token function when it becomes available
-    useEffect(() => {
-        if (brokerRef.current && getMetaApiToken) {
-            if (brokerRef.current.setMetaApiTokenFunction) {
-                brokerRef.current.setMetaApiTokenFunction(getMetaApiToken);
-            }
-            // Also store in window for fallback
-            if (typeof window !== 'undefined') {
-                (window as any).__GET_METAAPI_TOKEN__ = getMetaApiToken;
-            }
-        }
-    }, [getMetaApiToken]);
+    // Standalone state (Keeping symbol state from standalone for now, or should we use TradingContext symbol?)
+    // Let's use TradingContext symbol if available, otherwise fallback
+    const { symbol: ctxSymbol, setSymbol: ctxSetSymbol } = useTrading();
+    const [localSymbol, setLocalSymbol] = useState('XAUUSD'); // Default fallback
+
+    const activeSymbol = ctxSymbol || localSymbol;
+    const setSymbol = ctxSetSymbol || setLocalSymbol;
 
     // Expose openModifyPositionModal to window for Broker to use
     const openModifyPositionModal = (position: any, brackets?: any) => {
@@ -63,22 +62,9 @@ export const TVChartContainer = () => {
 
     useEffect(() => {
         if (lastModification && brokerRef.current) {
-
-            // Use updatePositionBrackets if available (new method that bypasses modal),
-            // otherwise fall back to editPositionBrackets (old behavior)
-            if (brokerRef.current.updatePositionBrackets) {
-                const sl = lastModification.sl ? parseFloat(lastModification.sl) : undefined;
-                const tp = lastModification.tp ? parseFloat(lastModification.tp) : undefined;
-
-                const modifiedBrackets = {
-                    ...(sl !== undefined && !isNaN(sl) ? { stopLoss: sl } : {}),
-                    ...(tp !== undefined && !isNaN(tp) ? { takeProfit: tp } : {}),
-                };
-
-                brokerRef.current.updatePositionBrackets(lastModification.id, modifiedBrackets)
-                    .catch(() => { });
-            } else if (brokerRef.current.editPositionBrackets) {
-                // Fallback for backward compatibility
+            console.log('[TVChartContainer] lastModification received:', lastModification);
+            // Fallback to editPositionBrackets if updatePositionBrackets missing
+            if (brokerRef.current.editPositionBrackets) {
                 const sl = lastModification.sl ? parseFloat(lastModification.sl) : undefined;
                 const tp = lastModification.tp ? parseFloat(lastModification.tp) : undefined;
 
@@ -88,82 +74,13 @@ export const TVChartContainer = () => {
                     _skipModal: true,
                 };
 
-
+                console.log('[TVChartContainer] Calling editPositionBrackets:', lastModification.id, modifiedBrackets);
                 brokerRef.current.editPositionBrackets(lastModification.id, modifiedBrackets)
-                    .catch(() => { });
+                    .catch((err: any) => console.error(err));
             }
         }
     }, [lastModification]);
 
-    useEffect(() => {
-        if (!modifyModalState.isOpen && modifyModalPromiseResolve.current) {
-            modifyModalPromiseResolve.current(true);
-            modifyModalPromiseResolve.current = null;
-        }
-    }, [modifyModalState.isOpen]);
-
-    // Update broker account ID when it changes
-    useEffect(() => {
-        if (brokerRef.current && currentAccountId) {
-            if (typeof brokerRef.current.setAccountId === 'function') {
-                brokerRef.current.setAccountId(currentAccountId);
-            }
-        }
-    }, [currentAccountId]);
-
-    useEffect(() => {
-        if (lastOrder && brokerRef.current) {
-            // Append silent flag to userData or similar if supported, or rely on handling in broker factory
-            // For now, passing order as is.
-            // Map context Order to TradingView Broker PreOrder
-            // Assuming BrokerDemo expects standard fields
-            const preOrder = {
-                symbol: lastOrder.symbol,
-                qty: parseFloat(lastOrder.volume),
-                side: lastOrder.side === 'buy' ? 1 : -1,
-                type: lastOrder.type === 'market' ? 2 : 1, // 1=limit, 2=market (Standard TV: OrderType.Limit=1, OrderType.Market=2, OrderType.Stop=3, OrderType.StopLimit=4)
-                // Actually BrokerDemo might expect string 'market' or 'limit'. Let's try matching standard TV behavior first or guess from sample.
-                // Reverting to string if BrokerDemo is simple, but standard API uses numbers often. 
-                // Wait, if I look at broker-sample, it likely uses strings if it's based on JS API.
-                // Let's safe bet: pass everything and let broker filter.
-                // But definitely need qty and numeric side.
-                // And explicitly 'limitPrice' / 'stopPrice'
-                ...(lastOrder.type !== 'market' ? { limitPrice: parseFloat(lastOrder.price || '0') } : {}),
-                ...(lastOrder.tp ? { takeProfit: parseFloat(lastOrder.tp) } : {}),
-                ...(lastOrder.sl ? { stopLoss: parseFloat(lastOrder.sl) } : {}),
-                userData: { silent: true }
-            };
-
-            // Correction: TV JS API usually uses order type constants. 
-            // 1: Limit, 2: Market, 3: Stop, 4: StopLimit
-            // However, verify if BrokerDemo expects numbers or strings. 
-            // Most JS adapters convert internal strings to numbers.
-            // Let's assume standard behavior:
-            // side: 1 (buy), -1 (sell)
-            // type: 1 (limit), 2 (market), 3 (stop)
-
-            if (lastOrder.type === 'market') preOrder.type = 2;
-            else if (lastOrder.type === 'limit') preOrder.type = 1;
-            else if (lastOrder.type === 'stop') preOrder.type = 3;
-
-
-            brokerRef.current.placeOrder(preOrder)
-                .catch(() => { });
-        }
-    }, [lastOrder]);
-
-    const widgetRef = useRef<any>(null); // To store the widget instance if needed
-
-    // Synergy with external symbol changes
-    useEffect(() => {
-        if (widgetRef.current && symbol) {
-            const currentSymbol = widgetRef.current.activeChart().symbol();
-            if (currentSymbol !== symbol) {
-                widgetRef.current.setSymbol(symbol, widgetRef.current.activeChart().resolution(), () => {
-                });
-            }
-        }
-    }, [symbol]);
 
     useEffect(() => {
         // Add version query parameter to force browser to reload standalone.js
@@ -179,8 +96,6 @@ export const TVChartContainer = () => {
             '/custom-dialogs/dist/bundle.css'
         ];
 
-        let loadedCount = 0;
-
         const initWidget = () => {
             if (!window.TradingView || !window.Brokers || !window.CustomDialogs) {
                 return;
@@ -189,33 +104,42 @@ export const TVChartContainer = () => {
             // Use our custom RealtimeDataFeed
             const datafeed = new RealtimeDataFeed();
 
+            // Stub callbacks for CustomDialogs or Broker Sample
+            // The logic here is simplified to allow the chart to render
             const onCancelOrderResultCallback = () => { };
             const onCloseOrderResultCallback = () => { };
             const onReversePositionResultCallback = () => { };
             const onOrderResultCallback = () => { };
             const onPositionResultCallback = () => { };
 
-            const customCancelOrderDialog = window.CustomDialogs.createCancelOrderDialog(onCancelOrderResultCallback);
-            const customClosePositionDialog = window.CustomDialogs.createClosePositionDialog(onCloseOrderResultCallback);
-            const customReversePositionDialog = window.CustomDialogs.createReversePositionDialog(onReversePositionResultCallback);
-
-            const sendOrderRequest = (order: any) => {
-            };
-
-            const sendModifyOrder = (order: any) => {
-            };
-
-            const redrawChart = () => {
-            };
+            // We need to initialize these if we want usage of CustomDialogs from inside the bundle
+            // Ideally we should minimize reliance on CustomDialogs if we don't have the whole setup
+            // But if broker-sample bundle expects them, we initialize them.
+            // If they are missing from public/, this will fail.
+            // We copied `custom-dialogs` to public, so it should load.
 
             let customOrderDialog: any = null;
             let customPositionDialog: any = null;
+            let customCancelOrderDialog: any = null;
+            let customClosePositionDialog: any = null;
+            let customReversePositionDialog: any = null;
+
+            if (window.CustomDialogs) {
+                customCancelOrderDialog = window.CustomDialogs.createCancelOrderDialog(onCancelOrderResultCallback);
+                customClosePositionDialog = window.CustomDialogs.createClosePositionDialog(onCloseOrderResultCallback);
+                customReversePositionDialog = window.CustomDialogs.createReversePositionDialog(onReversePositionResultCallback);
+            }
+
+            const sendOrderRequest = (order: any) => { };
+            const sendModifyOrder = (order: any) => { };
+            const redrawChart = () => { };
+
             let createCancelOrderButtonListener: any = null;
             let createClosePositionButtonListener: any = null;
             let createReversePositionButtonListener: any = null;
 
             const widgetOptions = {
-                symbol: symbol || 'XAUUSD',
+                symbol: activeSymbol,
                 interval: '5',
                 container: containerRef.current!,
                 datafeed: datafeed,
@@ -235,8 +159,11 @@ export const TVChartContainer = () => {
                     'symbol_search_hot_key',
                     'header_compare',
                     'buy_sell_buttons',
+                    'objects_tree_widget', // Hide Object Tree
+                    'trading_account_manager',
+                    'open_account_manager',
                 ],
-                enabled_features: ['study_templates'],
+                // enabled_features: ['study_templates', 'order_panel', 'trading_account_manager'], // Ensure standard trading features are on
                 charts_storage_url: 'https://saveload.tradingview.com',
                 charts_storage_api_version: '1.1',
                 client_id: 'trading_platform_demo',
@@ -259,60 +186,18 @@ export const TVChartContainer = () => {
                 toolbar_bg: '#02040d',
 
                 broker_factory: (host: any) => {
+                    // Pass getMetaApiToken to broker constructor to enable dynamic auth
                     const broker = new ZuperiorBroker(host, datafeed, currentAccountId, getMetaApiToken);
-                    brokerRef.current = broker; // Expose broker instance
+                    brokerRef.current = broker;
 
-                    // Store token function in window for fallback access
-                    if (typeof window !== 'undefined' && getMetaApiToken) {
-                        (window as any).__GET_METAAPI_TOKEN__ = getMetaApiToken;
+                    // Setup dialogs if available
+                    if (window.CustomDialogs) {
+                        customOrderDialog = window.CustomDialogs.createOrderDialog(broker, onOrderResultCallback);
+                        customPositionDialog = window.CustomDialogs.createPositionDialog(broker, onPositionResultCallback);
+                        createCancelOrderButtonListener = window.CustomDialogs.createCancelOrderButtonListenerFactory(broker);
+                        createClosePositionButtonListener = window.CustomDialogs.createClosePositionButtonListenerFactory(broker);
+                        createReversePositionButtonListener = window.CustomDialogs.createReversePositionButtonListenerFactory(broker);
                     }
-
-                    // Update broker if token function becomes available later
-                    if (getMetaApiToken && broker.setMetaApiTokenFunction) {
-                        broker.setMetaApiTokenFunction(getMetaApiToken);
-                    }
-
-                    // CRITICAL: Sync broker with live positions data from TradingTerminal
-                    // This ensures Account Manager shows the same data as the open positions table
-                    const syncBrokerWithLiveData = () => {
-                        // Get live positions data from the parent component (TradingTerminal)
-                        // This should match the data shown in the open positions table
-                        if (typeof window !== 'undefined' && (window as any).__LIVE_POSITIONS_DATA__) {
-                            const liveData = (window as any).__LIVE_POSITIONS_DATA__;
-                            if (broker.syncFromLiveState && typeof broker.syncFromLiveState === 'function') {
-                                broker.syncFromLiveState(liveData.openPositions || [], liveData.pendingOrders || []);
-                            }
-                        }
-                    };
-
-                    // Sync immediately and set up periodic sync
-                    syncBrokerWithLiveData();
-                    const syncInterval = setInterval(syncBrokerWithLiveData, 1000);
-
-                    // Store cleanup function
-                    (broker as any).__cleanup__ = () => {
-                        clearInterval(syncInterval);
-                    };
-
-                    customOrderDialog = window.CustomDialogs.createOrderDialog(broker, onOrderResultCallback);
-                    customPositionDialog = window.CustomDialogs.createPositionDialog(broker, onPositionResultCallback);
-                    createCancelOrderButtonListener = window.CustomDialogs.createCancelOrderButtonListenerFactory(broker);
-                    createClosePositionButtonListener = window.CustomDialogs.createClosePositionButtonListenerFactory(broker);
-                    createReversePositionButtonListener = window.CustomDialogs.createReversePositionButtonListenerFactory(broker);
-
-                    // Hooking into placeOrder for onBuyClick() -> sendOrderRequest()
-                    const originalPlaceOrder = broker.placeOrder;
-                    broker.placeOrder = (preOrder: any) => {
-                        sendOrderRequest(preOrder);
-                        return originalPlaceOrder.apply(broker, [preOrder]);
-                    };
-
-                    // Hooking into modifyOrder for onDragSL() -> sendModifyOrder()
-                    const originalModifyOrder = broker.modifyOrder;
-                    broker.modifyOrder = (order: any, confirmId: any) => {
-                        sendModifyOrder(order);
-                        return originalModifyOrder.apply(broker, [order, confirmId]);
-                    };
 
                     return broker;
                 },
@@ -320,8 +205,8 @@ export const TVChartContainer = () => {
                     configFlags: {
                         // Position management flags
                         supportPositions: true,
-                        supportPositionBrackets: true, // Master switch for Protect position
-                        supportIndividualPositionBrackets: false, // Disable to avoid TradingView assertion errors
+                        supportPositionBrackets: true,
+                        supportIndividualPositionBrackets: false,
                         supportModifyPosition: true,
                         supportPLUpdate: true,
                         supportClosePosition: true,
@@ -363,65 +248,22 @@ export const TVChartContainer = () => {
                         supportModifyBrackets: true,
                         supportGuaranteedStop: false,
                         supportOrdersHistory: false,
-                        supportPlaceOrderPreview: false,
+                        supportPlaceOrderPreview: true,
                     },
                     durations: [{ name: 'DAY', value: 'DAY' }, { name: 'GTT', value: 'GTT' }],
                     customUI: {
-                        showOrderDialog: (order: any, focus: any) => {
-                            if (order && order.userData && order.userData.silent) {
-                                return Promise.resolve(true);
-                            }
-                            window.CustomDialogs.showOrderDialog(customOrderDialog, order);
+                        showOrderDialog: (order: any) => {
+                            if (window.CustomDialogs) return window.CustomDialogs.showOrderDialog(customOrderDialog, order);
                             return Promise.resolve(true);
                         },
-                        showPositionDialog: (position: any, brackets: any, focus: any) => {
-                            const mappedPosition = {
-                                ...position,
-                                openPrice: position.avg_price || position.avgPrice || position.price,
-                                currentPrice: position.currentPrice || position.price,
-                                tp: brackets?.takeProfit || position.takeProfit || position.tp,
-                                sl: brackets?.stopLoss || position.stopLoss || position.sl,
-                                pl: position.profit || position.pl || '0.00',
-                                volume: position.qty || position.volume,
-                                flag: (position.symbol || '').toLowerCase().replace(/[^a-z0-9]/g, ''),
-                            };
-                            setModifyModalState({ isOpen: true, position: mappedPosition });
-                            return new Promise((resolve) => {
-                                modifyModalPromiseResolve.current = resolve;
-                            });
+                        showPositionDialog: (position: any, brackets: any) => {
+                            return openModifyPositionModal(position, brackets);
                         },
-                        showPositionBracketsDialog: (position: any, brackets: any, focus: any) => {
-                            const mappedPosition = {
-                                ...position,
-                                openPrice: position.avg_price || position.avgPrice || position.price,
-                                currentPrice: position.currentPrice || position.price,
-                                tp: brackets?.takeProfit || position.takeProfit || position.tp,
-                                sl: brackets?.stopLoss || position.stopLoss || position.sl,
-                                pl: position.profit || position.pl || '0.00',
-                                volume: position.qty || position.volume,
-                                flag: (position.symbol || '').toLowerCase().replace(/[^a-z0-9]/g, ''),
-                            };
-                            setModifyModalState({ isOpen: true, position: mappedPosition });
-                            return new Promise((resolve) => {
-                                modifyModalPromiseResolve.current = resolve;
-                            });
+                        showPositionBracketsDialog: (position: any, brackets: any) => {
+                            return openModifyPositionModal(position, brackets);
                         },
-                        // CRITICAL: Add showIndividualPositionBracketsDialog for individual positions
-                        showIndividualPositionBracketsDialog: (position: any, brackets: any, focus: any) => {
-                            const mappedPosition = {
-                                ...position,
-                                openPrice: position.avg_price || position.avgPrice || position.price,
-                                currentPrice: position.currentPrice || position.price,
-                                tp: brackets?.takeProfit || position.takeProfit || position.tp,
-                                sl: brackets?.stopLoss || position.stopLoss || position.sl,
-                                pl: position.profit || position.pl || '0.00',
-                                volume: position.qty || position.volume,
-                                flag: (position.symbol || '').toLowerCase().replace(/[^a-z0-9]/g, ''),
-                            };
-                            setModifyModalState({ isOpen: true, position: mappedPosition });
-                            return new Promise((resolve) => {
-                                modifyModalPromiseResolve.current = resolve;
-                            });
+                        showIndividualPositionBracketsDialog: (position: any, brackets: any) => {
+                            return openModifyPositionModal(position, brackets);
                         },
                         showCancelOrderDialog: (order: any) => {
                             if (!createCancelOrderButtonListener) return Promise.resolve(false);
@@ -447,8 +289,8 @@ export const TVChartContainer = () => {
                             window.CustomDialogs.showReversePositionDialog(customReversePositionDialog, listener, position);
                             return Promise.resolve(true);
                         }
-                    },
-                },
+                    }
+                }
             };
 
             const tvWidget = new window.TradingView.widget(widgetOptions);
@@ -456,17 +298,11 @@ export const TVChartContainer = () => {
             window.tvWidget = tvWidget;
 
             tvWidget.onChartReady(() => {
-
-                tvWidget.activeChart().onSymbolChanged().subscribe(null, (symbolData: any) => {
-                    setSymbol(tvWidget.activeChart().symbol());
+                tvWidget.activeChart().onSymbolChanged().subscribe(null, () => {
+                    const newSymbol = tvWidget.activeChart().symbol();
+                    if (setSymbol) setSymbol(newSymbol);
                 });
 
-                // onPriceUpdate() -> redraw chart
-                tvWidget.subscribe('onPriceUpdate', (price: any) => {
-                    redrawChart();
-                });
-
-                // Notify broker that widget is ready
                 if (brokerRef.current && typeof brokerRef.current.setWidgetReady === 'function') {
                     brokerRef.current.setWidgetReady(true);
                 }
@@ -478,7 +314,7 @@ export const TVChartContainer = () => {
                 const script = document.createElement('script');
                 script.src = src;
                 script.onload = resolve;
-                script.onerror = (event) => {
+                script.onerror = () => {
                     reject(new Error(`Failed to load script: ${src}`));
                 };
                 document.head.appendChild(script);
@@ -500,9 +336,7 @@ export const TVChartContainer = () => {
                 initWidget();
             })
             .catch(err => {
-                if (err instanceof Error) {
-                } else {
-                }
+                console.error("Failed to load TradingView scripts", err);
             });
 
         return () => {
@@ -510,11 +344,26 @@ export const TVChartContainer = () => {
                 (brokerRef.current as any).__cleanup__();
             }
             if (window.tvWidget) {
-                window.tvWidget.remove();
+                try {
+                    window.tvWidget.remove();
+                } catch (e) { }
                 window.tvWidget = null;
             }
         };
     }, []);
+
+    // Effect to update broker account when it changes in context
+    useEffect(() => {
+        if (brokerRef.current && currentAccountId) {
+            if (typeof brokerRef.current.setAccountId === 'function') {
+                brokerRef.current.setAccountId(currentAccountId);
+            }
+            // Update token function if it changed
+            if (brokerRef.current.setMetaApiTokenFunction && getMetaApiToken) {
+                brokerRef.current.setMetaApiTokenFunction(getMetaApiToken);
+            }
+        }
+    }, [currentAccountId, getMetaApiToken]);
 
     return (
         <div

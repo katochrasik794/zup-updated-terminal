@@ -1,3 +1,4 @@
+
 /**
  * MetaAPI Direct Client
  * 
@@ -41,11 +42,154 @@ export interface PlacePendingOrderDirectParams {
     comment?: string;
 }
 
+export interface ModifyPendingOrderDirectParams {
+    orderId: string | number;
+    accountId: string;
+    accessToken: string;
+    price?: number; // New order price
+    stopLoss?: number; // New SL
+    takeProfit?: number; // New TP
+    comment?: string;
+}
+
+export interface ModifyPositionDirectParams {
+    positionId: string | number;
+    accountId: string;
+    accessToken: string;
+    stopLoss?: number;
+    takeProfit?: number;
+    comment?: string;
+}
+
 export interface ClosePositionResponse {
     success: boolean;
     message?: string;
     data?: any;
 }
+
+export interface LoginCredentials {
+    AccountId: number;
+    Password: string;
+    DeviceId: string;
+    DeviceType: string;
+}
+
+export interface LoginResponse {
+    Token?: string;
+    token?: string;
+    error?: string;
+}
+
+export async function loginDirect(credentials: LoginCredentials): Promise<LoginResponse> {
+    const url = `${METAAPI_BASE_URL}/api/client/ClientAuth/login`;
+    const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(credentials),
+    });
+    if (!response.ok) {
+        throw new Error(`Login failed: ${response.status}`);
+    }
+    return await response.json();
+}
+
+export async function getPositionsDirect(accountId: string, accessToken: string): Promise<any[]> {
+    const url = `${METAAPI_BASE_URL}/api/client/Positions`;
+    const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'AccountId': String(accountId),
+            'Content-Type': 'application/json',
+        },
+    });
+    if (!response.ok) return [];
+
+    const data = await response.json();
+    return Array.isArray(data) ? data : (data.positions || []);
+}
+
+// Combined endpoint that returns both positions and pending orders
+// This matches the working zup-updated-terminal implementation
+export async function getPositionsAndOrdersDirect(accountId: string, accessToken: string): Promise<{ positions: any[], orders: any[] }> {
+    // Try multiple endpoints to find orders
+    const positionsUrl = `${METAAPI_BASE_URL}/api/client/Positions`;
+    const ordersUrl = `${METAAPI_BASE_URL}/api/client/Orders`;
+
+    const headers = {
+        'Authorization': `Bearer ${accessToken}`,
+        'AccountId': String(accountId),
+        'Content-Type': 'application/json',
+    };
+
+    try {
+        // Fetch positions and orders in parallel
+        const [positionsResponse, ordersResponse] = await Promise.all([
+            fetch(positionsUrl, { method: 'GET', headers }),
+            fetch(ordersUrl, { method: 'GET', headers })
+        ]);
+
+        let positions: any[] = [];
+        let orders: any[] = [];
+
+        // Parse positions
+        if (positionsResponse.ok) {
+            const posData = await positionsResponse.json();
+            console.log('[getPositionsAndOrdersDirect] Positions response:', posData);
+            positions = Array.isArray(posData) ? posData : (posData.positions || posData.Positions || []);
+        } else {
+            console.warn('[getPositionsAndOrdersDirect] Positions failed:', positionsResponse.status);
+        }
+
+        // Parse orders
+        if (ordersResponse.ok) {
+            const ordersData = await ordersResponse.json();
+            console.log('[getPositionsAndOrdersDirect] Orders response:', ordersData);
+            console.log('[getPositionsAndOrdersDirect] Orders keys:', Object.keys(ordersData));
+            orders = Array.isArray(ordersData) ? ordersData : (ordersData.orders || ordersData.Orders || ordersData.pendingOrders || ordersData.PendingOrders || []);
+        } else {
+            console.warn('[getPositionsAndOrdersDirect] Orders endpoint failed:', ordersResponse.status);
+        }
+
+        console.log('[getPositionsAndOrdersDirect] Final result:', {
+            positionsCount: positions.length,
+            ordersCount: orders.length
+        });
+
+        return { positions, orders };
+    } catch (error) {
+        console.error('[getPositionsAndOrdersDirect] Error:', error);
+        return { positions: [], orders: [] };
+    }
+}
+
+// Deprecated: Use getPositionsAndOrdersDirect instead
+// Kept for backward compatibility
+export async function getPendingOrdersDirect(accountId: string, accessToken: string): Promise<any[]> {
+    const result = await getPositionsAndOrdersDirect(accountId, accessToken);
+    return result.orders;
+}
+
+export async function getAccountBalanceDirect(accountId: string, accessToken: string): Promise<number> {
+    const url = `${METAAPI_BASE_URL}/api/client/Account/Balance`;
+    const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'AccountId': String(accountId),
+            'Content-Type': 'application/json',
+        },
+    });
+    if (!response.ok) {
+        console.warn('[MetaAPI] Failed to fetch balance:', response.status);
+        return 0;
+    }
+
+    const data = await response.json();
+    // API might return { balance: 10000 } or just a number
+    return typeof data === 'number' ? data : (data.balance || data.Balance || 0);
+}
+
 
 /**
  * Close a position directly via MetaAPI DELETE endpoint
@@ -543,6 +687,130 @@ export async function placePendingOrderDirect({
         };
     } catch (error: any) {
 
+        return {
+            success: false,
+            message: error.message || 'Network error',
+        };
+    }
+}
+
+/**
+ * Modify position TP/SL via MetaAPI
+ */
+export async function modifyPositionDirect({
+    positionId,
+    accountId,
+    accessToken,
+    stopLoss,
+    takeProfit,
+    comment = 'Modified from Chart'
+}: ModifyPositionDirectParams): Promise<ClosePositionResponse> {
+    try {
+        const API_BASE = METAAPI_BASE_URL.endsWith('/api') ? METAAPI_BASE_URL : `${METAAPI_BASE_URL}/api`;
+        const url = `${API_BASE}/client/position/modify`;
+
+        const payload: any = {
+            PositionId: typeof positionId === 'string' ? parseInt(positionId, 10) : positionId,
+            Comment: comment,
+        };
+
+        if (stopLoss !== undefined && stopLoss !== null && Number(stopLoss) > 0) {
+            payload.StopLoss = Number(stopLoss);
+        }
+        if (takeProfit !== undefined && takeProfit !== null && Number(takeProfit) > 0) {
+            payload.TakeProfit = Number(takeProfit);
+        }
+
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${accessToken}`,
+                'AccountId': String(accountId),
+            },
+            body: JSON.stringify(payload),
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text().catch(() => '');
+            return {
+                success: false,
+                message: `Failed to modify position: ${response.status} - ${errorText}`,
+            };
+        }
+
+        const data = await response.json();
+        return {
+            success: true,
+            data,
+        };
+    } catch (error: any) {
+        return {
+            success: false,
+            message: error.message || 'Network error',
+        };
+    }
+}
+
+/**
+ * Modify pending order price/TP/SL via MetaAPI
+ */
+export async function modifyPendingOrderDirect({
+    orderId,
+    accountId,
+    accessToken,
+    price,
+    stopLoss,
+    takeProfit,
+    comment = 'Modified from Chart'
+}: ModifyPendingOrderDirectParams): Promise<ClosePositionResponse> {
+    try {
+        const API_BASE = METAAPI_BASE_URL.endsWith('/api') ? METAAPI_BASE_URL : `${METAAPI_BASE_URL}/api`;
+        const url = `${API_BASE}/client/Orders/ModifyPendingOrder`;
+
+        const payload: any = {
+            OrderId: typeof orderId === 'string' ? parseInt(orderId, 10) : orderId,
+        };
+
+        if (price !== undefined && price !== null && Number(price) > 0) {
+            payload.PriceOrder = Number(price);
+        }
+        if (stopLoss !== undefined && stopLoss !== null) {
+            payload.PriceSL = Number(stopLoss) > 0 ? Number(stopLoss) : 0;
+        }
+        if (takeProfit !== undefined && takeProfit !== null) {
+            payload.PriceTP = Number(takeProfit) > 0 ? Number(takeProfit) : 0;
+        }
+
+        console.log('[modifyPendingOrderDirect] Payload:', payload);
+
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${accessToken}`,
+                'AccountId': String(accountId),
+            },
+            body: JSON.stringify(payload),
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text().catch(() => '');
+            console.error('[modifyPendingOrderDirect] Failed:', response.status, errorText);
+            return {
+                success: false,
+                message: `Failed to modify pending order: ${response.status} - ${errorText}`,
+            };
+        }
+
+        const data = await response.json();
+        console.log('[modifyPendingOrderDirect] Success:', data);
+        return {
+            success: true,
+            data,
+        };
+    } catch (error: any) {
+        console.error('[modifyPendingOrderDirect] Error:', error);
         return {
             success: false,
             message: error.message || 'Network error',

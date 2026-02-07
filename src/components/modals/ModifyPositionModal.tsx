@@ -30,7 +30,7 @@ const ModifyPositionModal = () => {
         // Remove commas from existing TP value
         tpValueStr = String(position.tp).replace(/,/g, '');
       }
-      
+
       // Parse SL value, removing commas if present
       // Only set value if it's already set, otherwise leave empty
       let slValueStr = '';
@@ -38,7 +38,7 @@ const ModifyPositionModal = () => {
         // Remove commas from existing SL value
         slValueStr = String(position.sl).replace(/,/g, '');
       }
-      
+
       setTpValue(tpValueStr);
       setSlValue(slValueStr);
       setPartialVolume(position?.volume || '');
@@ -50,9 +50,9 @@ const ModifyPositionModal = () => {
     if (!position) return;
 
     // Check if this is a pending order
-    const isPendingOrder = position.type === 'Buy Limit' || position.type === 'Sell Limit' || 
-                           position.type === 'Buy Stop' || position.type === 'Sell Stop';
-    
+    const isPendingOrder = position.type === 'Buy Limit' || position.type === 'Sell Limit' ||
+      position.type === 'Buy Stop' || position.type === 'Sell Stop';
+
     // Don't calculate P/L for pending orders
     if (isPendingOrder) {
       setEstimatedPL(null);
@@ -120,13 +120,13 @@ const ModifyPositionModal = () => {
     // Get current price from position, removing commas
     const currentPriceStr = String(position.currentPrice || position.price || '0').replace(/,/g, '');
     const currentPrice = parseFloat(currentPriceStr) || 0;
-    
+
     // If currentValue is empty, "Not set", "Add", or 0, use current price as base
     // Also remove commas from currentValue before parsing
     const isEmpty = !currentValue || currentValue === '' || currentValue === 'Not set' || currentValue === 'Add' || currentValue === '0';
     const currentValueClean = String(currentValue || '').replace(/,/g, '');
     const baseVal = isEmpty ? currentPrice : (parseFloat(currentValueClean) || currentPrice);
-    
+
     // Calculate appropriate delta based on price magnitude
     // For prices around 88,000, we need a delta of 100, not 0.1
     let adjustedDelta: number;
@@ -141,10 +141,10 @@ const ModifyPositionModal = () => {
     } else {
       adjustedDelta = 0.01; // For prices < 10
     }
-    
+
     // Apply the sign from the original delta
     adjustedDelta = adjustedDelta * (delta > 0 ? 1 : -1);
-    
+
     // Apply delta and format
     const newVal = (baseVal + adjustedDelta).toFixed(decimals);
     setter(newVal);
@@ -155,15 +155,18 @@ const ModifyPositionModal = () => {
       try {
         // Use ticket for pending orders, id for open positions
         const orderId = position.ticket || position.id;
-        
+
+        console.log('[ModifyPositionModal] handleAction', { position, orderId, tpValue, slValue });
+
         if (!orderId) {
+          console.error('[ModifyPositionModal] No orderId found');
           return;
         }
-        
+
         // Clean and parse TP/SL values, removing commas
         let tp: number | undefined = undefined;
         let sl: number | undefined = undefined;
-        
+
         if (tpValue && tpValue !== '' && tpValue !== 'Not set' && tpValue !== 'Add') {
           const tpClean = String(tpValue).replace(/,/g, '').trim();
           const tpParsed = parseFloat(tpClean);
@@ -171,7 +174,7 @@ const ModifyPositionModal = () => {
             tp = tpParsed;
           }
         }
-        
+
         if (slValue && slValue !== '' && slValue !== 'Not set' && slValue !== 'Add') {
           const slClean = String(slValue).replace(/,/g, '').trim();
           const slParsed = parseFloat(slClean);
@@ -179,13 +182,15 @@ const ModifyPositionModal = () => {
             sl = slParsed;
           }
         }
-        
+
         // Only proceed if at least one value is being modified
         if (tp === undefined && sl === undefined) {
+          console.log('[ModifyPositionModal] No changes detected');
           onClose();
           return;
         }
-        
+
+        console.log('[ModifyPositionModal] Requesting modify:', { id: orderId, tp, sl });
         requestModifyPosition({
           id: orderId,
           tp: tp,

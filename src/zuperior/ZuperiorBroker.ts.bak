@@ -1,0 +1,266 @@
+
+import {
+    AccountId,
+    AccountManagerInfo,
+    AccountMetainfo,
+    ActionMetaInfo,
+    Brackets,
+    ConnectionStatus,
+    DefaultContextMenuActionsParams,
+    Execution,
+    IBrokerConnectionAdapterHost,
+    IBrokerTerminal,
+    InstrumentInfo,
+    IsTradableResult,
+    IWatchedValue,
+    Order,
+    OrderStatus,
+    OrderType,
+    PlaceOrderResult,
+    Position,
+    PreOrder,
+    Side,
+    TradeContext,
+} from '../trading_platform-master/charting_library/broker-api';
+import { IDatafeedQuotesApi } from '../trading_platform-master/charting_library/datafeed-api';
+import { ApiClient } from './api-client';
+import { ClientAuth } from './auth';
+
+export class ZuperiorBroker implements IBrokerTerminal {
+    private readonly _host: IBrokerConnectionAdapterHost;
+    private readonly _quotesProvider: IDatafeedQuotesApi;
+
+    private _accountMetainfo: AccountMetainfo[] = [{ id: '1' as AccountId, name: 'Zuperior Account' }];
+
+    // Watched values
+    private readonly _balanceValue: IWatchedValue<number>;
+    private readonly _equityValue: IWatchedValue<number>;
+
+    constructor(host: IBrokerConnectionAdapterHost, quotesProvider: IDatafeedQuotesApi) {
+        this._host = host;
+        this._quotesProvider = quotesProvider;
+
+        // Initialize Watched Values
+        this._balanceValue = this._host.factory.createWatchedValue(0);
+        this._equityValue = this._host.factory.createWatchedValue(0);
+
+        this.initialise();
+    }
+
+    private async initialise() {
+        if (!ClientAuth.isAuthenticated()) {
+            try {
+                // Hardcoded credentials as requested for dev/testing
+                await ClientAuth.login({
+                    AccountId: 19876892,
+                    Password: "Test@000",
+                    DeviceId: "test_device_curl",
+                    DeviceType: "web"
+                });
+                console.log('ZuperiorBroker: Logged in successfully');
+                // Fetch initial state
+                await Promise.all([this.orders(), this.positions()]);
+                // We should also fetch balance here and update _balanceValue
+                // For now, assuming orders/positions call might help, or a separate account info call.
+                // this._host.orderUpdate(...) // if needed to push initial state
+            } catch (err) {
+                console.error('ZuperiorBroker: Login failed', err);
+            }
+        }
+    }
+
+    public connectionStatus(): ConnectionStatus {
+        return ClientAuth.isAuthenticated() ? ConnectionStatus.Connected : ConnectionStatus.Connecting;
+    }
+
+    public currentAccount(): AccountId {
+        return this._accountMetainfo[0].id;
+    }
+
+    public async accountsMetainfo(): Promise<AccountMetainfo[]> {
+        return this._accountMetainfo;
+    }
+
+    public async isTradable(symbol: string): Promise<boolean | IsTradableResult> {
+        return true;
+    }
+
+    public async symbolInfo(symbol: string): Promise<InstrumentInfo> {
+        // In a real app, this should come from Datafeed or API.
+        // Assuming the chart already has symbol info, we just need to return compatible ticks.
+        return {
+            qty: { min: 0.01, max: 100, step: 0.01 },
+            pipSize: 0.0001,
+            pipValue: 1,
+            minTick: 0.00001,
+            description: symbol,
+        };
+    }
+
+    public async orders(): Promise<Order[]> {
+        try {
+            // Expecting backend to return list of orders
+            // Endpoint guess: /orders
+            const backendOrders = await ApiClient.get<any[]>('/orders');
+
+            const mappedOrders: Order[] = backendOrders.map(o => ({
+                id: o.Id || o.id,
+                symbol: o.Symbol,
+                qty: o.Volume, // Assuming Volume is lots
+                side: o.Type === 0 ? Side.Buy : Side.Sell, // 0 = Buy, 1 = Sell (MetaTrader standard)
+                type: OrderType.Limit, // Simplify for now, need mapping logic
+                price: o.Price,
+                status: OrderStatus.Working,
+                limitPrice: o.Price,
+                stopPrice: o.StopPrice,
+                takeProfit: o.TakeProfit,
+                stopLoss: o.StopLoss,
+                filledQty: o.FilledVolume,
+                avgPrice: o.Price,
+                parentId: undefined // TODO: Handle bracket parents if separate orders
+            }));
+
+            return mappedOrders;
+        } catch (e) {
+            console.error('Failed to fetch orders', e);
+            return [];
+        }
+    }
+
+    public async positions(): Promise<Position[]> {
+        try {
+            // Endpoint guess: /positions
+            const backendPositions = await ApiClient.get<any[]>('/positions');
+
+            const mappedPositions: Position[] = backendPositions.map(p => ({
+                id: p.Id || p.id,
+                symbol: p.Symbol,
+                qty: p.Volume,
+                side: p.Type === 0 ? Side.Buy : Side.Sell,
+                avgPrice: p.OpenPrice,
+                takeProfit: p.TakeProfit,
+                stopLoss: p.StopLoss,
+                profit: p.CurrentProfit || 0
+            }));
+
+            return mappedPositions;
+        } catch (e) {
+            console.error('Failed to fetch positions', e);
+            return [];
+        }
+    }
+
+    public async executions(symbol: string): Promise<Execution[]> {
+        return [];
+    }
+
+    public async placeOrder(preOrder: PreOrder): Promise<PlaceOrderResult> {
+        try {
+            const payload = {
+                Symbol: preOrder.symbol,
+                Volume: preOrder.qty,
+                Side: preOrder.side === Side.Buy ? 0 : 1,
+                Type: preOrder.type, // Map to backend types
+                StopLoss: preOrder.stopLoss,
+                TakeProfit: preOrder.takeProfit,
+                Price: preOrder.limitPrice || preOrder.stopPrice // Context dependent
+            };
+
+            await ApiClient.post('/order/place', payload);
+            return {};
+        } catch (e) {
+            console.error('Place order failed', e);
+            throw e;
+        }
+    }
+
+    public async modifyOrder(order: Order, confirmId?: string): Promise<void> {
+        try {
+            const payload = {
+                OrderId: order.id,
+                Price: order.limitPrice || order.stopPrice,
+                StopLoss: order.stopLoss,
+                TakeProfit: order.takeProfit
+            };
+            await ApiClient.put('/order/modify', payload);
+
+            // Optimistic update
+            this._host.orderUpdate(order);
+        } catch (e) {
+            console.error('Modify order failed', e);
+        }
+    }
+
+    public async cancelOrder(orderId: string): Promise<void> {
+        try {
+            await ApiClient.delete(`/order/cancel/${orderId}`);
+        } catch (e) {
+            console.error('Cancel order failed', e);
+        }
+    }
+
+    public async editPositionBrackets(positionId: string, modifiedBrackets: Brackets): Promise<void> {
+        try {
+            const payload = {
+                PositionId: positionId,
+                StopLoss: modifiedBrackets.stopLoss,
+                TakeProfit: modifiedBrackets.takeProfit
+            };
+            await ApiClient.put('/position/modify', payload);
+
+            // We need to fetch the updated position and notify host, 
+            // or modify our local cache if we had one.
+            // Retrieve position locally or fetch?
+            // For now, let's assume we trigger a full sync or optimistic update.
+            // Ideally:
+            // const pos = ... find locally ...
+            // pos.stopLoss = modifiedBrackets.stopLoss;
+            // pos.takeProfit = modifiedBrackets.takeProfit;
+            // this._host.positionUpdate(pos);
+        } catch (e) {
+            console.error('Edit brackets failed', e);
+        }
+    }
+
+    public async closePosition(positionId: string): Promise<void> {
+        try {
+            await ApiClient.post('/position/close', { PositionId: positionId });
+        } catch (e) {
+            console.error('Close position failed', e);
+        }
+    }
+
+    public async reversePosition(positionId: string): Promise<void> {
+        // Not implemented
+    }
+
+    public accountManagerInfo(): AccountManagerInfo {
+        return {
+            accountTitle: 'Zuperior Live',
+            summary: [
+                { text: 'Balance', wValue: this._balanceValue, formatter: 'fixed' },
+                { text: 'Equity', wValue: this._equityValue, formatter: 'fixed' },
+            ],
+            orderColumns: [
+                { label: 'Symbol', id: 'symbol', dataFields: ['symbol'] },
+                { label: 'Side', id: 'side', dataFields: ['side'] },
+                { label: 'Qty', id: 'qty', dataFields: ['qty'] },
+                { label: 'Price', id: 'price', dataFields: ['price'] },
+                { label: 'Status', id: 'status', dataFields: ['status'] },
+            ],
+            positionColumns: [
+                { label: 'Symbol', id: 'symbol', dataFields: ['symbol'] },
+                { label: 'Side', id: 'side', dataFields: ['side'] },
+                { label: 'Qty', id: 'qty', dataFields: ['qty'] },
+                { label: 'Avg Price', id: 'avgPrice', dataFields: ['avgPrice'] },
+                { label: 'P&L', id: 'pl', dataFields: ['pl'] },
+            ],
+            pages: [],
+            contextMenuActions: (context, actions) => Promise.resolve(actions),
+        };
+    }
+
+    public async chartContextMenuActions(context: TradeContext, options?: DefaultContextMenuActionsParams): Promise<ActionMetaInfo[]> {
+        return this._host.defaultContextMenuActions(context);
+    }
+}
