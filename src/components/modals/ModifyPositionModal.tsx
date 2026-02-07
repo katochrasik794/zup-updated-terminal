@@ -255,7 +255,7 @@ const ModifyPositionModal = () => {
         {/* Tabs */}
         <div className="px-4 py-3">
           <div className="flex bg-[#02040d] p-[3px] rounded border border-[#2a3038]">
-            {['Modify', 'Partial close', 'Close by'].map((tab) => {
+            {['Modify', 'Partial close'].map((tab) => {
               const id = tab.toLowerCase().replace(' ', '');
               const isActive = activeTab === id;
               return (
@@ -420,11 +420,7 @@ const ModifyPositionModal = () => {
                 </div>
               </div>
             </>
-          ) : (
-            <div className="flex items-center justify-center h-[160px] text-[#8b9096] text-[14px]">
-              Close by functionality
-            </div>
-          )}
+          ) : null}
 
           {/* Estimated P/L Display */}
           {activeTab === 'modify' && estimatedPL !== null && (

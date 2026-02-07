@@ -158,7 +158,6 @@ export const TVChartContainer = () => {
                 disabled_features: [
                     'use_localstorage_for_settings',
                     'widgetbar',
-                    'dom_widget',
                     'right_toolbar',
                     'legend_show_volume',
                     'header_symbol_search',
@@ -170,7 +169,16 @@ export const TVChartContainer = () => {
                     'trading_account_manager',
                     'open_account_manager',
                 ],
-                // enabled_features: ['study_templates', 'order_panel', 'trading_account_manager'], // Ensure standard trading features are on
+                enabled_features: [
+                    'study_templates',
+                    'dom_widget',
+                    // 'order_panel',
+                    // 'trading_account_manager',
+                    // Enable drag/edit of orders and brackets
+                    'trading_bracket_orders',
+                    'trading_order_drag',
+                    'trading_position_drag'
+                ], // Ensure standard trading features are on
                 charts_storage_url: 'https://saveload.tradingview.com',
                 charts_storage_api_version: '1.1',
                 client_id: 'trading_platform_demo',
@@ -220,19 +228,15 @@ export const TVChartContainer = () => {
                     configFlags: {
                         // Position management flags
                         supportPositions: true,
-                        supportPositionBrackets: true,
-                        supportIndividualPositionBrackets: true,
+                        supportPositionBrackets: true, 
+                        supportIndividualPositionBrackets: true, 
                         supportModifyPosition: true,
                         supportPLUpdate: true,
                         supportClosePosition: true,
-                        supportReversePosition: false,
+                        supportReversePosition: false, 
                         supportNativeReversePosition: false,
                         supportPositionNetting: false,
                         supportPreviewClosePosition: false,
-                        supportCloseIndividualPosition: false,
-                        supportPartialClosePosition: false,
-                        supportPartialCloseIndividualPosition: false,
-                        closePositionCancelsOrders: false,
 
                         // Order management flags
                         supportOrders: true,
@@ -247,9 +251,6 @@ export const TVChartContainer = () => {
                         supportAddBracketsToExistingOrder: true,
                         supportAddBracketsToExistingPosition: true,
                         supportCancelBrackets: true,
-                        supportOnlyPairOrderBrackets: false,
-                        supportOnlyPairPositionBrackets: false,
-                        supportCancellingBothBracketsOnly: false,
 
                         // Order type flags
                         supportStopLoss: true,
@@ -257,15 +258,6 @@ export const TVChartContainer = () => {
                         supportStopLimitOrders: false,
                         supportTrailingStop: true,
                         supportMultiposition: true,
-                        supportMarketOrders: true,
-                        supportLimitOrders: true,
-                        supportStopOrdersInBothDirections: false,
-                        supportStopLimitOrdersInBothDirections: false,
-                        supportModifyOrderType: false,
-                        supportModifyOrderPreview: false,
-                        supportModifyDuration: false,
-                        supportModifyTrailingStop: false,
-                        supportShowBracketControls: false,
 
                         // UI and other flags
                         showQuantityInsteadOfAmount: true,
@@ -280,18 +272,6 @@ export const TVChartContainer = () => {
                         supportGuaranteedStop: false,
                         supportOrdersHistory: false,
                         supportPlaceOrderPreview: true,
-                        supportEditAmount: false,
-                        supportCustomOrderInfo: false,
-                        supportDemoLiveSwitcher: false,
-                        supportLeverageButton: false,
-                        supportCryptoExchangeOrderTicket: false,
-                        supportCryptoBrackets: false,
-                        supportShowOrderDialog: false,
-                        supportLeverage: false,
-                        supportMargin: false,
-                        supportBalances: false,
-                        supportExecutions: false,
-                        showNotificationsLog: false,
                     },
                     durations: [{ name: 'DAY', value: 'DAY' }, { name: 'GTT', value: 'GTT' }],
                     customUI: {

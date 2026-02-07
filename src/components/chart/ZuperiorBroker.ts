@@ -754,6 +754,9 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			isEditable: true,
 			isMoveable: true,
 			isDraggable: true,
+			disableModify: false,
+			disableDrag: false,
+			disableCancel: false,
 		} as unknown as Order;
 	}
 
@@ -782,6 +785,9 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			isEditable: true,
 			isMoveable: true,
 			isDraggable: true,
+			disableModify: false,
+			disableDrag: false,
+			disableCancel: false,
 		} as unknown as Order;
 	}
 
@@ -801,6 +807,9 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			isEditable: true,
 			isMoveable: true,
 			isDraggable: true,
+			disableModify: false,
+			disableDrag: false,
+			disableCancel: false,
 		} as unknown as Order;
 	}
 
@@ -828,6 +837,9 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			isEditable: true,
 			isMoveable: true,
 			isDraggable: true,
+			disableModify: false,
+			disableDrag: false,
+			disableCancel: false,
 		} as unknown as Order;
 	}
 
@@ -847,6 +859,9 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			isEditable: true,
 			isMoveable: true,
 			isDraggable: true,
+			disableModify: false,
+			disableDrag: false,
+			disableCancel: false,
 		} as unknown as Order;
 	}
 
