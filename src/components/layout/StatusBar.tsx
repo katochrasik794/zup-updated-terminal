@@ -41,7 +41,8 @@ export default function StatusBar({ openPositions = [], onCloseAll }: any) {
   // Standalone polling loop
   useEffect(() => {
     fetchBalance(); // Initial fetch
-    const interval = setInterval(fetchBalance, 200); // 200ms poll
+    // Poll less aggressively to prevent connection exhaustion
+    const interval = setInterval(fetchBalance, 5000);
     return () => clearInterval(interval);
   }, [fetchBalance]);
 

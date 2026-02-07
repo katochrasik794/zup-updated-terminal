@@ -147,7 +147,8 @@ export default function Navbar({ logoLarge, logoSmall }: NavbarProps) {
   // Combined Polling Effect
   useEffect(() => {
     fetchCurrentBalance();
-    const intervalId = setInterval(fetchCurrentBalance, 200);
+    // Poll balance modestly to avoid socket/resource exhaustion
+    const intervalId = setInterval(fetchCurrentBalance, 5000);
     return () => clearInterval(intervalId);
   }, [fetchCurrentBalance]);
 

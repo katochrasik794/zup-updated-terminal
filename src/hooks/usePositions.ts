@@ -38,7 +38,8 @@ interface UsePositionsReturn {
   refetch: () => void;
 }
 
-const POLL_INTERVAL = 200; // 200ms polling interval
+// Polling interval tuned to balance freshness and backend load
+const POLL_INTERVAL = 1000; // 1s
 
 // Format single position from API response
 const formatPosition = (pos: any, isClosedTrade: boolean = false): Position => {
