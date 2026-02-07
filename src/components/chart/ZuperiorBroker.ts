@@ -1053,7 +1053,31 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 
 		console.log('[ZuperiorBroker] cancelOrder called for:', orderId);
 
-		// Optimistic update
+		// CHECK IF THIS IS A BRACKET CANCELLATION
+		const isTP = orderId.endsWith('_TP');
+		const isSL = orderId.endsWith('_SL');
+
+		if (isTP || isSL) {
+			const parentId = orderId.replace('_TP', '').replace('_SL', '');
+			console.log('[ZuperiorBroker] Bracket cancellation detected. Modifying parent:', parentId);
+
+			// Check if parent is a position
+			if (this._positionById[parentId]) {
+				const modification = isTP ? { takeProfit: 0 } : { stopLoss: 0 };
+				return this.editPositionBrackets(parentId, modification);
+			}
+
+			// Check if parent is an order
+			if (this._orderById[parentId]) {
+				const modification = isTP ? { takeProfit: 0 } : { stopLoss: 0 };
+				return this.editOrder(parentId, modification);
+			}
+
+			console.warn('[ZuperiorBroker] Parent entity not found for bracket cancel:', parentId);
+			return Promise.resolve(); // Fallback
+		}
+
+		// Optimistic update for regular orders
 		const order = this._orderById[orderId];
 		if (order) {
 			// Remove from maps
@@ -1094,11 +1118,17 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 		// Clone for safety
 		const originalState = { ...originalPosition };
 
+		// Normalize TP/SL values (TradingView may send null/undefined to clear)
+		const newTPRaw = modification.takeProfit ?? modification.tp;
+		const newSLRaw = modification.stopLoss ?? modification.sl;
+		const newTP = newTPRaw === null || newTPRaw === undefined || isNaN(Number(newTPRaw)) ? 0 : Number(newTPRaw);
+		const newSL = newSLRaw === null || newSLRaw === undefined || isNaN(Number(newSLRaw)) ? 0 : Number(newSLRaw);
+
 		// 2. Optimistic Update
 		console.log('[ZuperiorBroker] Optimistic Update for Position:', positionId, modification);
 
-		if (modification.stopLoss !== undefined) originalPosition.stopLoss = modification.stopLoss;
-		if (modification.takeProfit !== undefined) originalPosition.takeProfit = modification.takeProfit;
+		if (newSL !== undefined) originalPosition.stopLoss = newSL;
+		if (newTP !== undefined) originalPosition.takeProfit = newTP;
 
 		// Update _positions array reference
 		const index = this._positions.findIndex(p => p.id === positionId);
@@ -1149,8 +1179,8 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 				accountId: this._accountId,
 				accessToken: this._accessToken,
 				positionId: positionId,
-				stopLoss: modification.stopLoss,
-				takeProfit: modification.takeProfit
+				stopLoss: newSL,
+				takeProfit: newTP
 			});
 
 			// Fetch validation after delay
@@ -1382,26 +1412,19 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			}
 		});
 	}
-
-	public async updatePositionBrackets(positionId: string, modified: any): Promise<void> {
-		return this.editPositionBrackets(positionId, modified);
-	}
-
 	public async editOrder(orderId: string, modification: any): Promise<void> {
-		if (!this._accessToken || !this._accountId) return Promise.reject("Auth failed");
+		const originalOrder = this._orderById[orderId];
+		if (!originalOrder) {
+			console.error(`[ZuperiorBroker] Order not found: ${orderId}`);
+			return Promise.reject('Order not found');
+		}
 
 		console.log('[ZuperiorBroker] editOrder called:', orderId, modification);
 		this._lastActionTime = Date.now();
 
-		const originalOrder = this._orderById[orderId];
-		if (!originalOrder) {
-			console.error('[ZuperiorBroker] Order not found for edit:', orderId);
-			return;
-		}
-
-		// Optimistic update
 		const originalState = { ...originalOrder };
 
+		// Update local order object with new values
 		if (modification.limitPrice !== undefined) originalOrder.limitPrice = modification.limitPrice;
 		if (modification.stopPrice !== undefined) originalOrder.stopPrice = modification.stopPrice;
 		if (modification.takeProfit !== undefined) originalOrder.takeProfit = modification.takeProfit;
@@ -1434,8 +1457,8 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 
 		try {
 			await modifyPendingOrderDirect({
-				accountId: this._accountId,
-				accessToken: this._accessToken,
+				accountId: this._accountId!,
+				accessToken: this._accessToken!,
 				orderId: orderId,
 				price: modification.limitPrice || modification.stopPrice,
 				stopLoss: modification.stopLoss,

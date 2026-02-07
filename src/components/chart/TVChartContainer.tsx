@@ -273,6 +273,7 @@ export const TVChartContainer = () => {
                     durations: [{ name: 'DAY', value: 'DAY' }, { name: 'GTT', value: 'GTT' }],
                     customUI: {
                         showOrderDialog: (order: any) => {
+                            console.log('[TVChartContainer] showOrderDialog called:', order);
                             // If order has an ID, it is an existing order being modified -> Use our modal
                             if (order.id) {
                                 return openModifyPositionModal(order);
