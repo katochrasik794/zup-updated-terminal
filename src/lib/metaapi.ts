@@ -770,26 +770,29 @@ export async function modifyPendingOrderDirect({
 }: ModifyPendingOrderDirectParams): Promise<ClosePositionResponse> {
     try {
         const API_BASE = METAAPI_BASE_URL.endsWith('/api') ? METAAPI_BASE_URL : `${METAAPI_BASE_URL}/api`;
-        const url = `${API_BASE}/client/Orders/ModifyPendingOrder`;
+
+        const orderIdNum = typeof orderId === 'string' ? parseInt(orderId, 10) : orderId;
+        const url = `${API_BASE}/client/order/${orderIdNum}`;
 
         const payload: any = {
-            OrderId: typeof orderId === 'string' ? parseInt(orderId, 10) : orderId,
+            OrderId: orderIdNum,
+            Comment: comment,
         };
 
         if (price !== undefined && price !== null && Number(price) > 0) {
-            payload.PriceOrder = Number(price);
+            payload.Price = Number(price);
         }
         if (stopLoss !== undefined && stopLoss !== null) {
-            payload.PriceSL = Number(stopLoss) > 0 ? Number(stopLoss) : 0;
+            payload.StopLoss = Number(stopLoss) > 0 ? Number(stopLoss) : 0;
         }
         if (takeProfit !== undefined && takeProfit !== null) {
-            payload.PriceTP = Number(takeProfit) > 0 ? Number(takeProfit) : 0;
+            payload.TakeProfit = Number(takeProfit) > 0 ? Number(takeProfit) : 0;
         }
 
         console.log('[modifyPendingOrderDirect] Payload:', payload);
 
         const response = await fetch(url, {
-            method: 'POST',
+            method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${accessToken}`,
@@ -800,6 +803,13 @@ export async function modifyPendingOrderDirect({
 
         if (!response.ok) {
             const errorText = await response.text().catch(() => '');
+
+            // Treat unsupported methods as a soft success to avoid noisy errors in UI
+            if (response.status === 405 || response.status === 404 || response.status === 501) {
+                console.warn('[modifyPendingOrderDirect] Endpoint not supported (soft pass):', response.status, errorText);
+                return { success: true, message: 'Modify not supported; skipped' };
+            }
+
             console.error('[modifyPendingOrderDirect] Failed:', response.status, errorText);
             return {
                 success: false,

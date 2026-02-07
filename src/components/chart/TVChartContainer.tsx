@@ -40,13 +40,14 @@ export const TVChartContainer = () => {
     const openModifyPositionModal = (position: any, brackets?: any) => {
         const mappedPosition = {
             ...position,
-            openPrice: position.avg_price || position.avgPrice || position.price,
+            openPrice: position.avg_price || position.avgPrice || position.price || position.limitPrice || position.stopPrice,
             currentPrice: position.currentPrice || position.price,
             tp: brackets?.takeProfit || position.takeProfit || position.tp,
             sl: brackets?.stopLoss || position.stopLoss || position.sl,
             pl: position.profit || position.pl || '0.00',
             volume: position.qty || position.volume,
             flag: (position.symbol || '').toLowerCase().replace(/[^a-z0-9]/g, ''),
+            ticket: position.id, // Ensure ticket is set for orders
         };
         setModifyModalState({ isOpen: true, position: mappedPosition });
         return new Promise<boolean>((resolve) => {
@@ -63,18 +64,19 @@ export const TVChartContainer = () => {
     useEffect(() => {
         if (lastModification && brokerRef.current) {
             console.log('[TVChartContainer] lastModification received:', lastModification);
-            // Fallback to editPositionBrackets if updatePositionBrackets missing
-            if (brokerRef.current.editPositionBrackets) {
+
+            if (brokerRef.current.modifyEntity) {
+                brokerRef.current.modifyEntity(lastModification.id, lastModification)
+                    .catch((err: any) => console.error(err));
+            } else if (brokerRef.current.editPositionBrackets) {
+                // Fallback (legacy)
                 const sl = lastModification.sl ? parseFloat(lastModification.sl) : undefined;
                 const tp = lastModification.tp ? parseFloat(lastModification.tp) : undefined;
-
                 const modifiedBrackets = {
                     ...(sl !== undefined && !isNaN(sl) ? { stopLoss: sl } : {}),
                     ...(tp !== undefined && !isNaN(tp) ? { takeProfit: tp } : {}),
                     _skipModal: true,
                 };
-
-                console.log('[TVChartContainer] Calling editPositionBrackets:', lastModification.id, modifiedBrackets);
                 brokerRef.current.editPositionBrackets(lastModification.id, modifiedBrackets)
                     .catch((err: any) => console.error(err));
             }
@@ -96,10 +98,14 @@ export const TVChartContainer = () => {
             '/custom-dialogs/dist/bundle.css'
         ];
 
+
+
         const initWidget = () => {
             if (!window.TradingView || !window.Brokers || !window.CustomDialogs) {
                 return;
             }
+
+
 
             // Use our custom RealtimeDataFeed
             const datafeed = new RealtimeDataFeed();
@@ -160,6 +166,7 @@ export const TVChartContainer = () => {
                     'header_compare',
                     'buy_sell_buttons',
                     'objects_tree_widget', // Hide Object Tree
+                    'trading_notifications', // Disable default trading notifications/toasts
                     'trading_account_manager',
                     'open_account_manager',
                 ],
@@ -213,15 +220,19 @@ export const TVChartContainer = () => {
                     configFlags: {
                         // Position management flags
                         supportPositions: true,
-                        supportPositionBrackets: true, // Match reference integration
-                        supportIndividualPositionBrackets: true, // Match reference integration
+                        supportPositionBrackets: true,
+                        supportIndividualPositionBrackets: true,
                         supportModifyPosition: true,
                         supportPLUpdate: true,
                         supportClosePosition: true,
-                        supportReversePosition: true,
-                        supportNativeReversePosition: true,
+                        supportReversePosition: false,
+                        supportNativeReversePosition: false,
                         supportPositionNetting: false,
                         supportPreviewClosePosition: false,
+                        supportCloseIndividualPosition: false,
+                        supportPartialClosePosition: false,
+                        supportPartialCloseIndividualPosition: false,
+                        closePositionCancelsOrders: false,
 
                         // Order management flags
                         supportOrders: true,
@@ -236,6 +247,9 @@ export const TVChartContainer = () => {
                         supportAddBracketsToExistingOrder: true,
                         supportAddBracketsToExistingPosition: true,
                         supportCancelBrackets: true,
+                        supportOnlyPairOrderBrackets: false,
+                        supportOnlyPairPositionBrackets: false,
+                        supportCancellingBothBracketsOnly: false,
 
                         // Order type flags
                         supportStopLoss: true,
@@ -243,6 +257,15 @@ export const TVChartContainer = () => {
                         supportStopLimitOrders: false,
                         supportTrailingStop: true,
                         supportMultiposition: true,
+                        supportMarketOrders: true,
+                        supportLimitOrders: true,
+                        supportStopOrdersInBothDirections: false,
+                        supportStopLimitOrdersInBothDirections: false,
+                        supportModifyOrderType: false,
+                        supportModifyOrderPreview: false,
+                        supportModifyDuration: false,
+                        supportModifyTrailingStop: false,
+                        supportShowBracketControls: false,
 
                         // UI and other flags
                         showQuantityInsteadOfAmount: true,
@@ -257,10 +280,26 @@ export const TVChartContainer = () => {
                         supportGuaranteedStop: false,
                         supportOrdersHistory: false,
                         supportPlaceOrderPreview: true,
+                        supportEditAmount: false,
+                        supportCustomOrderInfo: false,
+                        supportDemoLiveSwitcher: false,
+                        supportLeverageButton: false,
+                        supportCryptoExchangeOrderTicket: false,
+                        supportCryptoBrackets: false,
+                        supportShowOrderDialog: false,
+                        supportLeverage: false,
+                        supportMargin: false,
+                        supportBalances: false,
+                        supportExecutions: false,
+                        showNotificationsLog: false,
                     },
                     durations: [{ name: 'DAY', value: 'DAY' }, { name: 'GTT', value: 'GTT' }],
                     customUI: {
                         showOrderDialog: (order: any) => {
+                            // If order has an ID, it is an existing order being modified -> Use our modal
+                            if (order.id) {
+                                return openModifyPositionModal(order);
+                            }
                             if (window.CustomDialogs) return window.CustomDialogs.showOrderDialog(customOrderDialog, order);
                             return Promise.resolve(true);
                         },
@@ -274,11 +313,12 @@ export const TVChartContainer = () => {
                             return openModifyPositionModal(position, brackets);
                         },
                         showCancelOrderDialog: (order: any) => {
-                            if (!createCancelOrderButtonListener) return Promise.resolve(false);
-                            const listener = createCancelOrderButtonListener(order, () => {
-                                window.CustomDialogs.hideCancelOrderDialog(customCancelOrderDialog, listener);
-                            });
-                            window.CustomDialogs.showCancelOrderDialog(customCancelOrderDialog, listener, order);
+                            // SKIP MODAL: Call broker directly for instant cancel
+                            console.log('[TVChartContainer] Direct cancel triggered for order:', order.id);
+                            if (brokerRef.current) {
+                                brokerRef.current.cancelOrder(order.id)
+                                    .catch((e: any) => console.error('Direct cancel failed', e));
+                            }
                             return Promise.resolve(true);
                         },
                         showClosePositionDialog: (position: any) => {
@@ -290,14 +330,8 @@ export const TVChartContainer = () => {
                             }
                             return Promise.resolve(true);
                         },
-                        showReversePositionDialog: (position: any) => {
-                            if (!createReversePositionButtonListener) return Promise.resolve(false);
-                            const listener = createReversePositionButtonListener(position, () => {
-                                window.CustomDialogs.hideReversePositionDialog(customReversePositionDialog, listener);
-                            });
-                            window.CustomDialogs.showReversePositionDialog(customReversePositionDialog, listener, position);
-                            return Promise.resolve(true);
-                        }
+                        // Disable reverse dialog entirely
+                        showReversePositionDialog: () => Promise.resolve(false),
                     }
                 }
             };

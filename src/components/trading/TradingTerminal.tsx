@@ -952,7 +952,15 @@ export default function TradingTerminal() {
   const lastModificationRef = useRef<any | null>(null);
   const isProcessingModification = useRef(false);
 
+  /* 
+   * CRITICAL: Disabled to prevent double API calls. 
+   * Modification is now handled by TVChartContainer -> ZuperiorBroker -> metaapi.ts
+   * This logic was causing 500 errors by calling localhost API without auth.
+   */
   useEffect(() => {
+    // Disabled
+    return;
+
     if (!lastModification || !currentAccountId) return;
 
     // Prevent duplicate processing
@@ -978,7 +986,7 @@ export default function TradingTerminal() {
         if (pendingOrder) {
           // Modify pending order
           const params: ModifyPendingOrderParams = {
-            accountId: currentAccountId,
+            accountId: currentAccountId || '',
             orderId: id.toString(),
             stopLoss: sl && sl !== '' && sl !== 'Not Set' && sl !== 'Add' ? parseFloat(sl) : undefined,
             takeProfit: tp && tp !== '' && tp !== 'Not Set' && tp !== 'Add' ? parseFloat(tp) : undefined,
@@ -1040,7 +1048,7 @@ export default function TradingTerminal() {
             }
 
             const params: ModifyPositionParams = {
-              accountId: currentAccountId,
+              accountId: currentAccountId || '',
               positionId: id.toString(),
               stopLoss: stopLoss,
               takeProfit: takeProfit,
