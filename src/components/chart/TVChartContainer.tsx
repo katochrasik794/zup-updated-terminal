@@ -194,9 +194,17 @@ export const TVChartContainer = () => {
                     if (window.CustomDialogs) {
                         customOrderDialog = window.CustomDialogs.createOrderDialog(broker, onOrderResultCallback);
                         customPositionDialog = window.CustomDialogs.createPositionDialog(broker, onPositionResultCallback);
-                        createCancelOrderButtonListener = window.CustomDialogs.createCancelOrderButtonListenerFactory(broker);
-                        createClosePositionButtonListener = window.CustomDialogs.createClosePositionButtonListenerFactory(broker);
-                        createReversePositionButtonListener = window.CustomDialogs.createReversePositionButtonListenerFactory(broker);
+                        // createCancelOrderButtonListener = window.CustomDialogs.createCancelOrderButtonListenerFactory(broker);
+
+                        // Custom Close Position Listener: Bypass modal, call broker directly
+                        createClosePositionButtonListener = () => (positionId: string) => {
+                            console.log('[TVChartContainer] Custom close listener triggered for:', positionId);
+                            broker.closePosition(positionId)
+                                .then(() => console.log('Position closed successfully'))
+                                .catch((e: any) => console.error('Failed to close position', e));
+                        };
+
+                        // createReversePositionButtonListener = window.CustomDialogs.createReversePositionButtonListenerFactory(broker);
                     }
 
                     return broker;
@@ -274,11 +282,12 @@ export const TVChartContainer = () => {
                             return Promise.resolve(true);
                         },
                         showClosePositionDialog: (position: any) => {
-                            if (!createClosePositionButtonListener) return Promise.resolve(false);
-                            const listener = createClosePositionButtonListener(position, () => {
-                                window.CustomDialogs.hideClosePositionDialog(customClosePositionDialog, listener);
-                            });
-                            window.CustomDialogs.showClosePositionDialog(customClosePositionDialog, listener, position);
+                            // SKIP MODAL: Call broker directly for instant close
+                            console.log('[TVChartContainer] Direct close triggered for:', position.id);
+                            if (brokerRef.current) {
+                                brokerRef.current.closePosition(position.id)
+                                    .catch((e: any) => console.error('Direct close failed', e));
+                            }
                             return Promise.resolve(true);
                         },
                         showReversePositionDialog: (position: any) => {

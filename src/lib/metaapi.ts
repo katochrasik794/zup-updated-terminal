@@ -210,7 +210,8 @@ export async function closePositionDirect({
 
         // Build query parameters for DELETE request (only volume, not comment/price)
         const params = new URLSearchParams();
-        if (volume && volume > 0) params.set('volume', String(volume));
+        // REMOVED: Do not send volume in DELETE query to avoid 400 Bad Request
+        // if (volume && volume > 0) params.set('volume', String(volume));
         const queryString = params.toString();
         const deleteUrl = `${API_BASE}/client/position/${positionIdNum}${queryString ? `?${queryString}` : ''}`;
 
@@ -218,6 +219,7 @@ export async function closePositionDirect({
             'Authorization': `Bearer ${accessToken}`,
             'AccountId': accountId,
             'Accept': 'application/json',
+            'Content-Type': 'application/json', // Fix 415 Unsupported Media Type
         };
 
         // Validate token before making requests
@@ -336,6 +338,8 @@ export async function closePositionDirect({
                                 );
 
                                 if (position) {
+                                    console.log('[ClosePosition] Fetched position for volume calculation:', position);
+
                                     // Get volume - prefer Volume (MT5 format), otherwise VolumeLots (convert to MT5)
                                     const rawVolume = position.Volume || position.volume || 0;
                                     const posVolumeLots = position.VolumeLots || position.volumeLots;

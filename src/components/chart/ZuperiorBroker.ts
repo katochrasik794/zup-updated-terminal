@@ -298,17 +298,19 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 		// Initial fetch
 		await this._fetchPositionsAndOrders();
 
-		// Poll every 2 seconds
+
+		// Poll every 200ms (Rapid sync for Position Table/MT5 parity)
 		this._pollInterval = setInterval(async () => {
 			await this._ensureAuth();
-			this._fetchPositionsAndOrders();
-		}, 2000);
+			await this._fetchPositionsAndOrders();
+		}, 200);
 	}
 
 	private async _fetchPositionsAndOrders() {
 		// Prevent polling from clobbering optimistic updates
-		if (Date.now() - this._lastActionTime < 4000) {
-			console.log('[ZuperiorBroker] Skipping poll due to recent user action');
+		// Reduced to 2000ms since we have immediate optimistic feedback
+		if (Date.now() - this._lastActionTime < 2000) {
+			// console.log('[ZuperiorBroker] Skipping poll due to recent user action');
 			return;
 		}
 
@@ -454,6 +456,28 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 						}
 					});
 				}
+
+				// Step 1: Detect and handle CLOSED positions (Diff against previous state)
+				// We must do this BEFORE overwriting this._positions
+				const previousPositionIds = new Set(this._positions.map(p => p.id));
+				const newPositionIds = new Set(cleanPositions.map(p => p.id));
+
+				previousPositionIds.forEach(prevId => {
+					if (!newPositionIds.has(prevId)) {
+						console.log('[ZuperiorBroker] Detected external close for position:', prevId);
+						// Send close signal to chart
+						const closedPosition = this._positionById[prevId];
+						if (closedPosition) {
+							if (this._host && typeof this._host.positionUpdate === 'function') {
+								this._host.positionUpdate({ ...closedPosition, qty: 0, avgPrice: 0 });
+							}
+							// Clear P/L if needed
+							if (this._host && typeof this._host.plUpdate === 'function') {
+								// this._host.plUpdate(closedPosition.symbol, 0); 
+							}
+						}
+					}
+				});
 
 				this._positions.length = 0;
 				this._positions.push(...cleanPositions);
@@ -883,7 +907,61 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 		// Pause polling to protect optimistic update
 		this._lastActionTime = Date.now();
 
+		// 1. Capture current state for rollback
+		const originalPosition = this._positionById[positionId];
+		if (!originalPosition) {
+			console.error('[ZuperiorBroker] Position not found for edit:', positionId);
+			return;
+		}
+		// Clone for safety
+		const originalState = { ...originalPosition };
+
+		// 2. Optimistic Update
+		console.log('[ZuperiorBroker] Optimistic Update for Position:', positionId, modification);
+
+		if (modification.stopLoss !== undefined) originalPosition.stopLoss = modification.stopLoss;
+		if (modification.takeProfit !== undefined) originalPosition.takeProfit = modification.takeProfit;
+
+		// Update _positions array reference
+		const index = this._positions.findIndex(p => p.id === positionId);
+		if (index !== -1) {
+			this._positions[index] = { ...originalPosition };
+			// Ensure map points to new object reference
+			this._positionById[positionId] = this._positions[index];
+		}
+
+		// CRITICAL: Remove old brackets from _orderById
+		delete this._orderById[`${positionId}_TP`];
+		delete this._orderById[`${positionId}_SL`];
+
+		// Regenerate brackets with new values
+		const newPos = this._positionById[positionId];
+
+		if (newPos.takeProfit && newPos.takeProfit > 0) {
+			try {
+				const tpBracket = this._createTakeProfitBracket(newPos);
+				this._orderById[tpBracket.id] = tpBracket;
+				console.log('[ZuperiorBroker] Regenerated TP Bracket:', tpBracket);
+			} catch (e) {
+				console.error('[ZuperiorBroker] Error recreating TP bracket', e);
+			}
+		}
+
+		if (newPos.stopLoss && newPos.stopLoss > 0) {
+			try {
+				const slBracket = this._createStopLossBracket(newPos);
+				this._orderById[slBracket.id] = slBracket;
+				console.log('[ZuperiorBroker] Regenerated SL Bracket:', slBracket);
+			} catch (e) {
+				console.error('[ZuperiorBroker] Error recreating SL bracket', e);
+			}
+		}
+
+		// 3. Notify Chart IMMEDIATELY
+		this._notifyAllPositionsAndOrders();
+
 		try {
+			// 4. API Call in Background
 			await modifyPositionDirect({
 				accountId: this._accountId,
 				accessToken: this._accessToken,
@@ -892,65 +970,74 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 				takeProfit: modification.takeProfit
 			});
 
-			// Optimistic update
-			const position = this._positionById[positionId];
-			if (position) {
-				if (modification.stopLoss !== undefined) position.stopLoss = modification.stopLoss;
-				if (modification.takeProfit !== undefined) position.takeProfit = modification.takeProfit;
+			// Fetch validation after delay
+			setTimeout(() => this._fetchPositionsAndOrders(), 2000); // Shorter delay since we are already updated
 
-				// Update _positions array reference
-				const index = this._positions.findIndex(p => p.id === positionId);
-				if (index !== -1) {
-					this._positions[index] = { ...position };
-				}
-
-				// CRITICAL: Remove old brackets from _orderById so they can be replaced
-				delete this._orderById[`${positionId}_TP`];
-				delete this._orderById[`${positionId}_SL`];
-
-				// Regenerate brackets with new values
-				if (position.takeProfit && position.takeProfit > 0) {
-					try {
-						const tpBracket = this._createTakeProfitBracket(position);
-						this._orderById[tpBracket.id] = tpBracket;
-						console.log('[ZuperiorBroker] Regenerated TP Bracket:', tpBracket);
-					} catch (e) {
-						console.error('[ZuperiorBroker] Error recreating TP bracket', e);
-					}
-				}
-
-				if (position.stopLoss && position.stopLoss > 0) {
-					try {
-						const slBracket = this._createStopLossBracket(position);
-						this._orderById[slBracket.id] = slBracket;
-						console.log('[ZuperiorBroker] Regenerated SL Bracket:', slBracket);
-					} catch (e) {
-						console.error('[ZuperiorBroker] Error recreating SL bracket', e);
-					}
-				}
-
-				this._notifyAllPositionsAndOrders();
-			}
-
-			// Fetch after delay (give API time to update)
-			setTimeout(() => this._fetchPositionsAndOrders(), 4500);
 		} catch (e) {
 			console.error('Modify position failed', e);
+
+			// 5. Rollback on Failure
+			console.log('[ZuperiorBroker] Rolling back optimistic update');
+			const posToRevert = this._positionById[positionId];
+			if (posToRevert) {
+				posToRevert.takeProfit = originalState.takeProfit;
+				posToRevert.stopLoss = originalState.stopLoss;
+
+				// Regenerate old brackets? Or just let fetch fix it?
+				// Re-notifying will at least correct the position lines
+				this._notifyAllPositionsAndOrders();
+			}
+			// Force re-fetch to ensure sync
+			this._fetchPositionsAndOrders();
+
 			throw e;
 		}
 	}
 
 	public async closePosition(positionId: string): Promise<void> {
 		if (!this._accessToken || !this._accountId) return Promise.reject("Auth failed");
+
+		console.log('[ZuperiorBroker] closePosition called for:', positionId);
+
+		// Optimistic update: Remove from local state immediately
+		const position = this._positionById[positionId];
+		if (position) {
+			// Notify chart/AM of closure BEFORE removing from state
+			if (this._host && typeof this._host.positionUpdate === 'function') {
+				const closedPosition = { ...position, qty: 0, avgPrice: 0 };
+				console.log('[ZuperiorBroker] Optimistic Close - Notifying host:', closedPosition);
+				this._host.positionUpdate(closedPosition);
+
+				if ((position as any).pl !== undefined && typeof this._host.plUpdate === 'function') {
+					// Update P/L to 0 or remove it? Usually just updating position is enough.
+				}
+			}
+
+			// Remove from maps
+			delete this._positionById[positionId];
+			delete this._orderById[`${positionId}_TP`];
+			delete this._orderById[`${positionId}_SL`];
+
+			// Remove from array
+			this._positions = this._positions.filter(p => p.id !== positionId);
+
+			// Notify chart (updates the rest)
+			this._notifyAllPositionsAndOrders();
+		}
+
 		try {
 			await closePositionDirect({
 				accountId: this._accountId,
 				accessToken: this._accessToken,
-				positionId: positionId
+				positionId: positionId,
+				volume: position ? position.qty : 0 // Pass known volume (lots) to help API
 			});
-			setTimeout(() => this._fetchPositionsAndOrders(), 500);
+			// Fetch validation after delay
+			setTimeout(() => this._fetchPositionsAndOrders(), 1000);
 		} catch (e) {
 			console.error('Close position failed', e);
+			// Re-fetch to restore if failed
+			this._fetchPositionsAndOrders();
 			throw e;
 		}
 	}
