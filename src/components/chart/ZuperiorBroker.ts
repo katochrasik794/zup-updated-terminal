@@ -310,10 +310,10 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 		}, 800);
 	}
 
-	private async _fetchPositionsAndOrders() {
-		// Prevent polling from clobbering optimistic updates
-		// Reduced to 2000ms since we have immediate optimistic feedback
-		if (Date.now() - this._lastActionTime < 2000) {
+	private async _fetchPositionsAndOrders(force: boolean = false) {
+		// Prevent polling from clobbering optimistic updates unless explicitly forced
+		// Reduced window to 1200ms to keep UI fresh while avoiding flicker
+		if (!force && Date.now() - this._lastActionTime < 1200) {
 			// console.log('[ZuperiorBroker] Skipping poll due to recent user action');
 			return;
 		}
@@ -918,8 +918,8 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 					takeProfit: preOrder.takeProfit
 				});
 			}
-			// Refresh soon
-			setTimeout(() => this._fetchPositionsAndOrders(), 4500);
+			// Refresh soon (force redraw quickly once backend confirms)
+			setTimeout(() => this._fetchPositionsAndOrders(true), 600);
 			return {};
 		} catch (e: any) {
 			console.error('Place order failed', e);
@@ -1023,7 +1023,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 						stopLoss: newSL,
 						takeProfit: newTP
 					});
-					setTimeout(() => this._fetchPositionsAndOrders(), 2000);
+					setTimeout(() => this._fetchPositionsAndOrders(true), 400);
 					return;
 				}
 
@@ -1040,7 +1040,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 					stopLoss: order.stopLoss,
 					takeProfit: order.takeProfit
 				});
-				setTimeout(() => this._fetchPositionsAndOrders(), 4500);
+				setTimeout(() => this._fetchPositionsAndOrders(true), 600);
 			}
 		} catch (e) {
 			console.error('Modify order failed', e);
@@ -1094,12 +1094,19 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 				accessToken: this._accessToken,
 				orderId: orderId
 			});
-			setTimeout(() => this._fetchPositionsAndOrders(), 500);
+			setTimeout(() => this._fetchPositionsAndOrders(true), 400);
 		} catch (e) {
 			console.error('Cancel order failed', e);
 			// Rollback if failed (fetch will restore it)
 			this._fetchPositionsAndOrders();
 			throw e;
+		}
+	}
+
+	private _notifyBracketCancelled(bracketId: string) {
+		const bracket = this._orderById[bracketId];
+		if (this._host && typeof this._host.orderUpdate === 'function') {
+			this._host.orderUpdate({ ...(bracket || { id: bracketId }), status: OrderStatus.Canceled });
 		}
 	}
 
@@ -1119,10 +1126,23 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 		const originalState = { ...originalPosition };
 
 		// Normalize TP/SL values (TradingView may send null/undefined to clear)
+		// Preserve existing brackets when the other one is modified.
 		const newTPRaw = modification.takeProfit ?? modification.tp;
 		const newSLRaw = modification.stopLoss ?? modification.sl;
-		const newTP = newTPRaw === null || newTPRaw === undefined || isNaN(Number(newTPRaw)) ? 0 : Number(newTPRaw);
-		const newSL = newSLRaw === null || newSLRaw === undefined || isNaN(Number(newSLRaw)) ? 0 : Number(newSLRaw);
+
+		const newTP =
+			newTPRaw === null
+				? 0
+				: newTPRaw === undefined || isNaN(Number(newTPRaw))
+					? originalPosition.takeProfit ?? 0
+					: Number(newTPRaw);
+
+		const newSL =
+			newSLRaw === null
+				? 0
+				: newSLRaw === undefined || isNaN(Number(newSLRaw))
+					? originalPosition.stopLoss ?? 0
+					: Number(newSLRaw);
 
 		// 2. Optimistic Update
 		console.log('[ZuperiorBroker] Optimistic Update for Position:', positionId, modification);
@@ -1138,9 +1158,13 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			this._positionById[positionId] = this._positions[index];
 		}
 
-		// CRITICAL: Remove old brackets from _orderById
-		delete this._orderById[`${positionId}_TP`];
-		delete this._orderById[`${positionId}_SL`];
+		// CRITICAL: Remove old brackets from _orderById (and notify cancellations)
+		const tpId = `${positionId}_TP`;
+		const slId = `${positionId}_SL`;
+		const hadTP = !!this._orderById[tpId];
+		const hadSL = !!this._orderById[slId];
+		delete this._orderById[tpId];
+		delete this._orderById[slId];
 
 		// Regenerate brackets with new values
 		const newPos = this._positionById[positionId];
@@ -1157,6 +1181,8 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			} catch (e) {
 				console.error('[ZuperiorBroker] Error recreating TP bracket', e);
 			}
+		} else if (hadTP) {
+			this._notifyBracketCancelled(tpId);
 		}
 
 		if (newPos.stopLoss && newPos.stopLoss > 0) {
@@ -1168,6 +1194,8 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			} catch (e) {
 				console.error('[ZuperiorBroker] Error recreating SL bracket', e);
 			}
+		} else if (hadSL) {
+			this._notifyBracketCancelled(slId);
 		}
 
 		// 3. Notify Chart IMMEDIATELY
@@ -1183,8 +1211,8 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 				takeProfit: newTP
 			});
 
-			// Fetch validation after delay
-			setTimeout(() => this._fetchPositionsAndOrders(), 2000); // Shorter delay since we are already updated
+			// Fetch validation after a short delay to confirm backend state
+			setTimeout(() => this._fetchPositionsAndOrders(true), 400);
 
 		} catch (e) {
 			console.error('Modify position failed', e);
@@ -1201,7 +1229,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 				this._notifyAllPositionsAndOrders();
 			}
 			// Force re-fetch to ensure sync
-			this._fetchPositionsAndOrders();
+			this._fetchPositionsAndOrders(true);
 
 			throw e;
 		}
@@ -1246,11 +1274,11 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 				volume: position ? position.qty : 0 // Pass known volume (lots) to help API
 			});
 			// Fetch validation after delay
-			setTimeout(() => this._fetchPositionsAndOrders(), 1000);
+			setTimeout(() => this._fetchPositionsAndOrders(true), 500);
 		} catch (e) {
 			console.error('Close position failed', e);
 			// Re-fetch to restore if failed
-			this._fetchPositionsAndOrders();
+			this._fetchPositionsAndOrders(true);
 			throw e;
 		}
 	}
@@ -1431,19 +1459,27 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 		if (modification.stopLoss !== undefined) originalOrder.stopLoss = modification.stopLoss;
 
 		// Remove old order brackets and regenerate based on new TP/SL
-		delete this._orderById[`${orderId}_TP`];
-		delete this._orderById[`${orderId}_SL`];
-		this._orders = this._orders.filter(o => !(o.id === `${orderId}_TP` || o.id === `${orderId}_SL`));
+		const tpId = `${orderId}_TP`;
+		const slId = `${orderId}_SL`;
+		const hadTP = !!this._orderById[tpId];
+		const hadSL = !!this._orderById[slId];
+		delete this._orderById[tpId];
+		delete this._orderById[slId];
+		this._orders = this._orders.filter(o => !(o.id === tpId || o.id === slId));
 
 		if (originalOrder.takeProfit && originalOrder.takeProfit > 0) {
 			const tpBracket = this._createOrderTakeProfitBracket(originalOrder);
 			this._orderById[tpBracket.id] = tpBracket;
 			this._orders.push(tpBracket);
+		} else if (hadTP) {
+			this._notifyBracketCancelled(tpId);
 		}
 		if (originalOrder.stopLoss && originalOrder.stopLoss > 0) {
 			const slBracket = this._createOrderStopLossBracket(originalOrder);
 			this._orderById[slBracket.id] = slBracket;
 			this._orders.push(slBracket);
+		} else if (hadSL) {
+			this._notifyBracketCancelled(slId);
 		}
 
 		// Update array reference to trigger React/TV updates
@@ -1465,7 +1501,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 				takeProfit: modification.takeProfit
 			});
 			// Re-fetch to validate
-			setTimeout(() => this._fetchPositionsAndOrders(), 2000);
+			setTimeout(() => this._fetchPositionsAndOrders(true), 400);
 		} catch (e) {
 			console.error('[ZuperiorBroker] Modify order failed', e);
 			// Rollback
@@ -1474,7 +1510,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 				Object.assign(orderToRevert, originalState);
 				this._notifyAllPositionsAndOrders();
 			}
-			this._fetchPositionsAndOrders();
+			this._fetchPositionsAndOrders(true);
 			throw e;
 		}
 	}
