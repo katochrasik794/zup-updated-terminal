@@ -1446,20 +1446,37 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 	}
 
 	public async symbolInfo(symbol: string): Promise<InstrumentInfo> {
+		const symbolUpper = symbol.toUpperCase();
+		let pricescale = 100000; // Default Forex
+		let minTick = 0.00001;
+
+		if (symbolUpper.includes('JPY') || symbolUpper.includes('XAU')) {
+			pricescale = 100;
+			minTick = 0.01;
+		} else if (symbolUpper.includes('BTC') || symbolUpper.includes('ETH') || symbolUpper.includes('SOL')) {
+			pricescale = 100;
+			minTick = 0.01;
+		}
+
 		return {
 			qty: { min: 0.01, max: 100, step: 0.01 },
-			pipSize: 0.01,
+			pipSize: minTick,
 			pipValue: 1,
-			minTick: 0.01,
+			minTick: minTick,
 			description: symbol,
 			type: 'crypto',
 			domVolumePrecision: 2,
 			id: symbol,
 			name: symbol,
 			minMove2: 0,
-			pricescale: 100,
+			pricescale: pricescale,
+			minmov: 1,
+			fractional: false,
 			session: '24x7',
-			timezone: 'Etc/UTC'
+			timezone: 'Etc/UTC',
+			has_intraday: true,
+			has_no_volume: false,
+			data_status: 'streaming'
 		} as unknown as InstrumentInfo;
 	}
 

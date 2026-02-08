@@ -61,6 +61,34 @@ export const TVChartContainer = () => {
         }
     }, [setModifyModalState]);
 
+    // Resolve the promise when the modal closes
+    const { modifyModalState } = useTrading();
+    useEffect(() => {
+        if (!modifyModalState.isOpen && modifyModalPromiseResolve.current) {
+            // If we have a pending promise and the modal closes
+            // Check if a modification was made (lastModification set) to determine success
+            // But usually just resolving 'false' or 'true' makes the chart proceed.
+            // If we resolve 'false', it cancels drag. If 'true', it generally accepts.
+            // If the user Saved, 'lastModification' is set, so we can assume success?
+            // Actually, if update is handled via broker.modifyEntity, the chart gets the update event.
+            // So for the *dialog result*, we can just say 'false' (cancel internal handling) or 'true'.
+            // If we return 'true', the chart might try to apply changes itself if we returned an object.
+            // But we return boolean.
+            // Let's resolve 'false' to ensure the chart doesn't do anything weird, 
+            // relying on our explicit 'modifyEntity' call to update the order.
+            // Or if we return 'true', it might imply "user confirmed".
+
+            // NOTE: If we dragged, and then closed modal without saving, we want it to snap back.
+            // If we saved, our 'modifyEntity' will update the order, and chart will see the update.
+            // So resolving 'false' might be safer to prevent double-modification or stuck state?
+            // Let's try resolving true if lastModification is present, false otherwise.
+            const wasSaved = !!lastModification;
+            console.log('[TVChartContainer] Modal closed. Resolving hook promise:', wasSaved);
+            modifyModalPromiseResolve.current(wasSaved);
+            modifyModalPromiseResolve.current = null;
+        }
+    }, [modifyModalState.isOpen, lastModification]);
+
     useEffect(() => {
         if (lastModification && brokerRef.current) {
             console.log('[TVChartContainer] lastModification received:', lastModification);
