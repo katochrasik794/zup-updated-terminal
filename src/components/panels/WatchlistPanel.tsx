@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import FlagIcon from '../ui/FlagIcon'
 import IconButton from '../ui/IconButton'
 import { LuGripVertical } from 'react-icons/lu'
-import { FiStar, FiSearch } from 'react-icons/fi'
+import { FiStar, FiSearch, FiSlash } from 'react-icons/fi'
 import { useAccount } from '../../context/AccountContext'
 import { useInstruments } from '../../context/InstrumentContext'
 import { useWebSocket } from '../../context/WebSocketContext'
@@ -34,6 +34,11 @@ const InstrumentRow = ({ item, isVisible, toggleFavorite, lastQuote, handleDragS
 
   // Spread calculation
   const spread = quote.spread !== undefined ? quote.spread : (item.spread || 0);
+
+  // Weekend market closure (all non-crypto instruments)
+  const isWeekend = [0, 6].includes(new Date().getUTCDay());
+  const isCrypto = (item.category || '').toLowerCase().includes('crypto');
+  const isMarketClosed = isWeekend && !isCrypto;
 
   // Calculate Day Change (as Range %)
   // "calculate how much is in +ve or -ve inpercentage based on day high/low and current"
@@ -114,6 +119,11 @@ const InstrumentRow = ({ item, isVisible, toggleFavorite, lastQuote, handleDragS
       <div className="pl-2 flex flex-col justify-center border-r border-gray-800 bg-[#0b0e14] group-hover:bg-[#1c252f] h-full transition-colors overflow-hidden min-w-[100px] flex-shrink-0">
         <span className="text-[13px] font-bold text-gray-200 truncate">{item.symbol}</span>
         {isVisible('description') && <span className="text-[10px] text-gray-500 truncate">{item.description || item.name}</span>}
+        {isMarketClosed && (
+          <span className="flex items-center gap-1 text-amber-400">
+            <FiSlash size={12} />
+          </span>
+        )}
       </div>
 
       {/* Bid */}

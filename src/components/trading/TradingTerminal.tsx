@@ -12,6 +12,8 @@ import StatusBar from '@/components/layout/StatusBar'
 import { useSidebar } from '@/context/SidebarContext'
 import { useAccount } from '@/context/AccountContext'
 import { useTrading } from '@/context/TradingContext'
+import { useInstruments } from '@/context/InstrumentContext'
+import { normalizeSymbol as normalizeWsSymbol } from '@/context/WebSocketContext'
 import { usePositions, Position } from '@/hooks/usePositions'
 import { ordersApi, positionsApi, apiClient, PlaceMarketOrderParams, PlacePendingOrderParams, ClosePositionParams, CloseAllParams, ModifyPendingOrderParams, ModifyPositionParams } from '@/lib/api'
 import { closePositionDirect, placeMarketOrderDirect, placePendingOrderDirect, cancelPendingOrderDirect } from '@/lib/metaapi'
@@ -20,11 +22,14 @@ import { ImperativePanelHandle } from 'react-resizable-panels'
 
 import ModifyPositionModal from '@/components/modals/ModifyPositionModal'
 import OrderPlacedToast from '@/components/ui/OrderPlacedToast'
+import ReactDOM from 'react-dom'
 
 export default function TradingTerminal() {
   const { isSidebarExpanded, setIsSidebarExpanded } = useSidebar();
   const { currentAccountId, currentBalance, getMetaApiToken } = useAccount();
   const { symbol, lastModification, clearLastModification } = useTrading();
+  const { instruments } = useInstruments();
+  const [marketClosedToast, setMarketClosedToast] = useState<string | null>(null);
   const leftPanelRef = useRef<ImperativePanelHandle>(null)
   const [closedToast, setClosedToast] = useState<any>(null)
   const [orderToast, setOrderToast] = useState<any>(null)
@@ -64,6 +69,28 @@ export default function TradingTerminal() {
       };
     }
   }, [rawPositions, rawPendingOrders, rawClosedPositions]);
+
+  // Market closed helper (weekend for non-crypto instruments)
+  const isMarketClosed = useCallback((sym?: string) => {
+    if (!sym) return false;
+    const now = new Date();
+    const day = now.getUTCDay();
+    const minutes = now.getUTCHours() * 60 + now.getUTCMinutes();
+
+    const norm = normalizeWsSymbol(sym);
+    const inst = instruments.find(i => normalizeWsSymbol(i.symbol) === norm || i.symbol === sym);
+    const category = (inst?.category || inst?.group || '').toLowerCase();
+    const looksCrypto = category.includes('crypto') || norm.startsWith('BTC') || norm.startsWith('ETH');
+    if (looksCrypto) return false;
+
+    // Market closed from Fri 21:00 UTC through Sun 21:05 UTC
+    const isWeekendClosed =
+      (day === 5 && minutes >= 21 * 60) ||
+      day === 6 ||
+      (day === 0 && minutes < 21 * 60 + 5);
+
+    return isWeekendClosed;
+  }, [instruments]);
 
 
   // Format positions for BottomPanel display
@@ -185,6 +212,11 @@ export default function TradingTerminal() {
       return;
     }
 
+    if (isMarketClosed(position?.symbol)) {
+      setMarketClosedToast('Market closed for this instrument. Trading resumes Sunday 21:05 UTC.');
+      return;
+    }
+
     try {
       // Check if this is a pending order (Type 2-5: Buy Limit, Sell Limit, Buy Stop, Sell Stop)
       const isPendingOrder = position.orderType !== undefined &&
@@ -281,6 +313,11 @@ export default function TradingTerminal() {
       return;
     }
 
+    if (isMarketClosed(symbol)) {
+      setMarketClosedToast('Market closed for this instrument. Trading resumes Sunday 21:05 UTC.');
+      return;
+    }
+
     try {
       // Get all positions for this symbol
       const symbolPositions = openPositions.filter((pos: any) => pos.symbol === symbol);
@@ -347,6 +384,12 @@ export default function TradingTerminal() {
         positionsToClose = openPositions.filter((pos: any) => pos.type === 'Buy');
       } else if (option === 'sell') {
         positionsToClose = openPositions.filter((pos: any) => pos.type === 'Sell');
+      }
+
+      const closedDueToMarket = positionsToClose.filter((pos: any) => isMarketClosed(pos.symbol));
+      if (closedDueToMarket.length > 0) {
+        setMarketClosedToast('Market closed for one or more selected instruments. Trading resumes Sunday 21:05 UTC.');
+        positionsToClose = positionsToClose.filter((pos: any) => !isMarketClosed(pos.symbol));
       }
 
       if (positionsToClose.length === 0) {
@@ -1234,6 +1277,26 @@ export default function TradingTerminal() {
         order={orderToast}
         onClose={handleOrderToastClose}
       />
+      {marketClosedToast && ReactDOM.createPortal(
+        <div className="fixed bottom-4 left-4 z-[99999] bg-[#0b0e14] text-[#d1d5db] rounded-md shadow-lg border border-amber-500/60 w-[320px] overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <div className="p-4 relative">
+            <button
+              onClick={() => setMarketClosedToast(null)}
+              className="absolute top-2 right-2 text-[#9ca3af] hover:text-white transition-colors"
+            >
+              ×
+            </button>
+            <div className="flex items-start gap-3">
+              <div className="mt-0.5 text-amber-400">⚠</div>
+              <div className="flex-1">
+                <h3 className="text-white font-medium text-[14px] leading-tight mb-1">Market closed</h3>
+                <p className="text-[13px] text-[#d1d5db]">{marketClosedToast}</p>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </>
   )
 }

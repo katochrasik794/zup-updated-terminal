@@ -166,11 +166,12 @@ export const TVChartContainer = () => {
                     'buy_sell_buttons',
                     'objects_tree_widget', // Hide Object Tree
                     'trading_notifications', // Disable default trading notifications/toasts
+                    'trading_account_manager',
                 ],
                 enabled_features: [
                     'study_templates',
                     'order_panel',
-                    'trading_account_manager',
+                    // 'trading_account_manager',
                     // Enable drag/edit of orders and brackets
                     'trading_bracket_orders',
                     'trading_order_drag',

@@ -10,7 +10,9 @@ import FlagIcon from "@/components/ui/FlagIcon"
 import { useTrading } from '../../context/TradingContext'
 import { useWebSocket } from '../../context/WebSocketContext'
 import { useAccount } from '../../context/AccountContext'
+import { useInstruments } from '../../context/InstrumentContext'
 import OrderModeModal from '../modals/OrderModeModal'
+import ReactDOM from 'react-dom'
 
 export interface OrderPanelProps extends React.HTMLAttributes<HTMLDivElement> {
   onClose?: () => void
@@ -40,6 +42,8 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
   const { symbol } = useTrading()
   const { subscribe, unsubscribe, lastQuotes, normalizeSymbol, isConnected } = useWebSocket()
   const { currentBalance } = useAccount()
+  const { instruments } = useInstruments()
+  const [marketClosedToast, setMarketClosedToast] = React.useState<string | null>(null)
 
   // Get real-time prices from WebSocket
   const hubSymbol = React.useMemo(() => (symbol || 'BTCUSD').replace('/', ''), [symbol])
@@ -52,6 +56,27 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
   }, [hubSymbol, subscribe, unsubscribe])
 
   const quote = lastQuotes[normalizeSymbol(hubSymbol)] || lastQuotes[hubSymbol] || {}
+  const instrument = React.useMemo(() => {
+    const norm = normalizeSymbol(hubSymbol)
+    return instruments.find(i => normalizeSymbol(i.symbol) === norm || i.symbol === hubSymbol || i.symbol === symbol)
+  }, [hubSymbol, instruments, normalizeSymbol, symbol])
+
+  const isCrypto = React.useMemo(() => {
+    const cat = (instrument?.category || '').toLowerCase()
+    return cat.includes('crypto')
+  }, [instrument])
+  const isMarketClosed = React.useMemo(() => {
+    if (isCrypto) return false
+    const now = new Date()
+    const day = now.getUTCDay()
+    const minutes = now.getUTCHours() * 60 + now.getUTCMinutes()
+    const isWeekendClosed =
+      (day === 5 && minutes >= 21 * 60) ||
+      day === 6 ||
+      (day === 0 && minutes < 21 * 60 + 5)
+    return isWeekendClosed
+  }, [isCrypto])
+  const marketClosedMessage = "Market closed for this instrument. Trading resumes Sunday 21:05 UTC."
 
   // Use live prices if available, otherwise fall back to defaults
   const currentSellPrice = quote.bid ?? 0
@@ -296,6 +321,10 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
     <div className="relative grid grid-cols-2 gap-3">
       <button
         onClick={async () => {
+          if (isMarketClosed) {
+            setMarketClosedToast(marketClosedMessage)
+            return
+          }
           if (isLoading) return;
           setPendingOrderSide('sell');
           setIsLoading(true);
@@ -345,6 +374,10 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
 
       <button
         onClick={async () => {
+          if (isMarketClosed) {
+            setMarketClosedToast(marketClosedMessage)
+            return
+          }
           if (isLoading) return;
           setPendingOrderSide('buy');
           setIsLoading(true);
@@ -465,6 +498,10 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
           type="button"
           className={`rounded-md p-3 border-2 ${sellButtonBorder} bg-transparent ${readOnly ? '' : sellButtonHover} text-left cursor-pointer`}
           onClick={readOnly ? undefined : () => {
+            if (isMarketClosed) {
+              setMarketClosedToast(marketClosedMessage)
+              return
+            }
             if (showConfirmation) {
               // In regular form, set pending order side to show confirmation
               setPendingOrderSide('sell')
@@ -504,6 +541,10 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
           type="button"
           className={`rounded-md p-3 border-2 ${buyButtonBorder} bg-transparent ${readOnly ? '' : buyButtonHover} text-right cursor-pointer`}
           onClick={readOnly ? undefined : () => {
+            if (isMarketClosed) {
+              setMarketClosedToast(marketClosedMessage)
+              return
+            }
             if (showConfirmation) {
               // In regular form, set pending order side to show confirmation
               setPendingOrderSide('buy')
@@ -543,6 +584,31 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
           {currentSpread} {isConnected && <span className="text-green-500 ml-1">●</span>}
         </div>
       </div>
+    )
+  }
+
+  // Simple toast for market closed
+  const renderMarketClosedToast = () => {
+    if (!marketClosedToast) return null
+    return ReactDOM.createPortal(
+      <div className="fixed bottom-4 left-4 z-[99999] bg-[#0b0e14] text-[#d1d5db] rounded-md shadow-lg border border-amber-500/60 w-[320px] overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-300">
+        <div className="p-4 relative">
+          <button
+            onClick={() => setMarketClosedToast(null)}
+            className="absolute top-2 right-2 text-[#9ca3af] hover:text-white transition-colors"
+          >
+            ×
+          </button>
+          <div className="flex items-start gap-3">
+            <div className="mt-0.5 text-amber-400">⚠</div>
+            <div className="flex-1">
+              <h3 className="text-white font-medium text-[14px] leading-tight mb-1">Market closed</h3>
+              <p className="text-[13px] text-[#d1d5db]">{marketClosedMessage}</p>
+            </div>
+          </div>
+        </div>
+      </div>,
+      document.body
     )
   }
 
@@ -1096,6 +1162,10 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
                   <button
                     disabled={isLoading}
                     onClick={async () => {
+                      if (isMarketClosed) {
+                        setMarketClosedToast(marketClosedMessage)
+                        return
+                      }
                       if (isLoading) return;
                       const handler = pendingOrderSide === 'buy' ? onBuy : onSell
                       if (!handler) return
@@ -1383,6 +1453,27 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
         onConfirm={handleRiskCalculatorModalConfirm}
         mode="Risk calculator form"
       />
+
+      {marketClosedToast && ReactDOM.createPortal(
+        <div className="fixed bottom-4 left-4 z-[99999] bg-[#0b0e14] text-[#d1d5db] rounded-md shadow-lg border border-amber-500/60 w-[320px] overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <div className="p-4 relative">
+            <button
+              onClick={() => setMarketClosedToast(null)}
+              className="absolute top-2 right-2 text-[#9ca3af] hover:text-white transition-colors"
+            >
+              ×
+            </button>
+            <div className="flex items-start gap-3">
+              <div className="mt-0.5 text-amber-400">⚠</div>
+              <div className="flex-1">
+                <h3 className="text-white font-medium text-[14px] leading-tight mb-1">Market closed</h3>
+                <p className="text-[13px] text-[#d1d5db]">{marketClosedMessage}</p>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   )
 }
