@@ -6,9 +6,11 @@ import CloseAllPositionsDropdown from "../modals/CloseAllPositionsDropdown";
 import { usePrivacy } from '../../context/PrivacyContext';
 import { formatCurrency } from '../../lib/utils';
 import { apiClient } from '../../lib/api';
+import { useWebSocket } from '../../context/WebSocketContext';
 
 export default function StatusBar({ openPositions = [], onCloseAll }: any) {
   const { hideBalance } = usePrivacy();
+  const { ping } = useWebSocket();
   const [data, setData] = useState<any>(null);
   const [showDropdown, setShowDropdown] = useState(false)
   const buttonRef = useRef(null)
@@ -50,16 +52,16 @@ export default function StatusBar({ openPositions = [], onCloseAll }: any) {
   const equity = data?.Equity ?? data?.equity ?? 0;
   const balance = data?.Balance ?? data?.balance ?? 0;
   const margin = data?.Margin ?? data?.margin ?? data?.MarginUsed ?? data?.marginUsed ?? 0;
-  
+
   // Calculate Free Margin: Always calculate as Equity - Margin (standard MT5 formula)
   const freeMargin = useMemo(() => {
     const eq = Number(equity) || 0;
     const mg = Number(margin) || 0;
     return parseFloat((eq - mg).toFixed(2));
   }, [equity, margin]);
-  
+
   const marginLevel = data?.MarginLevel ?? data?.marginLevel ?? 0;
-  
+
   // Calculate P/L from open positions (same as CloseAllPositionsDropdown)
   // Sum up all position P/L values
   const totalPL = openPositions.reduce((sum, pos) => {
@@ -106,9 +108,17 @@ export default function StatusBar({ openPositions = [], onCloseAll }: any) {
           </svg>
         </button>
 
-        <div className="flex items-end gap-1 ml-2" title="Internet connection is stable">
-          <GiNetworkBars size={14} className="text-emerald-500" />
-          <span className="text-[10px] text-gray-500 font-mono leading-none mb-0">3.7.3</span>
+        <div className="flex items-end gap-1 ml-2" title={`Network Latency: ${ping}ms`}>
+          <GiNetworkBars size={14} className={
+            ping < 100 ? "text-emerald-500" :
+              ping < 300 ? "text-yellow-500" :
+                "text-red-500 animate-pulse"
+          } />
+          <span className={`text-[10px] font-mono leading-none mb-0 ${ping === 0 ? "text-gray-500" :
+              ping < 100 ? "text-gray-500" :
+                ping < 300 ? "text-yellow-500/80" :
+                  "text-red-500/80"
+            }`}>{ping > 0 ? ping : '--'} ms</span>
         </div>
       </div>
 

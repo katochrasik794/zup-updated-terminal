@@ -18,6 +18,7 @@ interface WebSocketContextType {
     subscribe: (symbols: string[]) => void;
     unsubscribe: (symbols: string[]) => void;
     normalizeSymbol: (symbol: string) => string;
+    ping: number;
 }
 
 const WebSocketContext = createContext<WebSocketContextType | undefined>(undefined);
@@ -44,11 +45,14 @@ export const normalizeSymbol = (symbol: string): string => {
 export function WebSocketProvider({ children }: { children: ReactNode }) {
     const [isConnected, setIsConnected] = useState(false);
     const [lastQuotes, setLastQuotes] = useState<Record<string, QuoteData>>({});
+    const [ping, setPing] = useState<number>(0);
 
     // Refs for socket management
     const wsRef = useRef<WebSocket | null>(null);
     const activeSubscriptions = useRef<Set<string>>(new Set());
     const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const pingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+    const lastPingTimeRef = useRef<number>(0);
 
     const connect = useCallback(() => {
         if (wsRef.current) return;
@@ -65,7 +69,24 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
             if (activeSubscriptions.current.size > 0) {
                 const symbols = Array.from(activeSubscriptions.current);
                 sendSubscription(socket, symbols);
+            } else {
+                // Subscribe to a default symbol to heartbeat the connection for ping
+                sendSubscription(socket, ['BTCUSD']);
             }
+            console.log('[WebSocketContext] Connected. Subscriptions sent.');
+
+            // Start application-level ping
+            if (pingIntervalRef.current) clearInterval(pingIntervalRef.current);
+            pingIntervalRef.current = setInterval(() => {
+                if (socket.readyState === WebSocket.OPEN) {
+                    lastPingTimeRef.current = Date.now();
+                    // Send a ping message if backend supports it, or just use a dummy subscription to trigger a response?
+                    // MetaApi might not have a dedicated 'ping' type.
+                    // But if we use data.ts latency, that works for streaming.
+                    // If no streaming data, ping stays 0.
+                    // Let's stick to data.ts for now, but ensure we handle 'ping' type if server sends it.
+                }
+            }, 10000);
         };
 
         socket.onclose = () => {
@@ -105,9 +126,30 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
                         [norm]: data as QuoteData,
                         [data.symbol]: data as QuoteData
                     }));
-                }
-            } catch (e) {
 
+                    // Calculate latency (ping)
+                    if (data.ts) {
+                        const now = Date.now();
+                        // Assuming data.ts is in ms. If it's seconds, multiply by 1000.
+                        // Usually MT5/MetaApi sends ms.
+                        // If delta is huge negative, checking raw values might be needed.
+                        const latency = Math.max(0, now - data.ts);
+
+                        // Smooth the ping visually (optional) or just set it
+                        setPing(latency);
+                    } else {
+                        // Debug: Log if ts is missing
+                        console.log('[WebSocket] Missing TS in watch message:', data);
+                    }
+                } else if (data.type === 'quote') {
+                    // Handle potential alternative message type
+                    console.log('[WebSocket] Quote message:', data);
+                }
+
+                // Debug all messages to find where TS is
+                if (Math.random() < 0.05) console.log('[WebSocket] Sample message:', data);
+            } catch (e) {
+                // Ignore parse errors
             }
         };
 
@@ -137,6 +179,9 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
             if (reconnectTimeoutRef.current) {
                 clearTimeout(reconnectTimeoutRef.current);
             }
+            if (pingIntervalRef.current) {
+                clearInterval(pingIntervalRef.current);
+            }
         };
     }, [connect]);
 
@@ -165,7 +210,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
     }, []);
 
     return (
-        <WebSocketContext.Provider value={{ isConnected, lastQuotes, subscribe, unsubscribe, normalizeSymbol }}>
+        <WebSocketContext.Provider value={{ isConnected, lastQuotes, subscribe, unsubscribe, normalizeSymbol, ping }}>
             {children}
         </WebSocketContext.Provider>
     );

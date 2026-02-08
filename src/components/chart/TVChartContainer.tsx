@@ -192,19 +192,15 @@ export const TVChartContainer = () => {
                     'symbol_search_hot_key',
                     'header_compare',
                     'buy_sell_buttons',
-                    'objects_tree_widget', // Hide Object Tree
-                    'trading_notifications', // Disable default trading notifications/toasts
+                    'objects_tree_widget',
+                    'trading_notifications',
                     'trading_account_manager',
                 ],
                 enabled_features: [
                     'study_templates',
                     'order_panel',
-                    // 'trading_account_manager',
-                    // Enable drag/edit of orders and brackets
                     'trading_bracket_orders',
-                    'trading_order_drag',
-                    'trading_position_drag'
-                ], // Ensure standard trading features are on
+                ],
                 charts_storage_url: 'https://saveload.tradingview.com',
                 charts_storage_api_version: '1.1',
                 client_id: 'trading_platform_demo',
@@ -281,6 +277,8 @@ export const TVChartContainer = () => {
                         supportMoveOrderBrackets: true,
                         supportMovePosition: true,
                         supportMovePositionBrackets: true,
+                        supportEditAmount: true,
+                        supportDragToModify: true,
 
                         // Order type flags
                         supportStopLoss: true,
@@ -351,45 +349,7 @@ export const TVChartContainer = () => {
             widgetRef.current = tvWidget;
             window.tvWidget = tvWidget;
 
-            const instrumentDragSupport = () => {
-                const ordersService = (tvWidget as any)?._ordersService;
-                if (!ordersService) return false;
 
-                const originalGetOrderData = ordersService._getOrderData?.bind(ordersService);
-                if (originalGetOrderData) {
-                    ordersService._getOrderData = function (order: any) {
-                        const result = originalGetOrderData(order);
-                        console.groupCollapsed('[drag-debug] _getOrderData', order?.id);
-                        console.debug('order', order);
-                        console.debug('result flags', {
-                            supportMove: result?.supportMove,
-                            supportModify: result?.supportModify,
-                            supportModifyBrackets: result?.supportModifyBrackets,
-                            supportModifyOrderPrice: result?.supportModifyOrderPrice,
-                            supportCancel: result?.supportCancel,
-                        });
-                        console.groupEnd();
-                        return result;
-                    };
-                }
-
-                const originalFlags = ordersService._getSupportFlagsForOrderItem?.bind(ordersService);
-                if (originalFlags) {
-                    ordersService._getSupportFlagsForOrderItem = function (order: any) {
-                        const flags = originalFlags(order);
-                        console.debug('[drag-debug] _getSupportFlagsForOrderItem', order?.id, flags);
-                        return flags;
-                    };
-                }
-
-                return true;
-            };
-
-            const instrumentInterval = setInterval(() => {
-                if (instrumentDragSupport()) {
-                    clearInterval(instrumentInterval);
-                }
-            }, 250);
 
             tvWidget.onChartReady(() => {
                 tvWidget.activeChart().onSymbolChanged().subscribe(null, () => {
