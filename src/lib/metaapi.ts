@@ -771,7 +771,14 @@ export async function modifyPendingOrderDirect({
     try {
         const API_BASE = METAAPI_BASE_URL.endsWith('/api') ? METAAPI_BASE_URL : `${METAAPI_BASE_URL}/api`;
 
-        const orderIdNum = typeof orderId === 'string' ? parseInt(orderId, 10) : orderId;
+        // Parse order ID - handle both string and number, remove "Generated-" prefix if present
+        let orderIdNum: number;
+        if (typeof orderId === 'string') {
+            const cleanedId = orderId.replace('Generated-', '').trim();
+            orderIdNum = parseInt(cleanedId, 10);
+        } else {
+            orderIdNum = orderId;
+        }
         const url = `${API_BASE}/client/order/${orderIdNum}`;
 
         const payload: any = {

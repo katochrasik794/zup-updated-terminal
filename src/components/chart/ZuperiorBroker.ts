@@ -221,22 +221,33 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 					}
 
 					// CRITICAL: Calculate projected P/L at bracket price for correct display
+					// CRITICAL: Calculate projected P/L at bracket price for correct display
 					if (bracket.parentId) {
 						const parentPosition = this._positionById[bracket.parentId];
-						if (parentPosition && parentPosition.avgPrice) {
-							const bracketPrice = (bracket as any).limitPrice || (bracket as any).stopPrice;
-							if (bracketPrice && parentPosition.avgPrice) {
-								// Calculate using FULL volume (multiply qty by 10000)
-								const fullVolume = parentPosition.qty * 10000;
-								const priceDiff = bracketPrice - parentPosition.avgPrice;
-								const plAtBracket = priceDiff * fullVolume * (parentPosition.side === Side.Sell ? -1 : 1);
-								// Multiply by 100 to compensate for TradingView's recalculation
-								(bracket as any).pl = plAtBracket * 100;
+						const parentOrder = this._orderById[bracket.parentId];
+
+						if (parentPosition) {
+							// Ensure parentType is Position
+							bracket.parentType = ParentType.Position;
+
+							if (parentPosition.avgPrice) {
+								const bracketPrice = (bracket as any).limitPrice || (bracket as any).stopPrice;
+								if (bracketPrice) {
+									// Calculate using FULL volume (multiply qty by 10000)
+									const fullVolume = parentPosition.qty * 10000;
+									const priceDiff = bracketPrice - parentPosition.avgPrice;
+									const plAtBracket = priceDiff * fullVolume * (parentPosition.side === Side.Sell ? -1 : 1);
+									// Multiply by 100 to compensate for TradingView's recalculation
+									(bracket as any).pl = plAtBracket * 100;
+								} else if ((parentPosition as any).pl !== undefined && (parentPosition as any).pl !== null) {
+									(bracket as any).pl = (parentPosition as any).pl * 100;
+								}
 							} else if ((parentPosition as any).pl !== undefined && (parentPosition as any).pl !== null) {
 								(bracket as any).pl = (parentPosition as any).pl * 100;
 							}
-						} else if (parentPosition && (parentPosition as any).pl !== undefined && (parentPosition as any).pl !== null) {
-							(bracket as any).pl = (parentPosition as any).pl * 100;
+						} else if (parentOrder) {
+							// For order brackets, no P/L calc needed; ensure parentType is Order
+							bracket.parentType = ParentType.Order;
 						}
 					}
 
@@ -1123,8 +1134,8 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 		}
 	}
 
-	private _notifyBracketCancelled(bracketId: string) {
-		const bracket = this._orderById[bracketId];
+	private _notifyBracketCancelled(bracketId: string, bracketObj?: Order) {
+		const bracket = bracketObj || this._orderById[bracketId];
 		if (this._host && typeof this._host.orderUpdate === 'function') {
 			this._host.orderUpdate({ ...(bracket || { id: bracketId }), status: OrderStatus.Canceled });
 		}
@@ -1467,10 +1478,16 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			return Promise.reject('Order not found');
 		}
 
-		console.log('[ZuperiorBroker] editOrder called:', orderId, modification);
+
 		this._lastActionTime = Date.now();
 
 		const originalState = { ...originalOrder };
+		const tpId = `${orderId}_TP`;
+		const slId = `${orderId}_SL`;
+
+		// capture prior bracket state
+		const existingTP = this._orderById[tpId];
+		const existingSL = this._orderById[slId];
 
 		// Update local order object with new values
 		if (modification.limitPrice !== undefined) originalOrder.limitPrice = modification.limitPrice;
@@ -1478,58 +1495,101 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 		if (modification.takeProfit !== undefined) originalOrder.takeProfit = modification.takeProfit;
 		if (modification.stopLoss !== undefined) originalOrder.stopLoss = modification.stopLoss;
 
-		// Remove old order brackets and regenerate based on new TP/SL
-		const tpId = `${orderId}_TP`;
-		const slId = `${orderId}_SL`;
-		const hadTP = !!this._orderById[tpId];
-		const hadSL = !!this._orderById[slId];
-		delete this._orderById[tpId];
-		delete this._orderById[slId];
-		this._orders = this._orders.filter(o => !(o.id === tpId || o.id === slId));
-
+		// --- Handle TP Bracket ---
 		if (originalOrder.takeProfit && originalOrder.takeProfit > 0) {
-			const tpBracket = this._createOrderTakeProfitBracket(originalOrder);
-			this._orderById[tpBracket.id] = tpBracket;
-			this._orders.push(tpBracket);
-		} else if (hadTP) {
-			this._notifyBracketCancelled(tpId);
-		}
-		if (originalOrder.stopLoss && originalOrder.stopLoss > 0) {
-			const slBracket = this._createOrderStopLossBracket(originalOrder);
-			this._orderById[slBracket.id] = slBracket;
-			this._orders.push(slBracket);
-		} else if (hadSL) {
-			this._notifyBracketCancelled(slId);
+			if (existingTP) {
+				// Update existing (Immutable update for React/TV change detection)
+				const updatedTP = {
+					...existingTP,
+					limitPrice: originalOrder.takeProfit,
+					qty: originalOrder.qty,
+					status: OrderStatus.Working // Force status
+				};
+				this._orderById[tpId] = updatedTP;
+				// Update array reference
+				const tpIndex = this._orders.findIndex(o => o.id === tpId);
+				if (tpIndex !== -1) {
+					this._orders[tpIndex] = updatedTP;
+				}
+				console.log('[ZuperiorBroker] Updated existing TP bracket (immutable):', updatedTP.id, updatedTP.limitPrice);
+			} else {
+				// Create new
+				const tpBracket = this._createOrderTakeProfitBracket(originalOrder);
+				this._orderById[tpBracket.id] = tpBracket;
+				this._orders.push(tpBracket);
+			}
+		} else {
+			// TP removed or was never there
+			if (existingTP) {
+				// Notify cancellation BEFORE deleting
+				this._notifyBracketCancelled(tpId, existingTP);
+				// Remove from maps and array
+				delete this._orderById[tpId];
+				this._orders = this._orders.filter(o => o.id !== tpId);
+			}
 		}
 
-		// Update array reference to trigger React/TV updates
+		// --- Handle SL Bracket ---
+		if (originalOrder.stopLoss && originalOrder.stopLoss > 0) {
+			if (existingSL) {
+				// Update existing (Immutable update)
+				const updatedSL = {
+					...existingSL,
+					stopPrice: originalOrder.stopLoss,
+					qty: originalOrder.qty,
+					status: OrderStatus.Working // Force status
+				};
+				this._orderById[slId] = updatedSL;
+				// Update array reference
+				const slIndex = this._orders.findIndex(o => o.id === slId);
+				if (slIndex !== -1) {
+					this._orders[slIndex] = updatedSL;
+				}
+				console.log('[ZuperiorBroker] Updated existing SL bracket (immutable):', updatedSL.id, updatedSL.stopPrice);
+			} else {
+				// Create new
+				const slBracket = this._createOrderStopLossBracket(originalOrder);
+				this._orderById[slBracket.id] = slBracket;
+				this._orders.push(slBracket);
+			}
+		} else {
+			// SL removed
+			if (existingSL) {
+				// Notify cancellation BEFORE deleting
+				this._notifyBracketCancelled(slId, existingSL);
+				// Remove from maps and array
+				delete this._orderById[slId];
+				this._orders = this._orders.filter(o => o.id !== slId);
+			}
+		}
+
+		// Update array reference for the parent order (trigger React/TV updates)
 		const index = this._orders.findIndex(o => o.id === orderId);
 		if (index !== -1) {
+			// We mutated originalOrder in place, which is inside _orders[index] if it was by reference.
+			// But to be safe and trigger change detection, we shallow copy it back.
 			this._orders[index] = { ...originalOrder };
 			this._orderById[orderId] = this._orders[index];
 		}
 
+		// Notify all updates
 		this._notifyAllPositionsAndOrders();
 
 		try {
+			// Use values from originalOrder which now contains the merged state
 			await modifyPendingOrderDirect({
 				accountId: this._accountId!,
 				accessToken: this._accessToken!,
 				orderId: orderId,
-				price: modification.limitPrice || modification.stopPrice,
-				stopLoss: modification.stopLoss,
-				takeProfit: modification.takeProfit
+				price: originalOrder.limitPrice || originalOrder.stopPrice,
+				stopLoss: originalOrder.stopLoss,
+				takeProfit: originalOrder.takeProfit
 			});
 			// Re-fetch to validate
 			setTimeout(() => this._fetchPositionsAndOrders(true), 400);
 		} catch (e) {
 			console.error('[ZuperiorBroker] Modify order failed', e);
-			// Rollback
-			const orderToRevert = this._orderById[orderId];
-			if (orderToRevert) {
-				Object.assign(orderToRevert, originalState);
-				this._notifyAllPositionsAndOrders();
-			}
+			// Rollback (Simplified: just re-fetch to restore state)
 			this._fetchPositionsAndOrders(true);
 			throw e;
 		}
@@ -1562,6 +1622,36 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			if (modification.stopPrice) orderMod.stopPrice = modification.stopPrice;
 			if (modification.takeProfit) orderMod.takeProfit = modification.takeProfit;
 			if (modification.stopLoss) orderMod.stopLoss = modification.stopLoss;
+
+			// Update parent order properties to match bracket changes
+			// Update parent order properties to match bracket changes
+			const entity = this._orderById[id];
+			// If this entity is a bracket (has parentId), update the parent.
+			// If it's the main order, it's already being updated via editOrder logic, but detailed props need syncing.
+			if (entity && entity.parentId) {
+				const actualParent = this._orderById[entity.parentId];
+				if (actualParent) {
+					if (modification.limitPrice !== undefined) actualParent.takeProfit = modification.limitPrice;
+					if (modification.stopPrice !== undefined) actualParent.stopLoss = modification.stopPrice;
+					if (modification.takeProfit !== undefined) actualParent.takeProfit = modification.takeProfit;
+					if (modification.stopLoss !== undefined) actualParent.stopLoss = modification.stopLoss;
+
+					// Notify parent update immediately
+					if (this._host && typeof this._host.orderUpdate === 'function') {
+
+						this._host.orderUpdate(actualParent);
+					}
+				}
+			} else if (entity) {
+				// It is the parent order itself.
+				// We still want to ensure prop consistency if we are setting new params
+				if (modification.limitPrice !== undefined) entity.takeProfit = modification.limitPrice;
+				if (modification.stopPrice !== undefined) entity.stopLoss = modification.stopPrice;
+				if (modification.takeProfit !== undefined) entity.takeProfit = modification.takeProfit;
+				if (modification.stopLoss !== undefined) entity.stopLoss = modification.stopLoss;
+				// Notification happens in editOrder flow usually, but safe to do here if needed. 
+				// editOrder will usually handle the main notification.
+			}
 
 			return this.editOrder(id, orderMod);
 		}
