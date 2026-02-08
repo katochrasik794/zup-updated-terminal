@@ -323,46 +323,6 @@ export const TVChartContainer = () => {
             widgetRef.current = tvWidget;
             window.tvWidget = tvWidget;
 
-            const instrumentDragSupport = () => {
-                const ordersService = (tvWidget as any)?._ordersService;
-                if (!ordersService) return false;
-
-                const originalGetOrderData = ordersService._getOrderData?.bind(ordersService);
-                if (originalGetOrderData) {
-                    ordersService._getOrderData = function (order: any) {
-                        const result = originalGetOrderData(order);
-                        console.groupCollapsed('[drag-debug] _getOrderData', order?.id);
-                        console.debug('order', order);
-                        console.debug('result flags', {
-                            supportMove: result?.supportMove,
-                            supportModify: result?.supportModify,
-                            supportModifyBrackets: result?.supportModifyBrackets,
-                            supportModifyOrderPrice: result?.supportModifyOrderPrice,
-                            supportCancel: result?.supportCancel,
-                        });
-                        console.groupEnd();
-                        return result;
-                    };
-                }
-
-                const originalFlags = ordersService._getSupportFlagsForOrderItem?.bind(ordersService);
-                if (originalFlags) {
-                    ordersService._getSupportFlagsForOrderItem = function (order: any) {
-                        const flags = originalFlags(order);
-                        console.debug('[drag-debug] _getSupportFlagsForOrderItem', order?.id, flags);
-                        return flags;
-                    };
-                }
-
-                return true;
-            };
-
-            const instrumentInterval = setInterval(() => {
-                if (instrumentDragSupport()) {
-                    clearInterval(instrumentInterval);
-                }
-            }, 250);
-
             tvWidget.onChartReady(() => {
                 tvWidget.activeChart().onSymbolChanged().subscribe(null, () => {
                     const newSymbol = tvWidget.activeChart().symbol();

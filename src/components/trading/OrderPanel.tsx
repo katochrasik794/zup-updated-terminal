@@ -227,12 +227,41 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
 
   // Calculate volume for risk calculator based on Risk and Stop Loss
   const calculateRiskBasedVolume = React.useMemo(() => {
-    if (formType !== "risk-calculator" || !risk || !stopLoss || stopLossMode !== "pips" || riskMode !== "usd") {
+    if (formType !== "risk-calculator" || !risk || !stopLoss) {
       return null
     }
 
-    const riskAmount = parseFloat(risk)
-    const stopLossPips = Math.abs(parseFloat(stopLoss))
+    let riskAmount = parseFloat(risk)
+    // Handle risk in percentage
+    if (riskMode === "percent") {
+      const equity = currentBalance?.equity || 0
+      if (equity <= 0) return null
+      riskAmount = (riskAmount / 100) * equity
+    }
+
+    let stopLossPips = 0
+
+    if (stopLossMode === "pips") {
+      stopLossPips = Math.abs(parseFloat(stopLoss))
+    } else {
+      // stopLossMode === "price"
+      const slPrice = parseFloat(stopLoss)
+      if (isNaN(slPrice) || slPrice <= 0) return null
+
+      let entryPrice = 0
+      if (orderType === "pending" || orderType === "limit") {
+        entryPrice = openPrice ? parseFloat(openPrice) : 0
+      } else {
+        // For market orders, use mid price as estimation
+        entryPrice = (currentBuyPrice + currentSellPrice) / 2
+      }
+
+      if (entryPrice <= 0) return null
+
+      // Use pipSize from hook
+      const pipSize = getPipSize
+      stopLossPips = Math.abs(entryPrice - slPrice) / pipSize
+    }
 
     if (!riskAmount || !stopLossPips || stopLossPips <= 0 || riskAmount <= 0) {
       return null
@@ -243,7 +272,7 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
     const clampedVolume = Math.max(0.01, Math.min(50.00, calculatedVolume))
 
     return clampedVolume
-  }, [formType, risk, stopLoss, stopLossMode, riskMode, getPipValuePerLot])
+  }, [formType, risk, stopLoss, stopLossMode, riskMode, getPipValuePerLot, currentBalance, orderType, openPrice, currentBuyPrice, currentSellPrice, getPipSize])
 
   // Calculate SL and TP prices from pips
   const calculatedStopLossPrice = React.useMemo(() => {
@@ -442,8 +471,17 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
     let finalTakeProfit: number | undefined = undefined
 
     if (formType === "risk-calculator") {
-      finalStopLoss = calculatedStopLossPrice ?? undefined
-      finalTakeProfit = calculatedTakeProfitPrice ?? undefined
+      if (stopLossMode === "price") {
+        finalStopLoss = stopLoss ? parseFloat(stopLoss) : undefined
+      } else {
+        finalStopLoss = calculatedStopLossPrice ?? undefined
+      }
+
+      if (takeProfitMode === "price") {
+        finalTakeProfit = takeProfit ? parseFloat(takeProfit) : undefined
+      } else {
+        finalTakeProfit = calculatedTakeProfitPrice ?? undefined
+      }
     } else {
       // Regular form: convert pips to price if needed
       if (stopLoss) {
@@ -516,13 +554,38 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
                 alert('Please enter an open price for pending orders')
                 return
               }
+
+              // Calculate Sell-specific SL/TP if in Pips mode
+              let sellStopLoss = finalStopLoss
+              let sellTakeProfit = finalTakeProfit
+
+              if (formType === "risk-calculator" && stopLossMode === "pips" && stopLoss) {
+                const pips = parseFloat(stopLoss)
+                if (!isNaN(pips)) {
+                  const pipSize = getPipSize
+                  // For Sell: SL is ABOVE entry (Entry + Pips)
+                  const entry = orderType === 'market' ? currentSellPrice : (finalOpenPrice || 0)
+                  sellStopLoss = entry + (pips * pipSize)
+                }
+              }
+
+              if (formType === "risk-calculator" && takeProfitMode === "pips" && takeProfit) {
+                const pips = parseFloat(takeProfit)
+                if (!isNaN(pips) && pips > 0) {
+                  const pipSize = getPipSize
+                  // For Sell: TP is BELOW entry (Entry - Pips)
+                  const entry = orderType === 'market' ? currentSellPrice : (finalOpenPrice || 0)
+                  sellTakeProfit = entry - (pips * pipSize)
+                }
+              }
+
               const orderData: OrderData = {
                 orderType,
                 pendingOrderType: orderType === "pending" ? pendingOrderType : undefined,
                 volume: finalVolume,
                 openPrice: orderType === 'market' ? currentSellPrice : finalOpenPrice,
-                stopLoss: finalStopLoss,
-                takeProfit: finalTakeProfit,
+                stopLoss: sellStopLoss,
+                takeProfit: sellTakeProfit,
               }
               onSell(orderData)
             }
@@ -559,13 +622,38 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
                 alert('Please enter an open price for pending orders')
                 return
               }
+
+              // Calculate Buy-specific SL/TP if in Pips mode
+              let buyStopLoss = finalStopLoss
+              let buyTakeProfit = finalTakeProfit
+
+              if (formType === "risk-calculator" && stopLossMode === "pips" && stopLoss) {
+                const pips = parseFloat(stopLoss)
+                if (!isNaN(pips)) {
+                  const pipSize = getPipSize
+                  // For Buy: SL is BELOW entry (Entry - Pips)
+                  const entry = orderType === 'market' ? currentBuyPrice : (finalOpenPrice || 0)
+                  buyStopLoss = entry - (pips * pipSize)
+                }
+              }
+
+              if (formType === "risk-calculator" && takeProfitMode === "pips" && takeProfit) {
+                const pips = parseFloat(takeProfit)
+                if (!isNaN(pips) && pips > 0) {
+                  const pipSize = getPipSize
+                  // For Buy: TP is ABOVE entry (Entry + Pips)
+                  const entry = orderType === 'market' ? currentBuyPrice : (finalOpenPrice || 0)
+                  buyTakeProfit = entry + (pips * pipSize)
+                }
+              }
+
               const orderData: OrderData = {
                 orderType,
                 pendingOrderType: orderType === "pending" ? pendingOrderType : undefined,
                 volume: finalVolume,
                 openPrice: orderType === 'market' ? currentBuyPrice : finalOpenPrice,
-                stopLoss: finalStopLoss,
-                takeProfit: finalTakeProfit,
+                stopLoss: buyStopLoss,
+                takeProfit: buyTakeProfit,
               }
               onBuy(orderData)
             }
@@ -1345,9 +1433,14 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
                   placeholder="Not set"
                   className="flex-1 border-0 bg-transparent text-center price-font text-sm h-9 focus-visible:ring-0 focus-visible:ring-offset-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none placeholder:text-white/40"
                 />
-                <div className="flex items-center justify-center px-3 text-xs text-white/60 min-w-[70px] opacity-50">
-                  Pips
-                </div>
+                <select
+                  value={stopLossMode}
+                  onChange={(e) => setStopLossMode(e.target.value as "pips" | "price")}
+                  className="w-[70px] border-0 h-9 bg-transparent text-xs text-white focus:outline-none focus:ring-0 text-center"
+                >
+                  <option value="pips" className="bg-[#1a1f28]">Pips</option>
+                  <option value="price" className="bg-[#1a1f28]">Price</option>
+                </select>
                 <button
                   onClick={() => {
                     const currentValue = parseFloat(stopLoss) || 0
@@ -1367,16 +1460,24 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
                   <Plus className="h-3.5 w-3.5 text-white/60" />
                 </button>
               </div>
-              {calculatedStopLossPrice !== null && (
+              {(calculatedStopLossPrice !== null || (stopLossMode === "price" && stopLoss)) && calculateRiskBasedVolume !== null && (
                 <div className="space-y-0.5">
-                  <div className="text-xs text-white/60 text-center">
-                    {calculatedStopLossPrice.toFixed(2)}
-                  </div>
-                  {stopLoss && calculateRiskBasedVolume !== null && (
-                    <div className="text-xs text-red-400/80 text-center font-medium">
-                      {((Math.abs(parseFloat(stopLoss)) || 0) * getPipValuePerLot * calculateRiskBasedVolume).toFixed(2)} USD loss
+                  {stopLossMode === "pips" && stopLoss && !isNaN(parseFloat(stopLoss)) && (
+                    <div className="text-xs text-white/60 text-center flex justify-center gap-3">
+                      <span>B: {(currentBuyPrice - parseFloat(stopLoss) * getPipSize).toFixed(2)}</span>
+                      <span>S: {(currentSellPrice + parseFloat(stopLoss) * getPipSize).toFixed(2)}</span>
                     </div>
                   )}
+                  <div className="text-xs text-red-400/80 text-center font-medium">
+                    {(() => {
+                      let riskVal = parseFloat(risk) || 0;
+                      if (riskMode === "percent") {
+                        const equity = currentBalance?.equity || 0;
+                        riskVal = (riskVal / 100) * equity;
+                      }
+                      return riskVal.toFixed(2) + " USD loss";
+                    })()}
+                  </div>
                 </div>
               )}
             </div>
@@ -1396,9 +1497,14 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
                   placeholder="Not set"
                   className="flex-1 border-0 bg-transparent text-center price-font text-sm h-9 focus-visible:ring-0 focus-visible:ring-offset-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none placeholder:text-white/40"
                 />
-                <div className="flex items-center justify-center px-3 text-xs text-white/60 min-w-[70px] opacity-50">
-                  Pips
-                </div>
+                <select
+                  value={takeProfitMode}
+                  onChange={(e) => setTakeProfitMode(e.target.value as "pips" | "price")}
+                  className="w-[70px] border-0 h-9 bg-transparent text-xs text-white focus:outline-none focus:ring-0 text-center"
+                >
+                  <option value="pips" className="bg-[#1a1f28]">Pips</option>
+                  <option value="price" className="bg-[#1a1f28]">Price</option>
+                </select>
                 <button
                   onClick={() => {
                     const currentValue = parseFloat(takeProfit) || 0
@@ -1418,16 +1524,38 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
                   <Plus className="h-3.5 w-3.5 text-white/60" />
                 </button>
               </div>
-              {calculatedTakeProfitPrice !== null && (
+              {(calculatedTakeProfitPrice !== null || (takeProfitMode === "price" && takeProfit)) && calculateRiskBasedVolume !== null && (
                 <div className="space-y-0.5">
-                  <div className="text-xs text-white/60 text-center">
-                    {calculatedTakeProfitPrice.toFixed(2)}
-                  </div>
-                  {takeProfit && calculateRiskBasedVolume !== null && (
-                    <div className="text-xs text-green-400/80 text-center font-medium">
-                      {((parseFloat(takeProfit) || 0) * getPipValuePerLot * calculateRiskBasedVolume).toFixed(2)} USD profit
+                  {takeProfitMode === "pips" && calculatedTakeProfitPrice !== null && (
+                    <div className="text-xs text-white/60 text-center">
+                      {calculatedTakeProfitPrice.toFixed(2)}
                     </div>
                   )}
+                  <div className="text-xs text-green-400/80 text-center font-medium">
+                    {(() => {
+                      let pips = 0;
+                      if (takeProfitMode === "pips") {
+                        pips = parseFloat(takeProfit);
+                      } else {
+                        // Price mode
+                        const tpPrice = parseFloat(takeProfit);
+                        if (!isNaN(tpPrice)) {
+                          let entryPrice = 0;
+                          if (orderType === "pending" || orderType === "limit") {
+                            entryPrice = openPrice ? parseFloat(openPrice) : 0;
+                          } else {
+                            entryPrice = (currentBuyPrice + currentSellPrice) / 2;
+                          }
+                          if (entryPrice > 0) {
+                            const pipSize = getPipSize;
+                            pips = Math.abs(tpPrice - entryPrice) / pipSize;
+                          }
+                        }
+                      }
+                      const profit = pips * getPipValuePerLot * calculateRiskBasedVolume;
+                      return profit.toFixed(2) + " USD profit";
+                    })()}
+                  </div>
                 </div>
               )}
             </div>
