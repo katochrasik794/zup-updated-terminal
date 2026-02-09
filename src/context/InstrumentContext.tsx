@@ -12,6 +12,7 @@ export interface Instrument {
     description: string
     category: string
     group: string
+    digits?: number
     bid?: string
     ask?: string
     change?: string

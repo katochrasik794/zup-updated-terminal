@@ -357,18 +357,25 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
   // Get pip size based on symbol type
   const getPipSize = React.useMemo(() => {
     const symbolUpper = (symbol || '').toUpperCase()
+    const cat = (instrument?.category || '').toLowerCase()
+
     if (symbolUpper.includes('JPY')) {
       return 0.01
-    } else if (symbolUpper.includes('BTC') || symbolUpper.includes('BTCUSD')) {
-      return 0.10
-    } else if (symbolUpper.includes('ETH') || symbolUpper.includes('ETHUSD')) {
-      return 0.01
-    } else if (symbolUpper.includes('XAU') || symbolUpper.includes('XAG')) {
-      return 0.01
+    } else if (cat.includes('crypto') || symbolUpper.includes('BTC') || symbolUpper.includes('ETH')) {
+      return 1.00 // 1 point = 1 dollar
+    } else if (cat.includes('index') || cat.includes('indice') || symbolUpper.includes('US30') || symbolUpper.includes('SPX') || symbolUpper.includes('NAS')) {
+      return 1.00 // 1 point = 1 unit (4500 -> 4520 is 20 points)
+    } else if (cat.includes('metal') || symbolUpper.includes('XAU') || symbolUpper.includes('XAG')) {
+      return 1.00 // 1 point = 1 dollar (2500 -> 2520 is 20 points)
     } else {
-      return 0.0001
+      return 0.0001 // Forex default (0.0001 = 1 pip)
     }
-  }, [symbol])
+  }, [symbol, instrument])
+
+  // Get default TP/SL offsets in "points/pips" (20 for all instruments as requested)
+  const getDefaultOffsets = React.useMemo(() => {
+    return { tp: 20, sl: 20 }
+  }, [])
 
   // Get pip value per lot based on symbol type
   const getPipValuePerLot = React.useMemo(() => {
@@ -400,13 +407,21 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
     }
   }, [getPipSize, currentBuyPrice, currentSellPrice])
 
-  // Auto-set TP/SL to 1000 pips upon preview start
+  // Auto-set TP/SL upon preview start OR symbol change
+  const lastProcessedSymbol = React.useRef(symbol)
+
   React.useEffect(() => {
+    // If pendingOrderSide is active, we should show lines
     if (pendingOrderSide) {
-      // 1000 pips default
-      const defaultPips = 1000
+      const offsets = getDefaultOffsets
       const pipSize = getPipSize
-      const defaultDist = defaultPips * pipSize
+
+      // Calculate distances: 
+      // For Forex (pipSize 0.0001), 20 * 0.0001 = 0.0020
+      // For Crypto (pipSize 1.00), 1000 * 1.00 = 1000
+      // For Metals/Indices (pipSize 1.00 or 0.01), 20 units
+      const tpDist = offsets.tp * pipSize
+      const slDist = offsets.sl * pipSize
 
       let basePrice = 0
       if (orderType === 'market') {
@@ -415,23 +430,29 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
         basePrice = parseFloat(openPrice) || 0
       }
 
+      const isSymbolChanged = lastProcessedSymbol.current !== symbol
+      if (isSymbolChanged) {
+        lastProcessedSymbol.current = symbol
+      }
+
       if (basePrice > 0) {
-        // Set TP if missing
-        if (!takeProfit) {
-          const tp = pendingOrderSide === 'buy' ? basePrice + defaultDist : basePrice - defaultDist
-          setTakeProfit(tp.toFixed(5).replace(/\.?0+$/, ""))
+        // Set TP/SL if missing OR if symbol just changed
+        if (!takeProfit || isSymbolChanged) {
+          const tp = pendingOrderSide === 'buy' ? basePrice + tpDist : basePrice - tpDist
+          setTakeProfit(tp.toFixed(instrument?.digits || 2).replace(/\.?0+$/, ""))
           setTakeProfitMode("price")
         }
-        // Set SL if missing
-        if (!stopLoss) {
-          const sl = pendingOrderSide === 'buy' ? basePrice - defaultDist : basePrice + defaultDist
-          setStopLoss(sl.toFixed(5).replace(/\.?0+$/, ""))
+        if (!stopLoss || isSymbolChanged) {
+          const sl = pendingOrderSide === 'buy' ? basePrice - slDist : basePrice + slDist
+          setStopLoss(sl.toFixed(instrument?.digits || 2).replace(/\.?0+$/, ""))
           setStopLossMode("price")
         }
       }
+    } else {
+      // If side is cleared (e.g. symbol changed but side not set), we can still prep values if we want
+      // but usually wait for side selection ('buy'/'sell')
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pendingOrderSide])
+  }, [pendingOrderSide, symbol, currentBuyPrice, currentSellPrice, orderType, openPrice, getDefaultOffsets, getPipSize, instrument])
 
   // Calculate volume for risk calculator based on Risk and Stop Loss
   const calculateRiskBasedVolume = React.useMemo(() => {
