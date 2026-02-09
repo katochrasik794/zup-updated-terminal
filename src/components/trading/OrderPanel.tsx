@@ -101,6 +101,8 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
   const [pendingFormType, setPendingFormType] = React.useState<FormType | null>(null)
   const [pendingOrderSide, setPendingOrderSide] = React.useState<'buy' | 'sell' | null>(null)
   const [isLoading, setIsLoading] = React.useState(false)
+  const isSyncingFromChart = React.useRef(false)
+  const lastPreviewData = React.useRef<string | null>(null)
 
   // Check if user has dismissed the one-click modal
   const shouldShowOneClickModal = React.useCallback(() => {
@@ -140,6 +142,50 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
     }
     setShowOneClickModal(false)
   }, [pendingFormType])
+
+  // Sync TP/SL from chart preview
+  React.useEffect(() => {
+    const handlePreviewChange = (e: any) => {
+      const { takeProfit: tp, stopLoss: sl, price, source } = e.detail || {}
+
+      // Prevent loops: Ignore if we triggered this ourselves
+      if (source === 'panel') return;
+
+      console.log('[OrderPanel] Syncing from preview event (source: chart):', e.detail)
+
+      isSyncingFromChart.current = true
+      try {
+        if (tp !== undefined) {
+          setTakeProfit(tp > 0 ? tp.toFixed(5).replace(/\.?0+$/, "") : "")
+          setTakeProfitMode("price")
+        }
+        if (sl !== undefined) {
+          setStopLoss(sl > 0 ? sl.toFixed(5).replace(/\.?0+$/, "") : "")
+          setStopLossMode("price")
+        }
+        if (price !== undefined) {
+          setOpenPrice(price.toFixed(5).replace(/\.?0+$/, ""))
+          // If the entry price line was dragged, the user is effectively placing a pending order
+          if (orderType === 'market') {
+            setOrderType('pending');
+            setPendingOrderType('limit');
+          }
+        }
+      } finally {
+        // Use timeout to let state setters settle before allowing next effect to call broker
+        setTimeout(() => {
+          isSyncingFromChart.current = false
+        }, 50)
+      }
+    }
+
+    if (typeof window !== 'undefined') {
+      (window as any).addEventListener('__ON_ORDER_PREVIEW_CHANGE__', handlePreviewChange)
+      return () => {
+        (window as any).removeEventListener('__ON_ORDER_PREVIEW_CHANGE__', handlePreviewChange)
+      }
+    }
+  }, [])
 
   // Handle one-click modal cancel
   const handleOneClickModalCancel = React.useCallback(() => {
@@ -183,8 +229,14 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
   React.useEffect(() => {
     if (typeof window === 'undefined' || !(window as any).__SET_ORDER_PREVIEW__) return
 
+    // If we just got an update FROM the chart, don't send it back to the chart
+    if (isSyncingFromChart.current) return;
+
     if (!pendingOrderSide) {
-      (window as any).__SET_ORDER_PREVIEW__({ side: null })
+      if (lastPreviewData.current !== 'null') {
+        (window as any).__SET_ORDER_PREVIEW__({ side: null })
+        lastPreviewData.current = 'null'
+      }
       return
     }
 
@@ -201,15 +253,60 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
       }
     }
 
-    (window as any).__SET_ORDER_PREVIEW__({
+    const tpVal = parseFloat(takeProfit)
+    const slVal = parseFloat(stopLoss)
+    let tpPrice: number | undefined
+    let slPrice: number | undefined
+
+    if (!isNaN(tpVal) && tpVal > 0) {
+      if (takeProfitMode === 'price') {
+        tpPrice = tpVal
+      } else {
+        // Pips mode (pipSize * value)
+        const pipSize = getPipSize
+        const offset = tpVal * pipSize
+        tpPrice = pendingOrderSide === 'buy' ? previewPrice + offset : previewPrice - offset
+      }
+    }
+
+    if (!isNaN(slVal) && slVal > 0) {
+      if (stopLossMode === 'price') {
+        slPrice = slVal
+      } else {
+        const pipSize = getPipSize
+        const offset = slVal * pipSize
+        slPrice = pendingOrderSide === 'buy' ? previewPrice - offset : previewPrice + offset
+      }
+    }
+
+    // Directional validation (User request: TP must be below for Sell, above for Buy)
+    if (tpPrice !== undefined) {
+      const isValid = pendingOrderSide === 'buy' ? tpPrice > previewPrice : tpPrice < previewPrice
+      if (!isValid) tpPrice = undefined
+    }
+    if (slPrice !== undefined) {
+      const isValid = pendingOrderSide === 'buy' ? slPrice < previewPrice : slPrice > previewPrice
+      if (!isValid) slPrice = undefined
+    }
+
+    const previewPayload = {
       symbol: symbol,
       side: pendingOrderSide,
       qty: parseFloat(volume) || 0.01,
       price: previewPrice,
       type: orderType === 'market' ? 'limit' : pendingOrderType,
+      takeProfit: tpPrice || 0,
+      stopLoss: slPrice || 0,
       text: " "
-    })
-  }, [pendingOrderSide, orderType, openPrice, volume, currentBuyPrice, currentSellPrice, symbol, pendingOrderType])
+    }
+
+    // Dirty check: Only update if anything meaningful changed to avoid chart flicker
+    const payloadStr = JSON.stringify(previewPayload)
+    if (lastPreviewData.current === payloadStr) return
+    lastPreviewData.current = payloadStr;
+
+    (window as any).__SET_ORDER_PREVIEW__(previewPayload)
+  }, [pendingOrderSide, orderType, openPrice, volume, currentBuyPrice, currentSellPrice, symbol, pendingOrderType, takeProfit, stopLoss, takeProfitMode, stopLossMode])
 
   // Get pip size based on symbol type
   const getPipSize = React.useMemo(() => {

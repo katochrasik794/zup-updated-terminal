@@ -310,6 +310,10 @@ export const TVChartContainer = () => {
                     customUI: {
                         showOrderDialog: (order: any) => {
                             console.log('[TVChartContainer] showOrderDialog called:', order);
+                            // Bypass modal for preview order
+                            if (order.id === 'PREVIEW_ORDER_ID') {
+                                return Promise.resolve(true);
+                            }
                             // If order has an ID, it is an existing order being modified -> Use our modal
                             if (order.id) {
                                 return openModifyPositionModal(order);
@@ -364,6 +368,30 @@ export const TVChartContainer = () => {
 
                 if (brokerRef.current && typeof brokerRef.current.setWidgetReady === 'function') {
                     brokerRef.current.setWidgetReady(true);
+                }
+
+                // Subscribe to real-time dragging for preview sync
+                const chart = tvWidget.activeChart();
+
+                // onOrderMove fires when the user release or modifies the line
+                // We use a try-catch for robustness across different library builds
+                try {
+                    if (typeof (chart as any).onOrderMove === 'function') {
+                        (chart as any).onOrderMove().subscribe(null, (order: any) => {
+                            if (!order) return;
+                            if (brokerRef.current && order.id.toString().includes('PREVIEW_ORDER_ID')) {
+                                brokerRef.current.moveOrder(order.id, order.price);
+                            }
+                        });
+                    }
+
+                    if (typeof (chart as any).onPositionDrag === 'function') {
+                        (chart as any).onPositionDrag().subscribe(null, (pos: any) => {
+                            // Logic for position drag if needed
+                        });
+                    }
+                } catch (e) {
+                    console.error('[TVChartContainer] Error subscribing to chart events:', e);
                 }
             });
         };

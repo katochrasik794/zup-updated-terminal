@@ -1557,7 +1557,6 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 		console.log('[ZuperiorBroker] editOrder called:', orderId, modification);
 
 		// SKIP API FOR PREVIEW
-ttconsole.log("[ZuperiorBroker] editOrder: Checking if preview order:", orderId, "===", PREVIEW_ORDER_ID, "?", orderId === PREVIEW_ORDER_ID);
 		if (orderId === PREVIEW_ORDER_ID) {
 			console.log('[ZuperiorBroker] editOrder: Skipping API for preview order');
 
@@ -1630,7 +1629,6 @@ ttconsole.log("[ZuperiorBroker] editOrder: Checking if preview order:", orderId,
 			this._notifyAllPositionsAndOrders();
 
 			// Emit event for OrderPanel sync
-tttconsole.log("[ZuperiorBroker] editOrder: About to emit __ON_ORDER_PREVIEW_CHANGE__ event", {tp: originalOrder.takeProfit, sl: originalOrder.stopLoss});
 			if (typeof window !== 'undefined') {
 				(window as any).dispatchEvent(new CustomEvent('__ON_ORDER_PREVIEW_CHANGE__', {
 					detail: {

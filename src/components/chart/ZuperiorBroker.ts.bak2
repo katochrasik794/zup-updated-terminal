@@ -1557,7 +1557,6 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 		console.log('[ZuperiorBroker] editOrder called:', orderId, modification);
 
 		// SKIP API FOR PREVIEW
-ttconsole.log("[ZuperiorBroker] editOrder: Checking if preview order:", orderId, "===", PREVIEW_ORDER_ID, "?", orderId === PREVIEW_ORDER_ID);
 		if (orderId === PREVIEW_ORDER_ID) {
 			console.log('[ZuperiorBroker] editOrder: Skipping API for preview order');
 
