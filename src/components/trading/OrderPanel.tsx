@@ -46,7 +46,11 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
   const [marketClosedToast, setMarketClosedToast] = React.useState<string | null>(null)
 
   // Get real-time prices from WebSocket
-  const hubSymbol = React.useMemo(() => (symbol || 'BTCUSD').replace('/', ''), [symbol])
+  const hubSymbol = React.useMemo(() => {
+    const s = (symbol || 'BTCUSD').replace('/', '');
+    // Convert trailing uppercase M or R to lowercase to match instrument feed
+    return s.replace(/M$/, 'm').replace(/R$/, 'r');
+  }, [symbol])
 
   React.useEffect(() => {
     if (hubSymbol) {

@@ -911,6 +911,9 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 		// Pause polling
 		this._lastActionTime = Date.now();
 
+		// Normalize symbol: convert trailing M/R to m/r
+		const symbol = preOrder.symbol.replace(/M$/, 'm').replace(/R$/, 'r');
+
 		const side = preOrder.side === 1 ? 'buy' : 'sell';
 		const volume = preOrder.qty; // already in lots? Standard TV sends what we configured (qty)
 
@@ -919,7 +922,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 				await placeMarketOrderDirect({
 					accountId: this._accountId,
 					accessToken: this._accessToken,
-					symbol: preOrder.symbol,
+					symbol: symbol,
 					side: side,
 					volume: volume,
 					stopLoss: preOrder.stopLoss,
@@ -933,7 +936,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 				await placePendingOrderDirect({
 					accountId: this._accountId,
 					accessToken: this._accessToken,
-					symbol: preOrder.symbol,
+					symbol: symbol,
 					side: side,
 					volume: volume,
 					price: price,

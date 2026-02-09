@@ -431,6 +431,13 @@ export default function TradingTerminal() {
     }
   }
 
+  // Helper function to normalize symbol suffixes (convert uppercase M or R to lowercase)
+  const normalizeSymbolForOrder = useCallback((symbol: string): string => {
+    if (!symbol) return symbol;
+    // Convert trailing uppercase M or R to lowercase to match instrument feed
+    return symbol.replace(/M$/, 'm').replace(/R$/, 'r');
+  }, []);
+
   // Helper function to calculate required margin (matching zuperior-terminal)
   const calculateRequiredMargin = useCallback((volume: number, price: number, symbol: string, leverage: number): number => {
     const symbolUpper = symbol.toUpperCase();
@@ -604,7 +611,7 @@ export default function TradingTerminal() {
     }
 
     try {
-      const chosenSymbol = symbol || 'BTCUSD';
+      const chosenSymbol = normalizeSymbolForOrder(symbol || 'BTCUSD');
 
       if (orderData.orderType === 'market') {
         // Get MetaAPI access token
@@ -668,7 +675,7 @@ export default function TradingTerminal() {
           throw new Error('Failed to get MetaAPI access token');
         }
 
-        // Place pending order directly
+        // Place pending order directly (symbol already normalized above)
         const response = await placePendingOrderDirect({
           accountId: currentAccountId,
           accessToken: accessToken,
@@ -873,7 +880,7 @@ export default function TradingTerminal() {
     }
 
     try {
-      const chosenSymbol = symbol || 'BTCUSD';
+      const chosenSymbol = normalizeSymbolForOrder(symbol || 'BTCUSD');
 
       if (orderData.orderType === 'market') {
         // Get MetaAPI access token
@@ -938,7 +945,7 @@ export default function TradingTerminal() {
           throw new Error('Failed to get MetaAPI access token');
         }
 
-        // Place pending order directly
+        // Place pending order directly (symbol already normalized above)
         const response = await placePendingOrderDirect({
           accountId: currentAccountId,
           accessToken: accessToken,
