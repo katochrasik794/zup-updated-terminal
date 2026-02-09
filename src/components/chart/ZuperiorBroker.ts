@@ -104,6 +104,8 @@ function safeHostCall(host: any, method: string, ...args: any[]): any {
 	return undefined;
 }
 
+const PREVIEW_ORDER_ID = 'PREVIEW_ORDER_ID';
+
 export class ZuperiorBroker extends AbstractBrokerMinimal {
 	private _accountId: string | null;
 	private _positions: Position[] = [];
@@ -466,6 +468,12 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			...orderBracketOrders
 		];
 
+		// Keep preview order if it exists in internal state
+		const previewOrder = this._orderById[PREVIEW_ORDER_ID];
+		if (previewOrder) {
+			allOrders.push(previewOrder);
+		}
+
 		// Build clean positions map
 		const cleanPositions: Position[] = [];
 		const positionMap: SimpleMap<Position> = {};
@@ -522,6 +530,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			if (cleanPositions.length > 0) {
 				cleanPositions.forEach(cleanPosition => {
 					try {
+						// For positions, we usually notify more frequently for P/L updates
 						if (this._host && typeof this._host.positionUpdate === 'function') {
 							this._host.positionUpdate(cleanPosition);
 						}
@@ -534,39 +543,53 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 				});
 			}
 
-			// Step 2: Send bracket orders via orderUpdate()
+			// Step 2: Send bracket orders via orderUpdate() ONLY IF CHANGED
 			const allBracketOrders = [...bracketOrders, ...orderBracketOrders];
 			if (Array.isArray(allBracketOrders) && allBracketOrders.length > 0) {
 				allBracketOrders.forEach(bracket => {
 					try {
 						if (bracket && this._host && typeof this._host.orderUpdate === 'function') {
-							if (bracket.parentType === undefined) {
-								bracket.parentType = ParentType.Position;
-							}
+							// Determine if we should notify
+							const prevBracket = prevOrderMap[bracket.id];
+							let shouldNotify = !prevBracket;
 
-							// CRITICAL: Calculate projected P/L at bracket price
-							if (bracket.parentId) {
-								const parentPosition = this._positionById[bracket.parentId];
-								const parentOrder = this._orderById[bracket.parentId];
-
-								// Use position if parent is a position, otherwise order price as reference
-								if (parentPosition && parentPosition.avgPrice) {
-									const bracketPrice = (bracket as any).limitPrice || (bracket as any).stopPrice;
-									if (bracketPrice && parentPosition.avgPrice) {
-										const fullVolume = parentPosition.qty * 10000;
-										const priceDiff = bracketPrice - parentPosition.avgPrice;
-										const plAtBracket = priceDiff * fullVolume * (parentPosition.side === Side.Sell ? -1 : 1);
-										(bracket as any).pl = plAtBracket * 100;
-									} else if ((parentPosition as any).pl !== undefined && (parentPosition as any).pl !== null) {
-										(bracket as any).pl = (parentPosition as any).pl * 100;
-									}
-								} else if (parentOrder) {
-									// For order brackets, no P/L calc needed; ensure parentType is Order
-									bracket.parentType = ParentType.Order;
+							if (prevBracket) {
+								const newPrice = (bracket as any).limitPrice || (bracket as any).stopPrice;
+								const oldPrice = (prevBracket as any).limitPrice || (prevBracket as any).stopPrice;
+								if (newPrice !== oldPrice || bracket.qty !== prevBracket.qty || bracket.status !== prevBracket.status) {
+									shouldNotify = true;
 								}
 							}
 
-							this._host.orderUpdate(bracket);
+							if (shouldNotify) {
+								if (bracket.parentType === undefined) {
+									bracket.parentType = ParentType.Position;
+								}
+
+								// CRITICAL: Calculate projected P/L at bracket price
+								if (bracket.parentId) {
+									const parentPosition = this._positionById[bracket.parentId];
+									const parentOrder = this._orderById[bracket.parentId];
+
+									// Use position if parent is a position, otherwise order price as reference
+									if (parentPosition && parentPosition.avgPrice) {
+										const bracketPrice = (bracket as any).limitPrice || (bracket as any).stopPrice;
+										if (bracketPrice && parentPosition.avgPrice) {
+											const fullVolume = parentPosition.qty * 10000;
+											const priceDiff = bracketPrice - parentPosition.avgPrice;
+											const plAtBracket = priceDiff * fullVolume * (parentPosition.side === Side.Sell ? -1 : 1);
+											(bracket as any).pl = plAtBracket * 100;
+										} else if ((parentPosition as any).pl !== undefined && (parentPosition as any).pl !== null) {
+											(bracket as any).pl = (parentPosition as any).pl * 100;
+										}
+									} else if (parentOrder) {
+										// For order brackets, no P/L calc needed; ensure parentType is Order
+										bracket.parentType = ParentType.Order;
+									}
+								}
+
+								this._host.orderUpdate(bracket);
+							}
 						}
 					} catch (error) {
 						console.error('[ZuperiorBroker] Error updating bracket order:', error, bracket);
@@ -574,12 +597,23 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 				});
 			}
 
-			// Step 3: Update pending orders
+			// Step 3: Update pending orders ONLY IF CHANGED
 			if (Array.isArray(tvOrders)) {
 				tvOrders.forEach(o => {
 					try {
 						if (o && this._host && typeof this._host.orderUpdate === 'function') {
-							this._host.orderUpdate(o);
+							const prevOrder = prevOrderMap[o.id];
+							let shouldNotify = !prevOrder;
+
+							if (prevOrder) {
+								if (o.limitPrice !== prevOrder.limitPrice || o.stopPrice !== prevOrder.stopPrice || o.qty !== prevOrder.qty || o.status !== prevOrder.status) {
+									shouldNotify = true;
+								}
+							}
+
+							if (shouldNotify) {
+								this._host.orderUpdate(o);
+							}
 						}
 					} catch (error) {
 						console.error('[ZuperiorBroker] Error updating order:', error, o);
@@ -926,7 +960,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			if (isSL && order.stopPrice !== undefined) mod.stopLoss = order.stopPrice;
 
 			console.log('[ZuperiorBroker] Bracket drag complete, persisting:', order.parentId, mod);
-			
+
 			if (order.parentType === ParentType.Position) {
 				return this.editPositionBrackets(order.parentId, mod);
 			} else {
@@ -1093,44 +1127,92 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			this._positionById[positionId] = this._positions[index];
 		}
 
-		// CRITICAL: Remove old brackets from _orderById (and notify cancellations)
+		// CRITICAL: Update existing brackets in-place if possible, or create new ones
 		const tpId = `${positionId}_TP`;
 		const slId = `${positionId}_SL`;
-		const hadTP = !!this._orderById[tpId];
-		const hadSL = !!this._orderById[slId];
-		delete this._orderById[tpId];
-		delete this._orderById[slId];
+		const existingTP = this._orderById[tpId];
+		const existingSL = this._orderById[slId];
 
 		// Regenerate brackets with new values
 		const newPos = this._positionById[positionId];
 
-		// Remove old bracket entries from _orders as well
-		this._orders = this._orders.filter(o => !(o.id === `${positionId}_TP` || o.id === `${positionId}_SL`));
-
+		// --- Handle TP Bracket ---
 		if (newPos.takeProfit && newPos.takeProfit > 0) {
-			try {
-				const tpBracket = this._createTakeProfitBracket(newPos);
-				this._orderById[tpBracket.id] = tpBracket;
-				this._orders.push(tpBracket);
-				console.log('[ZuperiorBroker] Regenerated TP Bracket:', tpBracket);
-			} catch (e) {
-				console.error('[ZuperiorBroker] Error recreating TP bracket', e);
+			if (existingTP) {
+				// Update existing TP bracket (Immutable update)
+				const updatedTP = {
+					...existingTP,
+					limitPrice: newPos.takeProfit,
+					qty: newPos.qty, // Update qty in case position size changed
+					status: OrderStatus.Working
+				};
+				this._orderById[tpId] = updatedTP;
+				// Update array reference
+				const tpIndex = this._orders.findIndex(o => o.id === tpId);
+				if (tpIndex !== -1) {
+					this._orders[tpIndex] = updatedTP;
+				} else {
+					// Should be in array if in map, but safe fallback
+					this._orders.push(updatedTP);
+				}
+				console.log('[ZuperiorBroker] Updated existing Position TP Bracket:', updatedTP.id, updatedTP.limitPrice);
+			} else {
+				// Create new TP bracket
+				try {
+					const tpBracket = this._createTakeProfitBracket(newPos);
+					this._orderById[tpBracket.id] = tpBracket;
+					this._orders.push(tpBracket);
+					console.log('[ZuperiorBroker] Created new Position TP Bracket:', tpBracket);
+				} catch (e) {
+					console.error('[ZuperiorBroker] Error creating TP bracket', e);
+				}
 			}
-		} else if (hadTP) {
-			this._notifyBracketCancelled(tpId);
+		} else {
+			// TP removed
+			if (existingTP) {
+				this._notifyBracketCancelled(tpId, existingTP);
+				delete this._orderById[tpId];
+				this._orders = this._orders.filter(o => o.id !== tpId);
+			}
 		}
 
+		// --- Handle SL Bracket ---
 		if (newPos.stopLoss && newPos.stopLoss > 0) {
-			try {
-				const slBracket = this._createStopLossBracket(newPos);
-				this._orderById[slBracket.id] = slBracket;
-				this._orders.push(slBracket);
-				console.log('[ZuperiorBroker] Regenerated SL Bracket:', slBracket);
-			} catch (e) {
-				console.error('[ZuperiorBroker] Error recreating SL bracket', e);
+			if (existingSL) {
+				// Update existing SL bracket (Immutable update)
+				const updatedSL = {
+					...existingSL,
+					stopPrice: newPos.stopLoss,
+					qty: newPos.qty,
+					status: OrderStatus.Working
+				};
+				this._orderById[slId] = updatedSL;
+				// Update array reference
+				const slIndex = this._orders.findIndex(o => o.id === slId);
+				if (slIndex !== -1) {
+					this._orders[slIndex] = updatedSL;
+				} else {
+					this._orders.push(updatedSL);
+				}
+				console.log('[ZuperiorBroker] Updated existing Position SL Bracket:', updatedSL.id, updatedSL.stopPrice);
+			} else {
+				// Create new SL bracket
+				try {
+					const slBracket = this._createStopLossBracket(newPos);
+					this._orderById[slBracket.id] = slBracket;
+					this._orders.push(slBracket);
+					console.log('[ZuperiorBroker] Created new Position SL Bracket:', slBracket);
+				} catch (e) {
+					console.error('[ZuperiorBroker] Error creating SL bracket', e);
+				}
 			}
-		} else if (hadSL) {
-			this._notifyBracketCancelled(slId);
+		} else {
+			// SL removed
+			if (existingSL) {
+				this._notifyBracketCancelled(slId, existingSL);
+				delete this._orderById[slId];
+				this._orders = this._orders.filter(o => o.id !== slId);
+			}
 		}
 
 		// 3. Notify Chart IMMEDIATELY
@@ -1640,6 +1722,55 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 		return this.editPositionBrackets(positionId, brackets);
 	}
 
-	// Alias for modifyOrder which might be called by the library
+	public setOrderPreview(previewData: { symbol?: string, side?: 'buy' | 'sell' | null, qty?: number, price?: number, type?: 'market' | 'limit' | 'stop' }): void {
+		if (!this._host || typeof this._host.orderUpdate !== 'function') return;
 
+		if (!previewData.side) {
+			// Cancel preview
+			const existing = this._orderById[PREVIEW_ORDER_ID];
+			if (existing) {
+				const canceledPreview = {
+					...existing,
+					status: OrderStatus.Canceled,
+				};
+				console.log('[ZuperiorBroker] Canceling order preview');
+				this._host.orderUpdate(canceledPreview);
+				delete this._orderById[PREVIEW_ORDER_ID];
+
+				// Also remove from _orders array to keep internal state consistent
+				this._orders = this._orders.filter(o => o.id !== PREVIEW_ORDER_ID);
+			}
+			return;
+		}
+
+		// Create or update preview order
+		const side = previewData.side === 'buy' ? Side.Buy : Side.Sell;
+		const qty = previewData.qty || 1;
+		const price = previewData.price || 0;
+		const symbol = previewData.symbol || 'XAUUSD';
+
+		const previewOrder: Order = {
+			id: PREVIEW_ORDER_ID,
+			symbol: symbol,
+			side: side,
+			qty: qty,
+			status: OrderStatus.Working,
+			type: previewData.type === 'stop' ? OrderType.Stop : (previewData.type === 'limit' ? OrderType.Limit : OrderType.Limit),
+			limitPrice: price,
+			stopPrice: previewData.type === 'stop' ? price : undefined,
+		};
+
+		console.log('[ZuperiorBroker] Setting order preview:', previewOrder);
+		this._orderById[PREVIEW_ORDER_ID] = previewOrder;
+
+		// Update _orders array as well so orders() returns it
+		const existingIndex = this._orders.findIndex(o => o.id === PREVIEW_ORDER_ID);
+		if (existingIndex >= 0) {
+			this._orders[existingIndex] = previewOrder;
+		} else {
+			this._orders.push(previewOrder);
+		}
+
+		this._host.orderUpdate(previewOrder);
+	}
 }

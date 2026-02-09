@@ -58,6 +58,11 @@ export const TVChartContainer = () => {
     useEffect(() => {
         if (typeof window !== 'undefined') {
             (window as any).__OPEN_MODIFY_POSITION_MODAL__ = openModifyPositionModal;
+            (window as any).__SET_ORDER_PREVIEW__ = (previewData: any) => {
+                if (brokerRef.current && typeof brokerRef.current.setOrderPreview === 'function') {
+                    brokerRef.current.setOrderPreview(previewData);
+                }
+            };
         }
     }, [setModifyModalState]);
 

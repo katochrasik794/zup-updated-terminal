@@ -179,6 +179,37 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
     setPendingOrderSide(null)
   }, [formType])
 
+  // Trigger order preview on chart
+  React.useEffect(() => {
+    if (typeof window === 'undefined' || !(window as any).__SET_ORDER_PREVIEW__) return
+
+    if (!pendingOrderSide) {
+      (window as any).__SET_ORDER_PREVIEW__({ side: null })
+      return
+    }
+
+    const previewPrice = orderType === 'market'
+      ? (pendingOrderSide === 'buy' ? currentBuyPrice : currentSellPrice)
+      : parseFloat(openPrice)
+
+    if (isNaN(previewPrice) || previewPrice <= 0) {
+      // If pending but no price, maybe show nothing or keep previous? 
+      // Better to clear if invalid price
+      if (orderType !== 'market') {
+        (window as any).__SET_ORDER_PREVIEW__({ side: null })
+        return
+      }
+    }
+
+    (window as any).__SET_ORDER_PREVIEW__({
+      symbol: symbol,
+      side: pendingOrderSide,
+      qty: parseFloat(volume) || 0.01,
+      price: previewPrice,
+      type: orderType === 'market' ? 'limit' : pendingOrderType
+    })
+  }, [pendingOrderSide, orderType, openPrice, volume, currentBuyPrice, currentSellPrice, symbol, pendingOrderType])
+
   // Get pip size based on symbol type
   const getPipSize = React.useMemo(() => {
     const symbolUpper = (symbol || '').toUpperCase()
