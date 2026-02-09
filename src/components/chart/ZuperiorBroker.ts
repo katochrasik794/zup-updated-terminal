@@ -1557,7 +1557,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 		console.log('[ZuperiorBroker] editOrder called:', orderId, modification);
 
 		// SKIP API FOR PREVIEW
-ttconsole.log("[ZuperiorBroker] editOrder: Checking if preview order:", orderId, "===", PREVIEW_ORDER_ID, "?", orderId === PREVIEW_ORDER_ID);
+		console.log("[ZuperiorBroker] editOrder: Checking if preview order:", orderId, "===", PREVIEW_ORDER_ID, "?", orderId === PREVIEW_ORDER_ID);
 		if (orderId === PREVIEW_ORDER_ID) {
 			console.log('[ZuperiorBroker] editOrder: Skipping API for preview order');
 
@@ -1630,7 +1630,7 @@ ttconsole.log("[ZuperiorBroker] editOrder: Checking if preview order:", orderId,
 			this._notifyAllPositionsAndOrders();
 
 			// Emit event for OrderPanel sync
-tttconsole.log("[ZuperiorBroker] editOrder: About to emit __ON_ORDER_PREVIEW_CHANGE__ event", {tp: originalOrder.takeProfit, sl: originalOrder.stopLoss});
+			console.log("[ZuperiorBroker] editOrder: About to emit __ON_ORDER_PREVIEW_CHANGE__ event", { tp: originalOrder.takeProfit, sl: originalOrder.stopLoss });
 			if (typeof window !== 'undefined') {
 				(window as any).dispatchEvent(new CustomEvent('__ON_ORDER_PREVIEW_CHANGE__', {
 					detail: {
@@ -1846,6 +1846,26 @@ tttconsole.log("[ZuperiorBroker] editOrder: About to emit __ON_ORDER_PREVIEW_CHA
 			if (isTP) mod.takeProfit = price;
 			if (isSL) mod.stopLoss = price;
 			console.log('[ZuperiorBroker] Moving pending order bracket -> editOrder', order.parentId, mod);
+
+			// For preview orders, emit sync event immediately for real-time update
+			if (order.parentId === PREVIEW_ORDER_ID) {
+				const parentOrder = this._orderById[order.parentId];
+				if (parentOrder) {
+					console.log("[ZuperiorBroker] moveOrder: Emitting real-time sync event for preview bracket drag");
+					if (typeof window !== "undefined") {
+						(window as any).dispatchEvent(new CustomEvent("__ON_ORDER_PREVIEW_CHANGE__", {
+							detail: {
+								id: order.parentId,
+								price: parentOrder.type === OrderType.Limit ? parentOrder.limitPrice : parentOrder.stopPrice,
+								takeProfit: isTP ? price : parentOrder.takeProfit,
+								stopLoss: isSL ? price : parentOrder.stopLoss,
+								qty: parentOrder.qty,
+								source: "chart"
+							}
+						}));
+					}
+				}
+			}
 			return this.editOrder(order.parentId, mod);
 		}
 
@@ -2000,18 +2020,9 @@ tttconsole.log("[ZuperiorBroker] editOrder: About to emit __ON_ORDER_PREVIEW_CHA
 		this._host.orderUpdate(previewOrder);
 		this._notifyAllPositionsAndOrders();
 
-		// Sync back to panel if needed (optional confirmation)
-		if (typeof window !== 'undefined') {
-			(window as any).dispatchEvent(new CustomEvent('__ON_ORDER_PREVIEW_CHANGE__', {
-				detail: {
-					id: PREVIEW_ORDER_ID,
-					price: previewOrder.type === OrderType.Limit ? previewOrder.limitPrice : previewOrder.stopPrice,
-					takeProfit: previewOrder.takeProfit,
-					stopLoss: previewOrder.stopLoss,
-					qty: previewOrder.qty,
-					source: 'panel'
-				}
-			}));
-		}
+		// NOTE: Do NOT emit __ON_ORDER_PREVIEW_CHANGE__ here!
+		// This method is called when OrderPanel updates the preview via __SET_ORDER_PREVIEW__
+		// Emitting here would overwrite chart drag events with source: 'panel'
+		// The chart emits its own event with source: 'chart' from editOrder when brackets are dragged
 	}
 }

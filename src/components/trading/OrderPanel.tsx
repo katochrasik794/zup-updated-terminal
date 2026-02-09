@@ -146,6 +146,8 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
   // Sync TP/SL from chart preview
   React.useEffect(() => {
     const handlePreviewChange = (e: any) => {
+      console.log("[OrderPanel] handlePreviewChange CALLED with event:", e);
+      console.log("[OrderPanel] Event detail:", e.detail);
       const { takeProfit: tp, stopLoss: sl, price, source } = e.detail || {}
 
       // Prevent loops: Ignore if we triggered this ourselves
@@ -155,10 +157,12 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
 
       isSyncingFromChart.current = true
       try {
+        console.log("[OrderPanel] Updating TP to:", tp, "formatted:", tp > 0 ? tp.toFixed(5).replace(/\.?0+$/, "") : "");
         if (tp !== undefined) {
           setTakeProfit(tp > 0 ? tp.toFixed(5).replace(/\.?0+$/, "") : "")
           setTakeProfitMode("price")
         }
+        console.log("[OrderPanel] Updating SL to:", sl, "formatted:", sl > 0 ? sl.toFixed(5).replace(/\.?0+$/, "") : "");
         if (sl !== undefined) {
           setStopLoss(sl > 0 ? sl.toFixed(5).replace(/\.?0+$/, "") : "")
           setStopLossMode("price")
@@ -175,7 +179,7 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
         // Use timeout to let state setters settle before allowing next effect to call broker
         setTimeout(() => {
           isSyncingFromChart.current = false
-        }, 50)
+        }, 200)
       }
     }
 
@@ -186,6 +190,27 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
       }
     }
   }, [])
+
+  // TEST FUNCTION - Remove after debugging
+  React.useEffect(() => {
+    if (typeof window !== "undefined") {
+      (window as any).testOrderPanelSync = () => {
+        console.log("[TEST] Manually triggering __ON_ORDER_PREVIEW_CHANGE__ event");
+        window.dispatchEvent(new CustomEvent("__ON_ORDER_PREVIEW_CHANGE__", {
+          detail: {
+            id: "PREVIEW_ORDER_ID",
+            price: 1.10000,
+            takeProfit: 1.10500,
+            stopLoss: 1.09500,
+            qty: 0.01,
+            source: "chart"
+          }
+        }));
+      };
+      console.log("[OrderPanel] Test function available: window.testOrderPanelSync()");
+    }
+  }, []);
+
 
   // Handle one-click modal cancel
   const handleOneClickModalCancel = React.useCallback(() => {
