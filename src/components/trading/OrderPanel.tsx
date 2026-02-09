@@ -206,7 +206,8 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
       side: pendingOrderSide,
       qty: parseFloat(volume) || 0.01,
       price: previewPrice,
-      type: orderType === 'market' ? 'limit' : pendingOrderType
+      type: orderType === 'market' ? 'limit' : pendingOrderType,
+      text: " "
     })
   }, [pendingOrderSide, orderType, openPrice, volume, currentBuyPrice, currentSellPrice, symbol, pendingOrderType])
 

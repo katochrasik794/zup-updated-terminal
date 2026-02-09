@@ -689,6 +689,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			stopLoss: Number(apiPos.stopLoss || apiPos.StopLoss || apiPos.PriceSL || apiPos.SL || apiPos.sl || 0) || undefined,
 			profit: profit, // For Account Manager display
 			pl: profit, // For chart trade line P/L display
+			text: " ",
 		} as any;
 	}
 
@@ -798,6 +799,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			stopPrice: tvOrderType === OrderType.Stop ? openPrice : undefined,
 			takeProfit: Number(apiOrder.PriceTP || apiOrder.priceTP || apiOrder.TakeProfit || apiOrder.takeProfit || 0) || undefined,
 			stopLoss: Number(apiOrder.PriceSL || apiOrder.priceSL || apiOrder.StopLoss || apiOrder.stopLoss || 0) || undefined,
+			text: " ",
 		} as unknown as Order;
 	}
 
@@ -821,6 +823,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			limitPrice: position.takeProfit,
 			parentId: position.id,
 			parentType: ParentType.Position,
+			text: "TP",
 		} as unknown as Order;
 	}
 
@@ -835,6 +838,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			stopPrice: position.stopLoss,
 			parentId: position.id,
 			parentType: ParentType.Position,
+			text: "SL",
 		} as unknown as Order;
 	}
 
@@ -857,6 +861,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			limitPrice: order.takeProfit,
 			parentId: order.id,
 			parentType: ParentType.Order,
+			text: "TP",
 		} as unknown as Order;
 	}
 
@@ -871,6 +876,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			stopPrice: order.stopLoss,
 			parentId: order.id,
 			parentType: ParentType.Order,
+			text: "SL",
 		} as unknown as Order;
 	}
 
@@ -1055,6 +1061,10 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			this._orders = this._orders.filter(o => o.id !== orderId);
 			// Notify chart
 			this._notifyAllPositionsAndOrders();
+		}
+
+		if (orderId === PREVIEW_ORDER_ID) {
+			return Promise.resolve();
 		}
 
 		try {
@@ -1474,6 +1484,33 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			}
 		});
 	}
+
+	public spreadFormatter(symbol: string): Promise<any> {
+		return Promise.resolve({
+			format: (value: number) => {
+				if (value === undefined || value === null) return '';
+				return value.toFixed(1) + ' pips';
+			}
+		});
+	}
+
+	public quantityFormatter(symbol: string): Promise<any> {
+		return Promise.resolve({
+			format: (value: number) => {
+				if (value === undefined || value === null) return '';
+				return value.toString();
+			}
+		});
+	}
+
+	public pipValueFormatter(symbol: string): Promise<any> {
+		return Promise.resolve({
+			format: (value: number) => {
+				if (value === undefined || value === null) return '';
+				return value.toFixed(2);
+			}
+		});
+	}
 	public async editOrder(orderId: string, modification: any): Promise<void> {
 		const originalOrder = this._orderById[orderId];
 		if (!originalOrder) {
@@ -1758,6 +1795,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			type: previewData.type === 'stop' ? OrderType.Stop : (previewData.type === 'limit' ? OrderType.Limit : OrderType.Limit),
 			limitPrice: price,
 			stopPrice: previewData.type === 'stop' ? price : undefined,
+			text: " ",
 		};
 
 		console.log('[ZuperiorBroker] Setting order preview:', previewOrder);
