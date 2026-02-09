@@ -147,43 +147,60 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
     setShowOneClickModal(false)
   }, [pendingFormType])
 
+  // Ref for orderType to avoid stale usage in event listener
+  const orderTypeRef = React.useRef(orderType)
+  React.useEffect(() => {
+    orderTypeRef.current = orderType
+  }, [orderType])
+
+  // Ref to track the debounce timeout for clearing the sync flag
+  const syncTimeoutRef = React.useRef<NodeJS.Timeout | null>(null)
+
   // Sync TP/SL from chart preview
   React.useEffect(() => {
     const handlePreviewChange = (e: any) => {
-      console.log("[OrderPanel] handlePreviewChange CALLED with event:", e);
-      console.log("[OrderPanel] Event detail:", e.detail);
       const { takeProfit: tp, stopLoss: sl, price, source } = e.detail || {}
 
-      // Prevent loops: Ignore if we triggered this ourselves
+      // Prevent loops
       if (source === 'panel') return;
 
-      console.log('[OrderPanel] Syncing from preview event (source: chart):', e.detail)
-
+      // Start syncing: Cancel any pending clear
+      if (syncTimeoutRef.current) {
+        clearTimeout(syncTimeoutRef.current)
+        syncTimeoutRef.current = null
+      }
       isSyncingFromChart.current = true
+
+      console.log('[OrderPanel] Syncing from chart:', e.detail);
+
       try {
-        console.log("[OrderPanel] Updating TP to:", tp, "formatted:", tp > 0 ? tp.toFixed(5).replace(/\.?0+$/, "") : "");
         if (tp !== undefined) {
-          setTakeProfit(tp > 0 ? tp.toFixed(5).replace(/\.?0+$/, "") : "")
-          setTakeProfitMode("price")
+          // If 0 or null, set empty
+          const val = (tp && tp > 0) ? tp.toFixed(5).replace(/\.?0+$/, "") : ""
+          setTakeProfit(val)
+          if (val) setTakeProfitMode("price")
         }
-        console.log("[OrderPanel] Updating SL to:", sl, "formatted:", sl > 0 ? sl.toFixed(5).replace(/\.?0+$/, "") : "");
+
         if (sl !== undefined) {
-          setStopLoss(sl > 0 ? sl.toFixed(5).replace(/\.?0+$/, "") : "")
-          setStopLossMode("price")
+          const val = (sl && sl > 0) ? sl.toFixed(5).replace(/\.?0+$/, "") : ""
+          setStopLoss(val)
+          if (val) setStopLossMode("price")
         }
+
         if (price !== undefined) {
           setOpenPrice(price.toFixed(5).replace(/\.?0+$/, ""))
-          // If the entry price line was dragged, the user is effectively placing a pending order
-          if (orderType === 'market') {
+          // Use ref to check current order type
+          if (orderTypeRef.current === 'market') {
             setOrderType('pending');
             setPendingOrderType('limit');
           }
         }
       } finally {
-        // Use timeout to let state setters settle before allowing next effect to call broker
-        setTimeout(() => {
+        // Debounce the clearing of the flag
+        syncTimeoutRef.current = setTimeout(() => {
           isSyncingFromChart.current = false
-        }, 200)
+          syncTimeoutRef.current = null
+        }, 300)
       }
     }
 
@@ -382,6 +399,39 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
       return currentSellPrice - priceChange
     }
   }, [getPipSize, currentBuyPrice, currentSellPrice])
+
+  // Auto-set TP/SL to 1000 pips upon preview start
+  React.useEffect(() => {
+    if (pendingOrderSide) {
+      // 1000 pips default
+      const defaultPips = 1000
+      const pipSize = getPipSize
+      const defaultDist = defaultPips * pipSize
+
+      let basePrice = 0
+      if (orderType === 'market') {
+        basePrice = pendingOrderSide === 'buy' ? currentBuyPrice : currentSellPrice
+      } else {
+        basePrice = parseFloat(openPrice) || 0
+      }
+
+      if (basePrice > 0) {
+        // Set TP if missing
+        if (!takeProfit) {
+          const tp = pendingOrderSide === 'buy' ? basePrice + defaultDist : basePrice - defaultDist
+          setTakeProfit(tp.toFixed(5).replace(/\.?0+$/, ""))
+          setTakeProfitMode("price")
+        }
+        // Set SL if missing
+        if (!stopLoss) {
+          const sl = pendingOrderSide === 'buy' ? basePrice - defaultDist : basePrice + defaultDist
+          setStopLoss(sl.toFixed(5).replace(/\.?0+$/, ""))
+          setStopLossMode("price")
+        }
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingOrderSide])
 
   // Calculate volume for risk calculator based on Risk and Stop Loss
   const calculateRiskBasedVolume = React.useMemo(() => {

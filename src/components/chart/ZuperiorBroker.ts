@@ -976,9 +976,13 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			const isTP = order.id.toString().includes('_TP');
 			const isSL = order.id.toString().includes('_SL');
 
+			// TradingView can send the dragged price in different fields; normalize
+			const newPriceRaw = order.limitPrice ?? order.stopPrice ?? order.price;
+			const newPrice = typeof newPriceRaw === 'string' ? parseFloat(newPriceRaw) : newPriceRaw;
+
 			const mod: any = {};
-			if (isTP && order.limitPrice !== undefined) mod.takeProfit = order.limitPrice;
-			if (isSL && order.stopPrice !== undefined) mod.stopLoss = order.stopPrice;
+			if (isTP && newPrice !== undefined) mod.takeProfit = newPrice;
+			if (isSL && newPrice !== undefined) mod.stopLoss = newPrice;
 
 			console.log('[ZuperiorBroker] modifyOrder: Bracket drag detected');
 			console.log('[ZuperiorBroker] modifyOrder: Parent ID:', order.parentId);
@@ -996,8 +1000,18 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 		}
 
 		// Handle pending order modification (dragging order line)
+		const pendingPriceRaw = order.limitPrice ?? order.stopPrice ?? order.price;
+		const pendingPrice = typeof pendingPriceRaw === 'string' ? parseFloat(pendingPriceRaw) : pendingPriceRaw;
 		originalOrder.limitPrice = order.limitPrice !== undefined ? order.limitPrice : originalOrder.limitPrice;
 		originalOrder.stopPrice = order.stopPrice !== undefined ? order.stopPrice : originalOrder.stopPrice;
+		// If neither limitPrice nor stopPrice is present but price is, apply it to the correct field based on order type
+		if (pendingPrice !== undefined) {
+			if (originalOrder.type === OrderType.Stop) {
+				originalOrder.stopPrice = pendingPrice;
+			} else {
+				originalOrder.limitPrice = pendingPrice;
+			}
+		}
 		originalOrder.takeProfit = order.takeProfit !== undefined ? order.takeProfit : originalOrder.takeProfit;
 		originalOrder.stopLoss = order.stopLoss !== undefined ? order.stopLoss : originalOrder.stopLoss;
 		originalOrder.qty = order.qty !== undefined ? order.qty : originalOrder.qty;
@@ -1572,16 +1586,12 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			if (modification.stopPrice !== undefined) originalOrder.stopPrice = modification.stopPrice;
 			if (modification.qty !== undefined) originalOrder.qty = modification.qty;
 
-			// Directional validation for TP/SL
-			if (modification.takeProfit !== undefined && entryPrice > 0) {
-				const tp = modification.takeProfit;
-				const isValid = side === Side.Buy ? tp > entryPrice : tp < entryPrice;
-				if (isValid) originalOrder.takeProfit = tp;
+			// Direct update for preview order brackets (Allow dragging anywhere for feedback)
+			if (modification.takeProfit !== undefined) {
+				originalOrder.takeProfit = modification.takeProfit;
 			}
-			if (modification.stopLoss !== undefined && entryPrice > 0) {
-				const sl = modification.stopLoss;
-				const isValid = side === Side.Buy ? sl < entryPrice : sl > entryPrice;
-				if (isValid) originalOrder.stopLoss = sl;
+			if (modification.stopLoss !== undefined) {
+				originalOrder.stopLoss = modification.stopLoss;
 			}
 
 			this._orderById[orderId] = originalOrder;
@@ -1838,6 +1848,16 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			console.error('[ZuperiorBroker] moveOrder failed: Order not found', orderId);
 			return Promise.reject('Order not found');
 		}
+
+		// TradingView sometimes sends undefined/strings for preview bracket drags, normalize it here
+		const effectivePrice = (price !== undefined && !Number.isNaN(price))
+			? Number(price)
+			: (order.limitPrice ?? order.stopPrice);
+		if (effectivePrice === undefined || Number.isNaN(effectivePrice)) {
+			console.warn('[ZuperiorBroker] moveOrder aborted: invalid price payload', { orderId, price, order });
+			return Promise.resolve();
+		}
+
 		const isTP = orderId.includes('_TP') || orderId.includes('TP-');
 		const isSL = orderId.includes('_SL') || orderId.includes('SL-');
 
@@ -1846,27 +1866,33 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 		// If this is a bracket of a pending order
 		if (order.parentId && order.parentType === ParentType.Order && (isTP || isSL)) {
 			const mod: any = {};
-			if (isTP) mod.takeProfit = price;
-			if (isSL) mod.stopLoss = price;
+			if (isTP) mod.takeProfit = effectivePrice;
+			if (isSL) mod.stopLoss = effectivePrice;
 			console.log('[ZuperiorBroker] Moving pending order bracket -> editOrder', order.parentId, mod);
 
 			// For preview orders, emit sync event immediately for real-time update
 			if (order.parentId === PREVIEW_ORDER_ID) {
 				const parentOrder = this._orderById[order.parentId];
 				if (parentOrder) {
-					console.log("[ZuperiorBroker] moveOrder: Emitting real-time sync event for preview bracket drag");
+					// Create the event payload manually to ensure it uses the dragged price
+					const payload = {
+						id: order.parentId,
+						price: parentOrder.type === OrderType.Limit ? parentOrder.limitPrice : parentOrder.stopPrice,
+						takeProfit: isTP ? effectivePrice : parentOrder.takeProfit,
+						stopLoss: isSL ? effectivePrice : parentOrder.stopLoss,
+						qty: parentOrder.qty,
+						source: 'chart'
+					};
+					console.log("[ZuperiorBroker] moveOrder: Emitting real-time sync event for preview bracket drag", payload);
 					if (typeof window !== "undefined") {
 						(window as any).dispatchEvent(new CustomEvent("__ON_ORDER_PREVIEW_CHANGE__", {
-							detail: {
-								id: order.parentId,
-								price: parentOrder.type === OrderType.Limit ? parentOrder.limitPrice : parentOrder.stopPrice,
-								takeProfit: isTP ? price : parentOrder.takeProfit,
-								stopLoss: isSL ? price : parentOrder.stopLoss,
-								qty: parentOrder.qty,
-								source: "chart"
-							}
+							detail: payload
 						}));
 					}
+
+					// Update local state directly to prevent snap-back during drag
+					if (isTP) parentOrder.takeProfit = price;
+					if (isSL) parentOrder.stopLoss = price;
 				}
 			}
 			return this.editOrder(order.parentId, mod);
@@ -1884,9 +1910,9 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 		// Base pending order line drag
 		const mod: any = {};
 		if (order.type === OrderType.Stop) {
-			mod.stopPrice = price;
+			mod.stopPrice = effectivePrice;
 		} else {
-			mod.limitPrice = price;
+			mod.limitPrice = effectivePrice;
 		}
 		console.log('[ZuperiorBroker] Moving pending order main line -> editOrder', orderId, mod);
 		return this.editOrder(orderId, mod);

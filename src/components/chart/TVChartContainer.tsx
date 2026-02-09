@@ -380,7 +380,11 @@ export const TVChartContainer = () => {
                         (chart as any).onOrderMove().subscribe(null, (order: any) => {
                             if (!order) return;
                             if (brokerRef.current && order.id.toString().includes('PREVIEW_ORDER_ID')) {
-                                brokerRef.current.moveOrder(order.id, order.price);
+                                // TradingView can put the dragged price on different fields depending on line type
+                                const movedPriceRaw = order.price ?? order.limitPrice ?? order.stopPrice;
+                                const movedPrice = typeof movedPriceRaw === 'string' ? parseFloat(movedPriceRaw) : movedPriceRaw;
+                                if (movedPrice === undefined || Number.isNaN(movedPrice)) return;
+                                brokerRef.current.moveOrder(order.id, movedPrice);
                             }
                         });
                     }
