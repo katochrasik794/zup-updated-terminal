@@ -36,7 +36,7 @@ export default function OrderModeModal({ isOpen, onClose, onConfirm, mode }) {
                 By enabling this mode, you understand that your market or pending orders will be submitted by clicking the Confirm button, using volume, calculated based on entered parameters.
               </p>
               <p>
-                You agree to accept all risks associated with the use of the order submission mode you have chosen, including, without limitation, the risk of errors, omissions or mistakes made in submitting any order.
+                You agree to accept all risks associated with the use of the order submission mode you have chosen, including, without limitation, the risk of errors, commissions or mistakes made in submitting any order.
               </p>
               <p>To place an order:</p>
               <ul className="list-disc pl-5 space-y-1">
@@ -52,7 +52,7 @@ export default function OrderModeModal({ isOpen, onClose, onConfirm, mode }) {
                 Selecting this option activates One-click Trading mode for order placement.
               </p>
               <p>
-                By enabling this mode, you understand that your market or limit orders will be submitted by clicking the bid or ask rate button, without any further order confirmation. You agree to accept all risks associated with the use of the order submission mode you have chosen, including, without limitation, the risk of errors, omissions or mistakes made in submitting any order.
+                By enabling this mode, you understand that your market or limit orders will be submitted by clicking the bid or ask rate button, without any further order confirmation. You agree to accept all risks associated with the use of the order submission mode you have chosen, including, without limitation, the risk of errors, commissions or mistakes made in submitting any order.
               </p>
             </>
           )}

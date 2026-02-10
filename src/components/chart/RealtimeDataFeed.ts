@@ -51,16 +51,17 @@ interface CandleHistoryRequest {
 }
 
 // Helper to map resolution string to API timeframe string
-// 1m, 5m, 15m, 30m, 1h, 4h, 1D, 1M => API: M1, M5, M15, M30, 1H, 4H, 1D, 1M
+// 1m, 5m, 15m, 30m, 1h, 4h, 1D, 1W, 1M => API: M1, M5, M15, M30, H1, H4, D1, W1, Mn1
 const resolutionToTimeframe = (resolution: string): string => {
     if (resolution === '1') return 'M1';
     if (resolution === '5') return 'M5';
     if (resolution === '15') return 'M15';
     if (resolution === '30') return 'M30';
-    if (resolution === '60') return '1H';
-    if (resolution === '240') return '4H';
-    if (resolution === 'D' || resolution === '1D') return '1D';
-    if (resolution === 'M' || resolution === '1M') return '1M';
+    if (resolution === '60') return 'H1';
+    if (resolution === '240') return 'H4';
+    if (resolution === 'D' || resolution === '1D') return 'D1';
+    if (resolution === 'W' || resolution === '1W') return 'W1';
+    if (resolution === 'M' || resolution === '1M') return 'Mn1';
     // Fallback
     return resolution;
 };
@@ -139,7 +140,9 @@ class WebSocketManager {
     }
 
     public subscribe(symbol: string, tf: string, callback: SubscribeBarsCallback) {
-        const subscription = { symbol, tf, callback, lastBarTime: 0 };
+        // Use mapped timeframe for subscription tracking
+        const mappedTf = resolutionToTimeframe(tf);
+        const subscription = { symbol, tf: mappedTf, callback, lastBarTime: 0 };
         this.subscribers.add(subscription);
 
         if (this.ws && this.ws.readyState === WebSocket.OPEN) {
@@ -210,7 +213,8 @@ class WebSocketManager {
             const update = data as CandleUpdate;
 
             Array.from(this.subscribers).forEach(sub => {
-                const subTf = resolutionToTimeframe(sub.tf);
+                // sub.tf is already mapped (e.g., 'H1'), update.tf uses mapped values too
+                const subTf = sub.tf;
                 const subNormalized = normalizeSymbol(sub.symbol);
                 const updateNormalized = normalizeSymbol(update.symbol);
 
@@ -242,7 +246,7 @@ export class RealtimeDataFeed {
         this.configuration = {
             supports_search: false,
             supports_group_request: false,
-            supported_resolutions: ['1', '5', '15', '30', '60', '240', '1D', '1M'],
+            supported_resolutions: ['1', '5', '15', '30', '60', '240', '1D', '1W', '1M'],
             supports_marks: false,
             supports_timescale_marks: false,
         };
