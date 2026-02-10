@@ -10,7 +10,7 @@ import GroupClosePopup from './GroupClosePopup'
 import { useTrading } from '../../context/TradingContext'
 
 export default function BottomPanel({ openPositions = [], pendingPositions = [], closedPositions = [], onClosePosition, onCloseGroup, closedToast, setClosedToast, onCloseAll, onHide, isMinimized = false }: any) {
-  const { setModifyModalState } = useTrading()
+  const { setModifyModalState, setSymbol } = useTrading()
   const [activeTab, setActiveTab] = useState<'Open' | 'Pending' | 'Closed'>('Open')
   const [isGrouped, setIsGrouped] = useState(true)
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({})
@@ -389,8 +389,14 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
                 {activeTab === 'Open' && (isGrouped ? groupedPositions : openPositions).map((position, idx) => (
                   <Fragment key={isGrouped ? `group-${position.symbol}` : `pos-${idx}`}>
                     <tr
-                      onClick={() => isGrouped && toggleGroup(position.symbol)}
-                      className={`border-b border-gray-800 hover:bg-[#1c252f] group ${isGrouped ? 'cursor-pointer' : ''}`}
+                      onClick={() => {
+                        if (isGrouped) {
+                          toggleGroup(position.symbol)
+                        } else {
+                          setSymbol(position.symbol)
+                        }
+                      }}
+                      className={`border-b border-gray-800 hover:bg-[#1c252f] group cursor-pointer`}
                     >
                       <td className="px-3 py-1.5 whitespace-nowrap">
                         <div className="flex items-center gap-1.5">
@@ -503,7 +509,8 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
                                   {position.positions.map((subPos, subIdx) => (
                                     <tr
                                       key={`${position.symbol}-${subIdx}`}
-                                      className="border-b border-gray-800 hover:bg-[#1c252f] group/sub"
+                                      className="border-b border-gray-800 hover:bg-[#1c252f] group/sub cursor-pointer"
+                                      onClick={() => setSymbol(subPos.symbol)}
                                     >
                                       <td className="px-3 py-1.5 whitespace-nowrap">
                                         <div className="flex items-center gap-1.5 pl-6">
@@ -588,7 +595,8 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
                 {activeTab === 'Closed' && closedPositions.map((position, idx) => (
                   <tr
                     key={idx}
-                    className="border-b border-gray-800 hover:bg-[#1c252f] group"
+                    className="border-b border-gray-800 hover:bg-[#1c252f] group cursor-pointer"
+                    onClick={() => setSymbol(position.symbol)}
                   >
                     <td className="px-3 py-1.5 whitespace-nowrap">
                       <div className="flex items-center gap-1.5">
@@ -646,7 +654,8 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
                     pendingPositions.map((position, idx) => (
                       <tr
                         key={idx}
-                        className="border-b border-gray-800 hover:bg-[#1c252f] group"
+                        className="border-b border-gray-800 hover:bg-[#1c252f] group cursor-pointer"
+                        onClick={() => setSymbol(position.symbol)}
                       >
                         <td className="px-3 py-1.5 whitespace-nowrap">
                           <div className="flex items-center gap-1.5">
