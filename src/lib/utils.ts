@@ -40,3 +40,13 @@ export function debounce<T extends (...args: any[]) => any>(
     timeout = setTimeout(later, wait)
   }
 }
+
+// Format symbol display to ensure suffixes are lowercase
+export function formatSymbolDisplay(symbol: string): string {
+  if (!symbol) return '';
+  // Match trailing suffixes m, r, e (case-insensitive) and ensure they are lowercase
+  // This logic assumes the suffix is a single character at the end
+  return symbol.replace(/([A-Z0-9]+)([MREmre])$/, (match, p1, p2) => {
+    return `${p1}${p2.toLowerCase()}`;
+  });
+}

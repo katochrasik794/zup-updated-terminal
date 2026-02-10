@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { X, Plus, Minus, HelpCircle } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { cn, formatSymbolDisplay } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import Tooltip from "@/components/ui/Tooltip"
@@ -1139,7 +1139,7 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
           <div className="w-5 h-5">
             <FlagIcon symbol={symbol || 'BTCUSD'} />
           </div>
-          <span className="text-sm font-semibold text-white">{symbol || 'Select Symbol'}</span>
+          <span className="text-sm font-semibold text-white">{formatSymbolDisplay(symbol) || 'Select Symbol'}</span>
         </div>
         {onClose && (
           <button

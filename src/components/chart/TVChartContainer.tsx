@@ -4,6 +4,8 @@ import React, { useEffect, useRef, useState } from 'react';
 
 import { RealtimeDataFeed } from './RealtimeDataFeed';
 import { ZuperiorBroker } from './ZuperiorBroker';
+import { formatSymbolDisplay } from '@/lib/utils';
+
 
 declare global {
     interface Window {
@@ -33,7 +35,7 @@ export const TVChartContainer = () => {
     const { symbol: ctxSymbol, setSymbol: ctxSetSymbol } = useTrading();
     const [localSymbol, setLocalSymbol] = useState('XAUUSD'); // Default fallback
 
-    const activeSymbol = ctxSymbol || localSymbol;
+    const activeSymbol = formatSymbolDisplay(ctxSymbol || localSymbol);
     const setSymbol = ctxSetSymbol || setLocalSymbol;
 
     // Expose openModifyPositionModal to window for Broker to use
