@@ -59,21 +59,23 @@ export default function LeftSidebar({ onPanelStateChange, isExpanded }: LeftSide
           </Tooltip>
         </div>
 
-        {/* Economic Calendar Button */}
-        <div>
-          <Tooltip text="Economic calendar" placement="right">
-            <button
-              className={`cursor-pointer w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-200 rounded-sm transition-all duration-200 ${activePanel === 'calendar' ? 'bg-[#263239] border border-gray-400 text-gray-200' : 'hover:bg-[#263239] hover:border hover:border-gray-400 border-2 border-transparent'
-                }`}
-              type="button"
-              data-test="aside-panel-calendar-events-button"
-              aria-label="Economic calendar"
-              onClick={() => togglePanel('calendar')}
-            >
-              <LuCalendar size={20} className={activePanel === 'calendar' ? 'text-white' : 'text-gray-300'} />
-            </button>
-          </Tooltip>
-        </div>
+        {/* Economic Calendar Button - HIDDEN */}
+        {false && (
+          <div>
+            <Tooltip text="Economic calendar" placement="right">
+              <button
+                className={`cursor-pointer w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-200 rounded-sm transition-all duration-200 ${activePanel === 'calendar' ? 'bg-[#263239] border border-gray-400 text-gray-200' : 'hover:bg-[#263239] hover:border hover:border-gray-400 border-2 border-transparent'
+                  }`}
+                type="button"
+                data-test="aside-panel-calendar-events-button"
+                aria-label="Economic calendar"
+                onClick={() => togglePanel('calendar')}
+              >
+                <LuCalendar size={20} className={activePanel === 'calendar' ? 'text-white' : 'text-gray-300'} />
+              </button>
+            </Tooltip>
+          </div>
+        )}
 
         {/* Settings Button */}
         <div>
@@ -100,7 +102,7 @@ export default function LeftSidebar({ onPanelStateChange, isExpanded }: LeftSide
               <WatchlistPanel onClose={closePanel} />
             </div>
           )}
-          {activePanel === 'calendar' && (
+          {false && activePanel === 'calendar' && (
             <div className="bg-background border-r border-gray-700 flex flex-col h-full min-h-0 overflow-hidden flex-1 rounded-t-md">
               <EconomicCalendarPanel onClose={closePanel} />
             </div>
