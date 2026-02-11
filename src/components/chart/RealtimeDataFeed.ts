@@ -56,7 +56,7 @@ const resolutionToTimeframe = (resolution: string): string => {
     if (resolution === '1') return 'M1';
     if (resolution === '5') return 'M5';
     if (resolution === '15') return 'M15';
-    if (resolution === '30') return 'M30';
+    // if (resolution === '30') return 'M30';
     if (resolution === '60') return 'H1';
     if (resolution === '240') return 'H4';
     if (resolution === 'D' || resolution === '1D') return 'D1';
@@ -246,7 +246,7 @@ export class RealtimeDataFeed {
         this.configuration = {
             supports_search: false,
             supports_group_request: false,
-            supported_resolutions: ['1', '5', '15', '30', '60', '240', '1D', '1W', '1M'],
+            supported_resolutions: ['1', '5', '15', '60', '240', '1D', '1W', '1M'],
             supports_marks: false,
             supports_timescale_marks: false,
         };

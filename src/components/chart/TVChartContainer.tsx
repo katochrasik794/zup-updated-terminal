@@ -229,6 +229,23 @@ export const TVChartContainer = () => {
                 },
                 toolbar_bg: '#02040d',
 
+                // Customize available timeframes (excluding 30 minutes)
+                favorites: {
+                    intervals: ['1', '5', '15', '60', '240', '1D', '1W', '1M'],
+                    chartTypes: ["1"]
+                },
+                time_frames: [
+                    { text: "1m", resolution: "1", description: "1 Minute" },
+                    { text: "5m", resolution: "5", description: "5 Minutes" },
+                    { text: "15m", resolution: "15", description: "15 Minutes" },
+                    // 30 minutes removed
+                    { text: "1h", resolution: "60", description: "1 Hour" },
+                    { text: "4h", resolution: "240", description: "4 Hours" },
+                    { text: "1d", resolution: "1D", description: "1 Day" },
+                    { text: "1w", resolution: "1W", description: "1 Week" },
+                    { text: "1M", resolution: "1M", description: "1 Month" },
+                ],
+
                 broker_factory: (host: any) => {
                     // Pass getMetaApiToken to broker constructor to enable dynamic auth
                     const broker = new ZuperiorBroker(host, datafeed, currentAccountId, getMetaApiToken);
