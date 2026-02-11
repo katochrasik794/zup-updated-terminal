@@ -1974,21 +1974,28 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 		const price = previewData.price || 0;
 		const symbol = previewData.symbol || 'XAUUSD';
 
+		const isMarket = previewData.type === 'market';
+		const sideText = previewData.side === 'buy' ? 'Buy' : 'Sell';
+
 		const previewOrder: Order = {
 			id: PREVIEW_ORDER_ID,
 			symbol: symbol,
 			side: side,
 			qty: qty,
 			status: OrderStatus.Working,
-			type: previewData.type === 'stop' ? OrderType.Stop : (previewData.type === 'limit' ? OrderType.Limit : OrderType.Limit),
+			// For market preview, we revert to Limit type to ensure the line is drawn.
+			// We use a Non-Breaking Space (\u00A0) for typeText to hide "Limit".
+			type: previewData.type === 'stop' ? OrderType.Stop : OrderType.Limit,
 			limitPrice: price,
 			stopPrice: previewData.type === 'stop' ? price : undefined,
 			takeProfit: previewData.takeProfit,
 			stopLoss: previewData.stopLoss,
 			text: " ",
-			sideText: " ", // Hide side text
-			typeText: " ", // Hide type text
-			qtyText: " ",  // Hide qty text
+			sideText: isMarket ? "\u00A0" : sideText,
+			// Using Non-Breaking Space is safer to ensure it renders "nothing" instead of fallback
+			typeText: isMarket ? "\u00A0" : undefined,
+			// Show only Lot Size for market orders (e.g., "0.01"), hide for others or as requested
+			qtyText: isMarket ? qty.toString() : " ",
 		};
 
 		console.log('[ZuperiorBroker] Setting order preview:', previewOrder);

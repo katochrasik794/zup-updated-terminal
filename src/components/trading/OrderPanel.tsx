@@ -271,6 +271,9 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
     setPendingOrderSide(null)
   }, [formType])
 
+  // Auto-set TP/SL upon preview start OR symbol change
+  // REMOVED: Auto-calculation of 20 pips default TP/SL as per user request to keep fields empty.
+
   // Trigger order preview on chart
   React.useEffect(() => {
     if (typeof window === 'undefined' || !(window as any).__SET_ORDER_PREVIEW__) return
@@ -340,7 +343,9 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
       side: pendingOrderSide,
       qty: parseFloat(volume) || 0.01,
       price: previewPrice,
-      type: orderType === 'market' ? 'limit' : pendingOrderType,
+      // For market orders, send 'market' type so Broker can label it "Buy"/"Sell" instead of "Buy Limit"
+      // For pending orders, send the specific type (limit/stop)
+      type: orderType === 'market' ? 'market' : pendingOrderType,
       takeProfit: tpPrice || 0,
       stopLoss: slPrice || 0,
       text: " "
@@ -406,53 +411,6 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
       return currentSellPrice - priceChange
     }
   }, [getPipSize, currentBuyPrice, currentSellPrice])
-
-  // Auto-set TP/SL upon preview start OR symbol change
-  const lastProcessedSymbol = React.useRef(symbol)
-
-  React.useEffect(() => {
-    // If pendingOrderSide is active, we should show lines
-    if (pendingOrderSide) {
-      const offsets = getDefaultOffsets
-      const pipSize = getPipSize
-
-      // Calculate distances: 
-      // For Forex (pipSize 0.0001), 20 * 0.0001 = 0.0020
-      // For Crypto (pipSize 1.00), 1000 * 1.00 = 1000
-      // For Metals/Indices (pipSize 1.00 or 0.01), 20 units
-      const tpDist = offsets.tp * pipSize
-      const slDist = offsets.sl * pipSize
-
-      let basePrice = 0
-      if (orderType === 'market') {
-        basePrice = pendingOrderSide === 'buy' ? currentBuyPrice : currentSellPrice
-      } else {
-        basePrice = parseFloat(openPrice) || 0
-      }
-
-      const isSymbolChanged = lastProcessedSymbol.current !== symbol
-      if (isSymbolChanged) {
-        lastProcessedSymbol.current = symbol
-      }
-
-      if (basePrice > 0) {
-        // Set TP/SL if missing OR if symbol just changed
-        if (!takeProfit || isSymbolChanged) {
-          const tp = pendingOrderSide === 'buy' ? basePrice + tpDist : basePrice - tpDist
-          setTakeProfit(tp.toFixed(instrument?.digits || 2).replace(/\.?0+$/, ""))
-          setTakeProfitMode("price")
-        }
-        if (!stopLoss || isSymbolChanged) {
-          const sl = pendingOrderSide === 'buy' ? basePrice - slDist : basePrice + slDist
-          setStopLoss(sl.toFixed(instrument?.digits || 2).replace(/\.?0+$/, ""))
-          setStopLossMode("price")
-        }
-      }
-    } else {
-      // If side is cleared (e.g. symbol changed but side not set), we can still prep values if we want
-      // but usually wait for side selection ('buy'/'sell')
-    }
-  }, [pendingOrderSide, symbol, currentBuyPrice, currentSellPrice, orderType, openPrice, getDefaultOffsets, getPipSize, instrument])
 
   // Calculate volume for risk calculator based on Risk and Stop Loss
   const calculateRiskBasedVolume = React.useMemo(() => {
