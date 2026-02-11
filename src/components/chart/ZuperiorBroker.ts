@@ -1997,7 +1997,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			// Show only Lot Size for market orders (e.g., "0.01"), hide for others or as requested
 			qtyText: isMarket ? qty.toString() : " ",
 		};
-
+//add this
 		console.log('[ZuperiorBroker] Setting order preview:', previewOrder);
 		this._orderById[PREVIEW_ORDER_ID] = previewOrder;
 
