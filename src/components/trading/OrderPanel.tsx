@@ -548,6 +548,20 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
     setter(Math.max(0, basePrice - 0.001).toFixed(3))
   }
 
+  // Reset state and clear preview when symbol changes
+  React.useEffect(() => {
+    setPendingOrderSide(null);
+    setTakeProfit("");
+    setStopLoss("");
+    setOpenPrice("");
+    setVolume("0.01");
+    // Explicitly clear chart preview
+    if (typeof window !== 'undefined' && (window as any).__SET_ORDER_PREVIEW__) {
+      (window as any).__SET_ORDER_PREVIEW__({ side: null });
+      lastPreviewData.current = 'null';
+    }
+  }, [symbol])
+
   // Render buy/sell price buttons with spread overlay - solid backgrounds for one-click
   const renderPriceButtonsSolid = () => (
     <div className="relative grid grid-cols-2 gap-3">
@@ -569,16 +583,21 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
               stopLoss: undefined,
               takeProfit: undefined,
             });
-            setStopLoss("");
+            // Clear preview on success
+            setPendingOrderSide(null);
             setTakeProfit("");
+            setStopLoss("");
             setRisk("");
+            if (typeof window !== 'undefined' && (window as any).__SET_ORDER_PREVIEW__) {
+              (window as any).__SET_ORDER_PREVIEW__({ side: null });
+              lastPreviewData.current = 'null';
+            }
             setTimeout(() => {
               setIsLoading(false);
-              setPendingOrderSide(null);
             }, 1000);
           } catch (err) {
             setIsLoading(false);
-            setPendingOrderSide(null);
+            // Don't clear preview on error so user can retry
           }
         }}
         disabled={isLoading}
@@ -628,13 +647,18 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
             setStopLoss("");
             setTakeProfit("");
             setRisk("");
+            // Clear preview on success
+            setPendingOrderSide(null);
+            if (typeof window !== 'undefined' && (window as any).__SET_ORDER_PREVIEW__) {
+              (window as any).__SET_ORDER_PREVIEW__({ side: null });
+              lastPreviewData.current = 'null';
+            }
             setTimeout(() => {
               setIsLoading(false);
-              setPendingOrderSide(null);
             }, 1000);
           } catch (err) {
             setIsLoading(false);
-            setPendingOrderSide(null);
+            // Don't clear preview on error so user can retry
           }
         }}
         disabled={isLoading}
