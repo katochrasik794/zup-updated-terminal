@@ -1427,8 +1427,19 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 				}
 				// 2. Remove Internal State
 				delete this._positionById[positionId];
-				delete this._orderById[`${positionId}_TP`];
-				delete this._orderById[`${positionId}_SL`];
+
+				// EXPLICITLY CANCEL BRACKETS (like in cancelOrder)
+				[`${positionId}_TP`, `${positionId}_SL`].forEach(bracketId => {
+					const bracket = this._orderById[bracketId];
+					if (bracket) {
+						console.log('[ZuperiorBroker] Cancelling preview bracket (from closePosition):', bracketId);
+						if (this._host && typeof this._host.orderUpdate === 'function') {
+							this._host.orderUpdate({ ...bracket, status: OrderStatus.Canceled });
+						}
+						delete this._orderById[bracketId];
+					}
+				});
+
 				this._positions = this._positions.filter(p => p.id !== positionId);
 
 				// 3. Notify UI to Reset
