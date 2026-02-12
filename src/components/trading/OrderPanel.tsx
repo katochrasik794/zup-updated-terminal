@@ -168,6 +168,17 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
         return;
       }
 
+      // Handle explicit cancellation from chart (e.g. clicking 'X')
+      if (source === 'chart_cancel') {
+        console.log("[OrderPanel] Received cancellation from chart. resetting state.");
+        setPendingOrderSide(null);
+        setTakeProfit("");
+        setStopLoss("");
+        // No need to clear chart preview here as the chart initiated it, 
+        // but setting pendingOrderSide(null) prevents the loop.
+        return;
+      }
+
       // Start syncing: Cancel any pending clear
       if (syncTimeoutRef.current) {
         clearTimeout(syncTimeoutRef.current)

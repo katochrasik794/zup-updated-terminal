@@ -1415,6 +1415,43 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 
 		console.log('[ZuperiorBroker] closePosition called for:', positionId);
 
+		// Ghost Position Cleanup (Market Preview Cancellation)
+		if (positionId === PREVIEW_POSITION_ID) {
+			console.log('[ZuperiorBroker] Closing preview position (ghost):', positionId);
+			const position = this._positionById[positionId];
+			if (position) {
+				// 1. Notify Chart of Closure
+				if (this._host && typeof this._host.positionUpdate === 'function') {
+					const closedPosition = { ...position, qty: 0, avgPrice: 0 };
+					this._host.positionUpdate(closedPosition);
+				}
+				// 2. Remove Internal State
+				delete this._positionById[positionId];
+				delete this._orderById[`${positionId}_TP`];
+				delete this._orderById[`${positionId}_SL`];
+				this._positions = this._positions.filter(p => p.id !== positionId);
+
+				// 3. Notify UI to Reset
+				if (typeof window !== 'undefined') {
+					const targetWin = window.top || window;
+					targetWin.dispatchEvent(new CustomEvent('__ON_ORDER_PREVIEW_CHANGE__', {
+						detail: {
+							id: positionId,
+							price: 0,
+							takeProfit: 0,
+							stopLoss: 0,
+							qty: 0,
+							source: 'chart_cancel'
+						}
+					}));
+				}
+
+				// 4. Update Chart
+				this._notifyAllPositionsAndOrders();
+			}
+			return Promise.resolve();
+		}
+
 		// Optimistic update: Remove from local state immediately
 		const position = this._positionById[positionId];
 		if (position) {
