@@ -356,9 +356,14 @@ export const TVChartContainer = () => {
                                     if (currentOrder) {
                                         const newPrice = order.limitPrice || order.stopPrice;
                                         const oldPrice = currentOrder.limitPrice || currentOrder.stopPrice;
-                                        // If price is roughly same, assume it's a click to modify -> SHOW MODAL
-                                        if (Math.abs(newPrice - oldPrice) < 0.00001) {
-                                            console.log('[TVChartContainer] Preview order click detected (no price change), allowing modal.');
+
+                                        const priceChanged = Math.abs(newPrice - oldPrice) > 0.00001;
+                                        const tpChanged = Math.abs((order.takeProfit || 0) - (currentOrder.takeProfit || 0)) > 0.00001;
+                                        const slChanged = Math.abs((order.stopLoss || 0) - (currentOrder.stopLoss || 0)) > 0.00001;
+
+                                        // If NOTHING changed, assume it's a click to open modal
+                                        if (!priceChanged && !tpChanged && !slChanged) {
+                                            console.log('[TVChartContainer] Preview order click detected (no changes), allowing modal.');
                                             // Fallthrough to showOrderDialog below
                                             if (window.CustomDialogs) return window.CustomDialogs.showOrderDialog(customOrderDialog, order);
                                             return Promise.resolve(true);

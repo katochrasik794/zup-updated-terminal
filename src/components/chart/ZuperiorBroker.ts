@@ -188,8 +188,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 					this._positionById[cleanPosition.id] = cleanPosition;
 
 					if (typeof this._host.positionUpdate === 'function') {
-
-						this._host.positionUpdate(cleanPosition);
+						this._host.positionUpdate({ ...cleanPosition });
 					}
 
 					if ((cleanPosition as any).pl !== undefined && typeof (cleanPosition as any).pl === 'number' && typeof this._host.plUpdate === 'function') {
@@ -250,7 +249,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 					}
 
 					console.log('[ZuperiorBroker] Notifying bracket order update:', bracket);
-					this._host.orderUpdate(bracket);
+					this._host.orderUpdate({ ...bracket });
 				}
 			} catch (error) {
 				// Error notifying bracket order - silently handle
@@ -261,7 +260,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 		regularOrders.forEach(o => {
 			try {
 				if (this._host && typeof this._host.orderUpdate === 'function') {
-					this._host.orderUpdate(o);
+					this._host.orderUpdate({ ...o });
 				}
 			} catch (error) {
 				// Error notifying order - silently handle
@@ -1770,6 +1769,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 				if (modification.qty !== undefined) targetOrder.qty = modification.qty;
 				if (modification.takeProfit !== undefined) targetOrder.takeProfit = modification.takeProfit;
 				if (modification.stopLoss !== undefined) targetOrder.stopLoss = modification.stopLoss;
+				if (modification.type !== undefined) targetOrder.type = modification.type;
 			}
 
 			// Regents brackets for the parent/target order
@@ -1778,14 +1778,12 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			this._notifyAllPositionsAndOrders();
 
 			// Emit event for OrderPanel sync
-			console.log("[ZuperiorBroker] editOrder: Emitting __ON_ORDER_PREVIEW_CHANGE__ event for ghost:", targetId, {
-				takeProfit: targetOrder.takeProfit,
-				stopLoss: targetOrder.stopLoss,
-				price: (targetOrder.type === OrderType.Limit ? targetOrder.limitPrice : targetOrder.stopPrice)
-			});
+			console.log("[ZuperiorBroker] editOrder Preview: id=", targetId, "type=", targetOrder.type, "price=", (targetOrder.type === OrderType.Limit ? targetOrder.limitPrice : targetOrder.stopPrice));
 
 			if (typeof window !== 'undefined') {
 				const targetWin = window.top || window;
+				const syncType = targetOrder.type === OrderType.Limit ? 'limit' : 'stop';
+				console.log("[ZuperiorBroker] editOrder: Dispatching sync event to window.top. Type:", syncType);
 				targetWin.dispatchEvent(new CustomEvent('__ON_ORDER_PREVIEW_CHANGE__', {
 					detail: {
 						id: targetId,
@@ -1793,6 +1791,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 						takeProfit: targetOrder.takeProfit,
 						stopLoss: targetOrder.stopLoss,
 						qty: targetOrder.qty,
+						type: syncType,
 						source: 'chart'
 					}
 				}));
@@ -2078,12 +2077,42 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 
 		// Base pending order line drag
 		const mod: any = {};
-		if (order.type === OrderType.Stop) {
-			mod.stopPrice = effectivePrice;
+
+		// AUTO-SWITCH logic based on price relative to market
+		let effectiveType = order.type;
+		const symbol = order.symbol;
+		const lastPrice = (this._quotesProvider as any).getLastPrice ? (this._quotesProvider as any).getLastPrice(symbol) : undefined;
+
+		if (lastPrice !== undefined && lastPrice > 0) {
+			const sideVal = order.side;
+			const isBuy = sideVal === Side.Buy || (sideVal as any) === 1 || (sideVal as any) === 'buy';
+
+			if (isBuy) {
+				effectiveType = effectivePrice < lastPrice ? OrderType.Limit : OrderType.Stop;
+			} else {
+				effectiveType = effectivePrice > lastPrice ? OrderType.Limit : OrderType.Stop;
+			}
+			console.log(`[ZuperiorBroker] moveOrder Result: sym=${symbol} price=${effectivePrice} market=${lastPrice} side=${sideVal} (isBuy=${isBuy}) -> NEW TYPE=${effectiveType === OrderType.Limit ? 'Limit' : 'Stop'}`);
 		} else {
-			mod.limitPrice = effectivePrice;
+			console.log(`[ZuperiorBroker] Market price MISSING for ${symbol}. Cache size: ${(this._quotesProvider as any).wsManager?.lastPrices?.size}`);
 		}
+
+		order.type = effectiveType;
+		if (effectiveType === OrderType.Stop) {
+			order.stopPrice = effectivePrice;
+			order.limitPrice = undefined;
+			mod.stopPrice = effectivePrice;
+			mod.limitPrice = undefined;
+		} else {
+			order.limitPrice = effectivePrice;
+			order.stopPrice = undefined;
+			mod.limitPrice = effectivePrice;
+			mod.stopPrice = undefined;
+		}
+		mod.type = effectiveType;
+
 		console.log('[ZuperiorBroker] Moving pending order main line -> editOrder', orderId, mod);
+
 		return this.editOrder(orderId, mod);
 	}
 

@@ -81,6 +81,7 @@ class WebSocketManager {
     private subscribers: Set<{ symbol: string; tf: string; callback: SubscribeBarsCallback; lastBarTime: number }> = new Set();
     private historyCallbacks: Map<string, { onSuccess: HistoryCallback; onError: (error: string) => void }> = new Map();
     private requestQueue: (() => void)[] = [];
+    public lastPrices: Map<string, number> = new Map();
 
     constructor(url: string) {
         this.url = url;
@@ -208,6 +209,11 @@ class WebSocketManager {
 
                 callback.onSuccess(bars, { noData: bars.length === 0 });
                 this.historyCallbacks.delete(key);
+
+                // Cache last price from history
+                if (bars.length > 0) {
+                    this.lastPrices.set(normalizeSymbol(response.symbol), bars[bars.length - 1].close);
+                }
             }
         } else if (data.type === 'candle_update') {
             const update = data as CandleUpdate;
@@ -231,6 +237,11 @@ class WebSocketManager {
                     sub.callback(bar);
                 }
             });
+
+            // Cache last price from live update
+            const normalized = normalizeSymbol(update.symbol);
+            this.lastPrices.set(normalized, update.c);
+            // console.log(`[RealtimeDataFeed] Cache updated for ${normalized}: ${update.c}`);
         }
     }
 }
@@ -250,6 +261,13 @@ export class RealtimeDataFeed {
             supports_marks: false,
             supports_timescale_marks: false,
         };
+    }
+
+    public getLastPrice(symbol: string): number | undefined {
+        const normalized = normalizeSymbol(symbol);
+        const lastPrice = this.wsManager.lastPrices.get(normalized);
+        console.log(`[RealtimeDataFeed] getLastPrice for ${symbol} (norm: ${normalized}): ${lastPrice}. Cache size: ${this.wsManager.lastPrices.size}`);
+        return lastPrice;
     }
 
     public onReady(callback: (config: any) => void) {

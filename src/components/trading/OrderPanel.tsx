@@ -159,8 +159,8 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
   // Sync TP/SL from chart preview
   React.useEffect(() => {
     const handlePreviewChange = (e: any) => {
-      const { takeProfit: tp, stopLoss: sl, price, source } = e.detail || {}
-      console.log("[OrderPanel] Received __ON_ORDER_PREVIEW_CHANGE__ event:", { tp, sl, price, source });
+      const { takeProfit: tp, stopLoss: sl, price, source, type: orderTypeFromChart } = e.detail || {}
+      console.log("[OrderPanel] Received __ON_ORDER_PREVIEW_CHANGE__ event:", { tp, sl, price, source, type: orderTypeFromChart });
 
       // Prevent loops - only if we initiated the change
       if (source === 'panel') {
@@ -210,6 +210,11 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
         if (price !== undefined) {
           const priceNum = parseFloat(price);
           if (!isNaN(priceNum)) setOpenPrice(priceNum.toString());
+        }
+
+        if (orderTypeFromChart === 'limit' || orderTypeFromChart === 'stop') {
+          console.log("[OrderPanel] Syncing pending order type from chart:", orderTypeFromChart);
+          setPendingOrderType(orderTypeFromChart as "limit" | "stop");
         }
       } catch (err) {
         console.error("[OrderPanel] Error updating values from chart:", err);
@@ -1428,7 +1433,19 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
         {formType === "one-click" && (
           <>
             <Tabs value={orderType === "pending" ? "limit" : orderType} onValueChange={(value: string) => {
-              setOrderType(value === "limit" ? "pending" : (value as "market" | "pending"))
+              if (value === "limit") {
+                setOrderType("pending");
+                setPendingOrderType("limit");
+                // Auto-initialize preview for pending order
+                setPendingOrderSide('buy');
+                // Default to current price for immediate visibility
+                if (!openPrice) setOpenPrice(currentBuyPrice.toFixed(getPipSize === 0.01 ? 2 : 5));
+              } else {
+                setOrderType(value as "market" | "pending");
+                // Clear pending preview if switching back to market
+                setPendingOrderSide(null);
+                setOpenPrice("");
+              }
             }}>
               <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="market">Market</TabsTrigger>
@@ -1530,7 +1547,17 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
           <>
             {renderPriceButtonsBordered(false, true)}
 
-            <Tabs value={orderType} onValueChange={(value: string) => setOrderType(value as "market" | "limit" | "pending")}>
+            <Tabs value={orderType} onValueChange={(value: string) => {
+              if (value === "pending") {
+                setOrderType("pending");
+                setPendingOrderSide('buy');
+                if (!openPrice) setOpenPrice(currentBuyPrice.toFixed(getPipSize === 0.01 ? 2 : 5));
+              } else {
+                setOrderType(value as "market" | "limit" | "pending");
+                setPendingOrderSide(null);
+                setOpenPrice("");
+              }
+            }}>
               <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="market">Market</TabsTrigger>
                 <TabsTrigger value="pending">Pending</TabsTrigger>
