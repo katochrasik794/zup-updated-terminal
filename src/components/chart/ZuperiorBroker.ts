@@ -1095,6 +1095,57 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 	public async cancelOrder(orderId: string): Promise<void> {
 		if (!this._accessToken || !this._accountId) return Promise.reject("Auth failed");
 
+		// If this is a preview order, just clear it locally and notify panel
+		if (orderId.startsWith(PREVIEW_ORDER_ID)) {
+			console.log('[ZuperiorBroker] Cancelling preview order:', orderId);
+			const order = this._orderById[orderId];
+
+			// Cancel main order
+			if (order) {
+				this._host.orderUpdate({ ...order, status: OrderStatus.Canceled });
+				delete this._orderById[orderId];
+				this._orders = this._orders.filter(o => o.id !== orderId);
+			}
+
+			// Cancel associated brackets
+			[
+				`${orderId}_TP`,
+				`${orderId}_SL`,
+				`${PREVIEW_ORDER_ID}_TP`, // Fallback common IDs
+				`${PREVIEW_ORDER_ID}_SL`
+			].forEach(bracketId => {
+				const bracket = this._orderById[bracketId];
+				if (bracket) {
+					console.log('[ZuperiorBroker] Cancelling preview bracket:', bracketId);
+					this._host.orderUpdate({ ...bracket, status: OrderStatus.Canceled });
+					delete this._orderById[bracketId];
+				}
+			});
+
+			this._orders = this._orders.filter(o =>
+				!o.id.toString().startsWith(PREVIEW_ORDER_ID) &&
+				!o.id.toString().startsWith(PREVIEW_POSITION_ID)
+			);
+
+			// Notify OrderPanel to reset form
+			if (typeof window !== 'undefined') {
+				const targetWin = window.top || window;
+				targetWin.dispatchEvent(new CustomEvent('__ON_ORDER_PREVIEW_CHANGE__', {
+					detail: {
+						id: orderId,
+						price: 0,
+						takeProfit: 0,
+						stopLoss: 0,
+						qty: 0,
+						source: 'chart_cancel' // Special source to indicate cancellation
+					}
+				}));
+			}
+
+			this._notifyAllPositionsAndOrders();
+			return Promise.resolve();
+		}
+
 		console.log('[ZuperiorBroker] cancelOrder called for:', orderId);
 
 		// CHECK IF THIS IS A BRACKET CANCELLATION
@@ -1775,7 +1826,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 				this._orders.push(slBracket);
 			}
 		} else {
-			// SL removed
+			// SL removed or was never there
 			if (existingSL) {
 				// Notify cancellation BEFORE deleting
 				this._notifyBracketCancelled(slId, existingSL);
@@ -2031,12 +2082,25 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 				this._positions = this._positions.filter(p => !p.id.toString().startsWith(PREVIEW_POSITION_ID));
 			}
 
-			// Clean up all related brackets/ghosts
-			delete this._orderById[`${PREVIEW_ORDER_ID}_TP`];
-			delete this._orderById[`${PREVIEW_ORDER_ID}_SL`];
-			delete this._orderById[`${PREVIEW_POSITION_ID}_TP`];
-			delete this._orderById[`${PREVIEW_POSITION_ID}_SL`];
-			this._orders = this._orders.filter(o => !o.id.toString().startsWith(PREVIEW_ORDER_ID) && !o.id.toString().startsWith(PREVIEW_POSITION_ID));
+			// Clean up all related brackets/ghosts by verifying if they exist and sending Cancel event
+			[
+				`${PREVIEW_ORDER_ID}_TP`,
+				`${PREVIEW_ORDER_ID}_SL`,
+				`${PREVIEW_POSITION_ID}_TP`,
+				`${PREVIEW_POSITION_ID}_SL`
+			].forEach(bracketId => {
+				const bracket = this._orderById[bracketId];
+				if (bracket) {
+					console.log('[ZuperiorBroker] Clearing preview bracket:', bracketId);
+					this._host.orderUpdate({ ...bracket, status: OrderStatus.Canceled });
+					delete this._orderById[bracketId];
+				}
+			});
+
+			this._orders = this._orders.filter(o =>
+				!o.id.toString().startsWith(PREVIEW_ORDER_ID) &&
+				!o.id.toString().startsWith(PREVIEW_POSITION_ID)
+			);
 		};
 
 		if (!previewData || !previewData.side) {
