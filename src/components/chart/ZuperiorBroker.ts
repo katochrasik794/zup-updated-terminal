@@ -105,6 +105,7 @@ function safeHostCall(host: any, method: string, ...args: any[]): any {
 }
 
 const PREVIEW_ORDER_ID = 'GHOST_PREVIEW_ID';
+const PREVIEW_POSITION_ID = 'GHOST_PREVIEW_POS_ID';
 
 export class ZuperiorBroker extends AbstractBrokerMinimal {
 	private _accountId: string | null;
@@ -119,6 +120,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 	private _accessToken: string | null = null;
 	private _accountBalance: number = 0;
 	private _lastActionTime: number = 0; // Timestamp of last user action to pause polling
+	private _isBrokerModalOpen: boolean = false;
 
 	private _positionsSubscription = new SimpleSubscription<(data: {}) => void>();
 	private _ordersSubscription = new SimpleSubscription<(data: {}) => void>();
@@ -462,15 +464,18 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			...orderBracketOrders
 		];
 
-		// Keep preview order and its brackets if they exist in internal state
+
+		// Keep preview order/position and their brackets if they exist in internal state
 		Object.keys(this._orderById).forEach(id => {
-			if (id.toString().startsWith(PREVIEW_ORDER_ID)) {
+			if (id.toString().startsWith(PREVIEW_ORDER_ID) || id.toString().startsWith(PREVIEW_POSITION_ID)) {
 				const pOrder = this._orderById[id];
 				if (!allOrders.find(o => o.id === pOrder.id)) {
 					allOrders.push(pOrder);
 				}
 			}
 		});
+
+		// Building clean positions map
 
 		// Build clean positions map
 		const cleanPositions: Position[] = [];
@@ -487,7 +492,14 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			});
 		}
 
-		// Update internal state (always)
+		// Inject ghost position if it exists
+		if (this._positionById[PREVIEW_POSITION_ID]) {
+			const gPos = this._positionById[PREVIEW_POSITION_ID];
+			if (!cleanPositions.find(p => p.id === gPos.id)) {
+				cleanPositions.push(gPos);
+				positionMap[gPos.id] = gPos;
+			}
+		}
 		this._positions = Array.isArray(tvPositions) ? [...tvPositions] : [];
 		// Keep all orders (pending + brackets) so TradingView can track edits/drags
 		this._orders = Array.isArray(allOrders) ? [...allOrders] : [];
@@ -854,7 +866,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 
 	// Brackets for pending orders (use parentType=Order)
 	private _createOrderTakeProfitBracket(order: Order): Order {
-		const isPreview = order.id === PREVIEW_ORDER_ID;
+		const isPreview = (order.id === PREVIEW_ORDER_ID) || (order.id === PREVIEW_POSITION_ID);
 		return {
 			id: `${order.id}_TP`,
 			symbol: order.symbol,
@@ -866,14 +878,14 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			parentId: order.id,
 			parentType: ParentType.Order,
 			text: "TP",
-			sideText: isPreview ? "\u00A0" : " ",
-			typeText: isPreview ? "\u00A0" : " ",
+			sideText: isPreview ? "\u200B" : " ",
+			typeText: isPreview ? "\u200B" : " ",
 			qtyText: " ",
 		} as unknown as Order;
 	}
 
 	private _createOrderStopLossBracket(order: Order): Order {
-		const isPreview = order.id === PREVIEW_ORDER_ID;
+		const isPreview = (order.id === PREVIEW_ORDER_ID) || (order.id === PREVIEW_POSITION_ID);
 		return {
 			id: `${order.id}_SL`,
 			symbol: order.symbol,
@@ -885,8 +897,8 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			parentId: order.id,
 			parentType: ParentType.Order,
 			text: "SL",
-			sideText: isPreview ? "\u00A0" : " ",
-			typeText: isPreview ? "\u00A0" : " ",
+			sideText: isPreview ? "\u200B" : " ",
+			typeText: isPreview ? "\u200B" : " ",
 			qtyText: " ",
 		} as unknown as Order;
 	}
@@ -988,7 +1000,6 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			console.log('[ZuperiorBroker] modifyOrder: Parent ID:', order.parentId);
 			console.log('[ZuperiorBroker] modifyOrder: Parent Type:', order.parentType);
 			console.log('[ZuperiorBroker] modifyOrder: Modification:', mod);
-			console.log('[ZuperiorBroker] modifyOrder: Is Preview?', order.parentId === 'PREVIEW_ORDER_ID');
 
 			if (order.parentType === ParentType.Position) {
 				console.log('[ZuperiorBroker] modifyOrder: Calling editPositionBrackets for position bracket modification');
@@ -1121,9 +1132,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			this._notifyAllPositionsAndOrders();
 		}
 
-		if (orderId === PREVIEW_ORDER_ID) {
-			return Promise.resolve();
-		}
+		// No-op for preview - handled by primitives now
 
 		try {
 			await cancelPendingOrderDirect({
@@ -1368,6 +1377,23 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 		}
 	}
 
+	public config(): any {
+		return {
+			supportPlaceOrderPreview: true,
+			supportModifyOrderPreview: true,
+			supportBrackets: true,
+			supportClosePosition: true,
+			supportPLUpdate: true,
+			supportEditAmount: false,
+			supportModifyOrderPrice: true,
+			supportModifyBrackets: true,
+			supportOrderBrackets: true,
+			supportPositionBrackets: true,
+			calculatePLUsingLast: true,
+			supportOrdersHistory: false,
+		};
+	}
+
 	public accountManagerInfo(): AccountManagerInfo {
 		const orderColumns: any[] = [
 			{
@@ -1489,7 +1515,13 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 	}
 
 	public async positions(): Promise<Position[]> {
-		return Promise.resolve(this._positions);
+		if (this._positionById[PREVIEW_POSITION_ID]) {
+			// Ensure it's present in the list returned to chart
+			if (!this._positions.find(p => p.id === PREVIEW_POSITION_ID)) {
+				this._positions.push(this._positionById[PREVIEW_POSITION_ID]);
+			}
+		}
+		return this._positions;
 	}
 
 	public async executions(symbol: string): Promise<Execution[]> {
@@ -1789,6 +1821,33 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 	}
 
 	public async modifyEntity(id: string, modification: any): Promise<void> {
+		if (id === PREVIEW_POSITION_ID) {
+			console.log('[ZuperiorBroker] modifyEntity: Skipping API for preview position');
+			const pos = this._positionById[id];
+			if (pos) {
+				if (modification.tp !== undefined) pos.takeProfit = modification.tp;
+				if (modification.sl !== undefined) pos.stopLoss = modification.sl;
+				this._handlePreviewBrackets(pos, id);
+				this._notifyAllPositionsAndOrders();
+
+				// Emit event for OrderPanel sync
+				if (typeof window !== 'undefined') {
+					const targetWin = window.top || window;
+					targetWin.dispatchEvent(new CustomEvent('__ON_ORDER_PREVIEW_CHANGE__', {
+						detail: {
+							id: id,
+							price: pos.avgPrice,
+							takeProfit: pos.takeProfit,
+							stopLoss: pos.stopLoss,
+							qty: pos.qty,
+							source: 'chart'
+						}
+					}));
+				}
+			}
+			return Promise.resolve();
+		}
+
 		// Check if it's a position
 		if (this._positionById[id]) {
 			return this.editPositionBrackets(id, modification);
@@ -1839,7 +1898,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 				// It is the parent order itself.
 				// We still want to ensure prop consistency if we are setting new params
 				if (modification.limitPrice !== undefined) entity.takeProfit = modification.limitPrice;
-				if (modification.stopPrice !== undefined) entity.stopLoss = modification.stopPrice;
+				if (modification.stopPrice !== undefined) entity.stopLoss = modification.stopLoss;
 				if (modification.takeProfit !== undefined) entity.takeProfit = modification.takeProfit;
 				if (modification.stopLoss !== undefined) entity.stopLoss = modification.stopLoss;
 				// Notification happens in editOrder flow usually, but safe to do here if needed. 
@@ -1905,8 +1964,8 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 					}
 
 					// Update local state directly to prevent snap-back during drag
-					if (isTP) parentOrder.takeProfit = price;
-					if (isSL) parentOrder.stopLoss = price;
+					if (isTP) parentOrder.takeProfit = effectivePrice;
+					if (isSL) parentOrder.stopLoss = effectivePrice;
 				}
 			}
 			return this.editOrder(order.parentId, mod);
@@ -1934,7 +1993,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 
 	// TradingView calls this when TP/SL of a position is dragged
 	public async movePositionBrackets(positionId: string, brackets: any): Promise<void> {
-		console.log('[ZuperiorBroker] movePositionBrackets invoked:', positionId, brackets);
+		// No-op for preview - handled by primitives now
 		return this.editPositionBrackets(positionId, brackets);
 	}
 
@@ -1949,137 +2008,138 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 		return this.editPositionBrackets(positionId, brackets);
 	}
 
-	public setOrderPreview(previewData: {
-		symbol?: string,
-		side?: 'buy' | 'sell' | null,
-		qty?: number,
-		price?: number,
-		type?: 'market' | 'limit' | 'stop',
-		takeProfit?: number,
-		stopLoss?: number
-	}): void {
-		console.log('[ZuperiorBroker] setOrderPreview called with:', previewData);
-		console.log('[ZuperiorBroker] setOrderPreview received:', {
-			symbol: previewData.symbol,
-			side: previewData.side,
-			price: previewData.price,
-			tp: previewData.takeProfit,
-			sl: previewData.stopLoss,
-			type: previewData.type
-		});
+	public async setOrderPreview(previewData: any): Promise<void> {
+		if (this._isBrokerModalOpen) return;
+
 		if (!this._host || typeof this._host.orderUpdate !== 'function') return;
 
-		if (!previewData.side) {
-			// Cancel preview
-			const existing = this._orderById[PREVIEW_ORDER_ID];
-			if (existing) {
-				const canceledPreview = {
-					...existing,
-					status: OrderStatus.Canceled,
-				};
-				console.log('[ZuperiorBroker] Canceling order preview');
-				this._host.orderUpdate(canceledPreview);
+		const clearAllPreviews = () => {
+			// Cancel order preview
+			const existingOrder = this._orderById[PREVIEW_ORDER_ID];
+			if (existingOrder) {
+				const canceledOrder = { ...existingOrder, status: OrderStatus.Canceled };
+				this._host.orderUpdate(canceledOrder);
 				delete this._orderById[PREVIEW_ORDER_ID];
-
-				// Also remove brackets
-				delete this._orderById[`${PREVIEW_ORDER_ID}_TP`];
-				delete this._orderById[`${PREVIEW_ORDER_ID}_SL`];
-
-				// Also remove from _orders array to keep internal state consistent
 				this._orders = this._orders.filter(o => !o.id.toString().startsWith(PREVIEW_ORDER_ID));
 			}
+
+			// Cancel position preview
+			const existingPos = this._positionById[PREVIEW_POSITION_ID];
+			if (existingPos) {
+				const closedPos = { ...existingPos, qty: 0 };
+				if (typeof this._host.positionUpdate === 'function') {
+					this._host.positionUpdate(closedPos);
+				}
+				delete this._positionById[PREVIEW_POSITION_ID];
+				this._positions = this._positions.filter(p => !p.id.toString().startsWith(PREVIEW_POSITION_ID));
+			}
+
+			// Clean up all related brackets/ghosts
+			delete this._orderById[`${PREVIEW_ORDER_ID}_TP`];
+			delete this._orderById[`${PREVIEW_ORDER_ID}_SL`];
+			delete this._orderById[`${PREVIEW_POSITION_ID}_TP`];
+			delete this._orderById[`${PREVIEW_POSITION_ID}_SL`];
+			this._orders = this._orders.filter(o => !o.id.toString().startsWith(PREVIEW_ORDER_ID) && !o.id.toString().startsWith(PREVIEW_POSITION_ID));
+		};
+
+		if (!previewData || !previewData.side) {
+			console.log('[ZuperiorBroker] Canceling all order/position previews');
+			clearAllPreviews();
+			this._notifyAllPositionsAndOrders();
 			return;
 		}
 
-		// Create or update preview order
+		// Clear previous state before creating new one to avoid visual artifacts
+		clearAllPreviews();
+
 		const side = previewData.side === 'buy' ? Side.Buy : Side.Sell;
 		const qty = previewData.qty || 1;
 		const price = previewData.price || 0;
 		const symbol = previewData.symbol || 'XAUUSD';
-
 		const isMarket = previewData.type === 'market';
-		const sideText = previewData.side === 'buy' ? 'Buy' : 'Sell';
 
-		const previewOrder: Order = {
-			id: PREVIEW_ORDER_ID,  // Correct variable name
-			symbol: symbol,
-			side: side,
-			qty: qty,
-			status: OrderStatus.Working,
-			// Market preview must use Limit or Stop to ensure the line is drawn in most library versions
-			type: previewData.type === 'stop' ? OrderType.Stop : OrderType.Limit,
-			limitPrice: price,
-			stopPrice: previewData.type === 'stop' ? price : undefined,
-			takeProfit: previewData.takeProfit,
-			stopLoss: previewData.stopLoss,
-			text: "",
-			sideText: "",
-			typeText: "",
-			qtyText: qty.toString(),
-			interactive: true,
-		} as any;
-		//add this
+		if (isMarket) {
+			// Create ghost position for market preview
+			const previewPos: Position = {
+				id: PREVIEW_POSITION_ID,
+				symbol: symbol,
+				side: side,
+				qty: qty,
+				avgPrice: price,
+				price: price,
+				pl: 0,
+				text: previewData.text || qty.toString(),
+				takeProfit: previewData.takeProfit || 0,
+				stopLoss: previewData.stopLoss || 0,
+				sideText: "\u200B",
+				typeText: "\u200B",
+			} as any;
 
-		this._orderById[PREVIEW_ORDER_ID] = previewOrder;
+			this._positionById[PREVIEW_POSITION_ID] = previewPos;
+			this._positions.push(previewPos);
 
-		// Update _orders array as well so orders() returns it
-		const existingIndex = this._orders.findIndex(o => o.id === PREVIEW_ORDER_ID);
-		if (existingIndex >= 0) {
-			this._orders[existingIndex] = previewOrder;
+			// Notify TV about the new position
+			if (typeof this._host.positionUpdate === 'function') {
+				this._host.positionUpdate(previewPos);
+			}
+
+			// Handle brackets for ghost position (returned in orders())
+			this._handlePreviewBrackets(previewPos, PREVIEW_POSITION_ID);
 		} else {
+			// Create ghost order for pending preview
+			const previewOrder: Order = {
+				id: PREVIEW_ORDER_ID,
+				symbol: symbol,
+				side: side,
+				qty: qty,
+				status: OrderStatus.Working,
+				type: previewData.type === 'stop' ? OrderType.Stop : OrderType.Limit,
+				limitPrice: price,
+				stopPrice: previewData.type === 'stop' ? price : undefined,
+				takeProfit: previewData.takeProfit,
+				stopLoss: previewData.stopLoss,
+				text: previewData.text || qty.toString(),
+				sideText: "",
+				typeText: "",
+				qtyText: "",
+				interactive: true,
+			} as any;
+
+			this._orderById[PREVIEW_ORDER_ID] = previewOrder;
 			this._orders.push(previewOrder);
+
+			// Notify TV about the new order
+			this._host.orderUpdate(previewOrder);
+
+			// Handle brackets for ghost order
+			this._handlePreviewBrackets(previewOrder, PREVIEW_ORDER_ID);
 		}
 
-		// Handle preview brackets (Preserve objects to allow iteration)
-		const tpId = `${PREVIEW_ORDER_ID}_TP`;
-		const slId = `${PREVIEW_ORDER_ID}_SL`;
-
-		if (previewOrder.takeProfit && previewOrder.takeProfit > 0) {
-			const existingTP = this._orderById[tpId];
-			if (existingTP) {
-				(existingTP as any).limitPrice = previewOrder.takeProfit;
-				this._host.orderUpdate(existingTP);
-			} else {
-				const tpB = this._createOrderTakeProfitBracket(previewOrder);
-				this._orderById[tpB.id] = tpB;
-				this._orders.push(tpB);
-				this._host.orderUpdate(tpB);
-			}
-		} else {
-			if (this._orderById[tpId]) {
-				const cancelledTP = { ...this._orderById[tpId], status: OrderStatus.Canceled };
-				this._host.orderUpdate(cancelledTP);
-				delete this._orderById[tpId];
-				this._orders = this._orders.filter(o => o.id !== tpId);
-			}
-		}
-
-		if (previewOrder.stopLoss && previewOrder.stopLoss > 0) {
-			const existingSL = this._orderById[slId];
-			if (existingSL) {
-				(existingSL as any).stopPrice = previewOrder.stopLoss;
-				this._host.orderUpdate(existingSL);
-			} else {
-				const slB = this._createOrderStopLossBracket(previewOrder);
-				this._orderById[slB.id] = slB;
-				this._orders.push(slB);
-				this._host.orderUpdate(slB);
-			}
-		} else {
-			if (this._orderById[slId]) {
-				const cancelledSL = { ...this._orderById[slId], status: OrderStatus.Canceled };
-				this._host.orderUpdate(cancelledSL);
-				delete this._orderById[slId];
-				this._orders = this._orders.filter(o => o.id !== slId);
-			}
-		}
-
-		this._host.orderUpdate(previewOrder);
 		this._notifyAllPositionsAndOrders();
+	}
 
-		// NOTE: Do NOT emit __ON_ORDER_PREVIEW_CHANGE__ here!
-		// This method is called when OrderPanel updates the preview via __SET_ORDER_PREVIEW__
-		// Emitting here would overwrite chart drag events with source: 'panel'
-		// The chart emits its own event with source: 'chart' from editOrder when brackets are dragged
+	private _handlePreviewBrackets(parent: any, parentId: string): void {
+		const tpId = `${parentId}_TP`;
+		const slId = `${parentId}_SL`;
+
+		if (parent.takeProfit && parent.takeProfit > 0) {
+			const tpB = this._createOrderTakeProfitBracket(parent);
+			tpB.id = tpId;
+			tpB.parentId = parentId;
+			tpB.parentType = parentId === PREVIEW_POSITION_ID ? ParentType.Position : ParentType.Order;
+			this._orderById[tpId] = tpB;
+			this._orders.push(tpB);
+			this._host.orderUpdate(tpB);
+		}
+
+		if (parent.stopLoss && parent.stopLoss > 0) {
+			const slB = this._createOrderStopLossBracket(parent);
+			slB.id = slId;
+			slB.parentId = parentId;
+			slB.parentType = parentId === PREVIEW_POSITION_ID ? ParentType.Position : ParentType.Order;
+			this._orderById[slId] = slB;
+			this._orders.push(slB);
+			this._host.orderUpdate(slB);
+		}
 	}
 }

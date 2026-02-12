@@ -26,7 +26,7 @@ export const TVChartContainer = () => {
     const containerRef = useRef<HTMLDivElement>(null);
     const brokerRef = useRef<any>(null);
     const widgetRef = useRef<any>(null);
-    const { setModifyModalState, lastModification } = useTrading();
+    const { setModifyModalState, lastModification, modifyModalState } = useTrading();
     const { currentAccountId, getMetaApiToken } = useAccount();
     const modifyModalPromiseResolve = useRef<((value: boolean) => void) | null>(null);
 
@@ -57,10 +57,27 @@ export const TVChartContainer = () => {
         });
     };
 
+    // Helper to clear all preview lines
+    const clearPreviewLines = () => {
+        if (brokerRef.current && typeof brokerRef.current.setOrderPreview === 'function') {
+            brokerRef.current.setOrderPreview(null);
+        }
+    };
+
     useEffect(() => {
         if (typeof window !== 'undefined') {
             (window as any).__OPEN_MODIFY_POSITION_MODAL__ = openModifyPositionModal;
-            (window as any).__SET_ORDER_PREVIEW__ = (previewData: any) => {
+            (window as any).__SET_ORDER_PREVIEW__ = async (previewData: any) => {
+                if (!widgetRef.current) return;
+                const chart = widgetRef.current.activeChart();
+                if (!chart) return;
+
+                if (!previewData || !previewData.symbol) {
+                    clearPreviewLines();
+                    return;
+                }
+
+                // Use the broker-based simulation method
                 if (brokerRef.current && typeof brokerRef.current.setOrderPreview === 'function') {
                     brokerRef.current.setOrderPreview(previewData);
                 }
@@ -69,7 +86,6 @@ export const TVChartContainer = () => {
     }, [setModifyModalState]);
 
     // Resolve the promise when the modal closes
-    const { modifyModalState } = useTrading();
     useEffect(() => {
         if (!modifyModalState.isOpen && modifyModalPromiseResolve.current) {
             // If we have a pending promise and the modal closes
@@ -228,6 +244,7 @@ export const TVChartContainer = () => {
                     "tradingProperties.showOrderLabels": false,
                     "tradingProperties.showOrderQty": true,
                     "tradingProperties.showOrderPrice": true,
+                    "tradingProperties.showOrderType": false,
                 },
                 toolbar_bg: '#02040d',
 
@@ -372,6 +389,16 @@ export const TVChartContainer = () => {
                         // Disable reverse dialog entirely
                         showReversePositionDialog: () => Promise.resolve(false),
                     }
+                },
+                trading_customization: {
+                    brokerOrder: {
+                        "buy.normal.borderBackgroundColor": "rgb(139,0,0)",
+                        "buy.disabled.text.buttonTextColor": "rgb(139,0,0)",
+                    },
+                    brokerPosition: {
+                        "buy.disabled.qty.textColor": "rgb(255,192,203)",
+                        "buy.normal.borderColor": "rgb(255,192,203)",
+                    },
                 }
             };
 

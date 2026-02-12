@@ -73,6 +73,32 @@ button[title*="Sell"] {
     display: none !important;
 }
 
+/* Hide ALL text in order line labels, then selectively show only what we want */
+.tv-order-line__label,
+.tv-order-line-label,
+.order-line-label,
+[class*="order-line"][class*="label"] {
+    font-size: 0 !important;
+    line-height: 0 !important;
+}
+
+/* Hide specific text nodes containing "Buy", "Sell", "Limit", "Stop" */
+.tv-order-line__label > *,
+.tv-order-line-label > *,
+.order-line-label > * {
+    font-size: 0 !important;
+    display: none !important;
+}
+
+/* Show only the custom text we set (which should be the lot size) */
+.tv-order-line__label::before,
+.tv-order-line-label::before,
+.order-line-label::before {
+    content: attr(data-text) !important;
+    font-size: 11px !important;
+    visibility: visible !important;
+}
+
 /* More specific targeting for internal library elements */
 .tv-order-line-label__text,
 .tv-order-line-label__type,
@@ -81,7 +107,11 @@ button[title*="Sell"] {
 .order-line-label__text,
 .order-line-label__type,
 .order-line-label__side,
-.order-line-label__status {
+.order-line-label__status,
+.tv-order-line__label-type,
+.tv-order-line__label-side,
+.tv-position-line__label-type,
+.tv-position-line__label-side {
     display: none !important;
     visibility: hidden !important;
     width: 0 !important;
@@ -89,11 +119,22 @@ button[title*="Sell"] {
     overflow: hidden !important;
     padding: 0 !important;
     margin: 0 !important;
+    font-size: 0 !important;
+    line-height: 0 !important;
 }
 
-/* Aggressive suppression using font-size: 0 */
-.tv-order-line-label,
-.order-line-label {
+/* Hide order type text specifically */
+[class*="order-line"][class*="type"],
+[class*="order-line"][class*="side"],
+[class*="position-line"][class*="type"],
+[class*="position-line"][class*="side"] {
+    display: none !important;
+}
+
+/* Target the actual text content - nuclear option */
+.tv-order-line__label *:not(.tv-order-line__label-quantity):not(.tv-order-line__label-price),
+.tv-order-line-label *:not(.tv-order-line-label__quantity):not(.tv-order-line-label__price) {
+    display: none !important;
     font-size: 0 !important;
 }
 
@@ -101,11 +142,15 @@ button[title*="Sell"] {
 .tv-order-line-label__quantity,
 .order-line-label__quantity,
 .tv-order-line-label__price,
-.order-line-label__price {
+.order-line-label__price,
+.tv-order-line__label-quantity,
+.tv-order-line__label-price,
+.tv-position-line__label-quantity,
+.tv-position-line__label-price {
     font-size: 11px !important;
     /* Adjust to match your theme's font size */
     visibility: visible !important;
-    display: flex !important;
+    display: inline-flex !important;
 }
 
 /* Ensure icons/buttons remain visible if needed, or hide them too */

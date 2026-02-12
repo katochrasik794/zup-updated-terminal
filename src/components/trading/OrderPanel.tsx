@@ -322,7 +322,7 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
     let tpPrice: number | undefined;
     let slPrice: number | undefined;
 
-    // Determine if we should use default offset (100 pips)
+    // Determine if we should use default offset (50 pips)
     const isTpSet = !isNaN(tpVal) && tpVal > 0;
     const isSlSet = !isNaN(slVal) && slVal > 0;
 
@@ -331,16 +331,16 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
     if (takeProfitMode === 'price' && isTpSet) {
       tpPrice = tpVal;
     } else {
-      // Use 100 pips default if not set
-      const offset = (isTpSet ? tpVal : 100) * pipSize;
+      // Use 50 pips default if not set (User request: 50 pips)
+      const offset = (isTpSet ? tpVal : 50) * pipSize;
       tpPrice = pendingOrderSide === 'buy' ? previewPrice + offset : previewPrice - offset;
     }
 
     if (stopLossMode === 'price' && isSlSet) {
       slPrice = slVal;
     } else {
-      // Use 100 pips default if not set
-      const offset = (isSlSet ? slVal : 100) * pipSize;
+      // Use 50 pips default if not set (User request: 50 pips)
+      const offset = (isSlSet ? slVal : 50) * pipSize;
       slPrice = pendingOrderSide === 'buy' ? previewPrice - offset : previewPrice + offset;
     }
 
@@ -376,7 +376,7 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
       type: orderType === 'market' ? 'market' : pendingOrderType,
       takeProfit: tpPrice || 0,
       stopLoss: slPrice || 0,
-      text: " "
+      text: (parseFloat(volume) || 0.01).toString()
     }
 
     console.log("[OrderPanel] Sending preview payload to chart:", previewPayload);
@@ -410,7 +410,7 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
 
   // Get default TP/SL offsets in "points/pips" (20 for all instruments as requested)
   const getDefaultOffsets = React.useMemo(() => {
-    return { tp: 100, sl: 100 }
+    return { tp: 50, sl: 50 }
   }, [])
 
   // Get pip value per lot based on symbol type
