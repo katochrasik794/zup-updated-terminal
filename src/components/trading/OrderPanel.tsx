@@ -476,9 +476,9 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
     if (symbolUpper.includes('JPY')) {
       return 10
     } else if (symbolUpper.includes('XAU') || symbolUpper.includes('GOLD')) {
-      return 10
+      return 100
     } else if (symbolUpper.includes('XAG') || symbolUpper.includes('SILVER')) {
-      return 10
+      return 50 // Standard silver contract is 5000 oz, but often 50 on retail brokers, using 50 as a safer bet for point value
     } else if (symbolUpper.includes('BTC') || symbolUpper.includes('BTCUSD')) {
       return getPipSize
     } else if (symbolUpper.includes('ETH') || symbolUpper.includes('ETHUSD')) {
