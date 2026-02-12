@@ -350,6 +350,22 @@ export const TVChartContainer = () => {
                             console.log('[TVChartContainer] showOrderDialog called:', order.id, order.type);
                             // Bypass modal for preview order or any order modification (bracket drag)
                             if (order.id === PREVIEW_ORDER_ID || order.id) {
+                                // For PREVIEW_ORDER_ID, check if it's a drag (price changed) or a click (price same)
+                                if (order.id === PREVIEW_ORDER_ID && brokerRef.current) {
+                                    const currentOrder = (brokerRef.current as any)._orderById[PREVIEW_ORDER_ID];
+                                    if (currentOrder) {
+                                        const newPrice = order.limitPrice || order.stopPrice;
+                                        const oldPrice = currentOrder.limitPrice || currentOrder.stopPrice;
+                                        // If price is roughly same, assume it's a click to modify -> SHOW MODAL
+                                        if (Math.abs(newPrice - oldPrice) < 0.00001) {
+                                            console.log('[TVChartContainer] Preview order click detected (no price change), allowing modal.');
+                                            // Fallthrough to showOrderDialog below
+                                            if (window.CustomDialogs) return window.CustomDialogs.showOrderDialog(customOrderDialog, order);
+                                            return Promise.resolve(true);
+                                        }
+                                    }
+                                }
+
                                 console.log('[TVChartContainer] Instant order/preview modification:', order.id);
                                 if (brokerRef.current) {
                                     brokerRef.current.editOrder(order.id, order)

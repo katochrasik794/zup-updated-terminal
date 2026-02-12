@@ -322,25 +322,22 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
     let tpPrice: number | undefined;
     let slPrice: number | undefined;
 
-    // Determine if we should use default offset (50 pips)
     const isTpSet = !isNaN(tpVal) && tpVal > 0;
     const isSlSet = !isNaN(slVal) && slVal > 0;
 
-    const pipSize = getPipSize;
+    const pipSize = getPipSize; // Keep in case needed for pips mode calculation
 
     if (takeProfitMode === 'price' && isTpSet) {
       tpPrice = tpVal;
-    } else {
-      // Use 50 pips default if not set (User request: 50 pips)
-      const offset = (isTpSet ? tpVal : 50) * pipSize;
+    } else if (takeProfitMode === 'pips' && isTpSet) {
+      const offset = tpVal * pipSize;
       tpPrice = pendingOrderSide === 'buy' ? previewPrice + offset : previewPrice - offset;
     }
 
     if (stopLossMode === 'price' && isSlSet) {
       slPrice = slVal;
-    } else {
-      // Use 50 pips default if not set (User request: 50 pips)
-      const offset = (isSlSet ? slVal : 50) * pipSize;
+    } else if (stopLossMode === 'pips' && isSlSet) {
+      const offset = slVal * pipSize;
       slPrice = pendingOrderSide === 'buy' ? previewPrice - offset : previewPrice + offset;
     }
 
@@ -352,18 +349,6 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
     if (slPrice !== undefined) {
       const isValid = pendingOrderSide === 'buy' ? slPrice < previewPrice : slPrice > previewPrice
       if (!isValid) slPrice = undefined
-    }
-
-    // Auto-populate panel if values are not set
-    if (!isTpSet && tpPrice !== undefined) {
-      const val = tpPrice.toFixed(instrument?.digits || 5).replace(/\.?0+$/, "");
-      setTakeProfit(val);
-      setTakeProfitMode('price');
-    }
-    if (!isSlSet && slPrice !== undefined) {
-      const val = slPrice.toFixed(instrument?.digits || 5).replace(/\.?0+$/, "");
-      setStopLoss(val);
-      setStopLossMode('price');
     }
 
     console.log("[OrderPanel] Preview calculation:", { previewPrice, tpPrice, slPrice, pipSize, symbol });
