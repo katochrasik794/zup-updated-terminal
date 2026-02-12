@@ -17,6 +17,7 @@ export interface Position {
   takeProfit?: number;
   stopLoss?: number;
   openTime: string;
+  closeTime?: string; // Close time for closed trades
   swap: number;
   profit: number;
   commission: number;
@@ -100,34 +101,34 @@ const formatPosition = (pos: any, isClosedTrade: boolean = false): Position => {
       default:
         // Fallback to Action-based logic for open positions
         const action = pos.Action ?? pos.action;
-        const isBuy = String(action) === '0' || String(action) === 'Buy' || String(orderType) === '0' || String(orderType) === 'Buy';
+        const isBuy = String(action) === '0' || String(action).toLowerCase() === 'buy' || String(orderType) === '0' || String(orderType).toLowerCase() === 'buy';
         mappedType = isBuy ? 'Buy' : 'Sell';
     }
   } else if (typeof orderType === 'string') {
     // Handle string-based type mapping
-    const typeStr = orderType.toString();
-    if (typeStr === 'Buy' || typeStr === '0') {
+    const typeStr = orderType.toString().toLowerCase();
+    if (typeStr === 'buy' || typeStr === '0') {
       mappedType = 'Buy';
-    } else if (typeStr === 'Sell' || typeStr === '1') {
+    } else if (typeStr === 'sell' || typeStr === '1') {
       mappedType = 'Sell';
-    } else if (typeStr === 'Buy Limit' || typeStr === '2') {
+    } else if (typeStr === 'buy limit' || typeStr === '2') {
       mappedType = 'Buy Limit';
-    } else if (typeStr === 'Sell Limit' || typeStr === '3') {
+    } else if (typeStr === 'sell limit' || typeStr === '3') {
       mappedType = 'Sell Limit';
-    } else if (typeStr === 'Buy Stop' || typeStr === '4') {
+    } else if (typeStr === 'buy stop' || typeStr === '4') {
       mappedType = 'Buy Stop';
-    } else if (typeStr === 'Sell Stop' || typeStr === '5') {
+    } else if (typeStr === 'sell stop' || typeStr === '5') {
       mappedType = 'Sell Stop';
     } else {
       // Fallback to Action-based logic
       const action = pos.Action ?? pos.action;
-      const isBuy = String(action) === '0' || String(action) === 'Buy';
+      const isBuy = String(action).toLowerCase() === 'buy' || String(action) === '0';
       mappedType = isBuy ? 'Buy' : 'Sell';
     }
   } else {
     // Fallback to Action-based logic for open positions
     const action = pos.Action ?? pos.action;
-    const isBuy = String(action) === '0' || String(action) === 'Buy' || String(orderType) === '0' || String(orderType) === 'Buy';
+    const isBuy = String(action).toLowerCase() === 'buy' || String(action) === '0' || String(orderType).toLowerCase() === 'buy' || String(orderType) === '0';
     mappedType = isBuy ? 'Buy' : 'Sell';
   }
 
@@ -173,8 +174,12 @@ const formatPosition = (pos: any, isClosedTrade: boolean = false): Position => {
 
   // For closed trades, use CloseTime; for pending orders, prioritize TimeSetup; for open positions, use TimeCreate/TimeSetup
   let openTime: string;
+  let closeTime: string | undefined;
+
   if (isClosedTrade) {
-    openTime = pos.CloseTime ?? pos.closeTime ?? pos.OpenTradeTime ?? pos.openTradeTime ?? new Date().toISOString();
+    // For closed trades, OpenTime is the entry time, and CloseTime is the exit time
+    openTime = pos.OpenTime ?? pos.openTime ?? pos.OpenTradeTime ?? pos.openTradeTime ?? pos.TimeCreate ?? pos.timeCreate ?? new Date().toISOString();
+    closeTime = pos.CloseTime ?? pos.closeTime ?? new Date().toISOString();
   } else if (isPendingOrder) {
     // For pending orders, TimeSetup is the primary source
     openTime = pos.TimeSetup ?? pos.timeSetup ?? pos.TimeCreate ?? pos.timeCreate ?? pos.OpenTime ?? pos.openTime ?? new Date().toISOString();
@@ -201,6 +206,7 @@ const formatPosition = (pos: any, isClosedTrade: boolean = false): Position => {
     takeProfit: pos.PriceTP ?? pos.priceTP ?? pos.TakeProfit ?? pos.takeProfit ?? pos.TP ?? pos.tp ?? undefined,
     stopLoss: pos.PriceSL ?? pos.priceSL ?? pos.StopLoss ?? pos.stopLoss ?? pos.SL ?? pos.sl ?? undefined,
     openTime: openTime,
+    closeTime: closeTime,
     swap: Number(pos.Swap || pos.swap || 0),
     profit: Number(pos.Profit || pos.profit || 0),
     commission: Number(pos.Commission || pos.commission || 0),

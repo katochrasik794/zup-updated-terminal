@@ -118,6 +118,7 @@ export default function TradingTerminal() {
           day: 'numeric',
           hour: 'numeric',
           minute: '2-digit',
+          second: '2-digit',
           hour12: true
         }),
         swap: pos.swap.toFixed(2),
@@ -155,6 +156,7 @@ export default function TradingTerminal() {
           day: 'numeric',
           hour: 'numeric',
           minute: '2-digit',
+          second: '2-digit',
           hour12: true
         }),
         swap: pos.swap.toFixed(2),
@@ -195,8 +197,17 @@ export default function TradingTerminal() {
           day: 'numeric',
           hour: 'numeric',
           minute: '2-digit',
+          second: '2-digit',
           hour12: true
         }),
+        closeTime: pos.closeTime ? new Date(pos.closeTime).toLocaleString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          hour: 'numeric',
+          minute: '2-digit',
+          second: '2-digit',
+          hour12: true
+        }) : '-',
         swap: pos.swap.toFixed(2),
         commission: pos.commission.toFixed(2),
         pl: plFormatted,

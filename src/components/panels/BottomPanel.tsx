@@ -35,6 +35,7 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
     sl: true,
     ticket: true,
     openTime: true,
+    closeTime: true, // For closed trades - show by default in Closed tab
     swap: true,
     commission: true,
     marketCloses: false
@@ -42,7 +43,7 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
 
   // Initial order matching the default view
   const [columnOrder, setColumnOrder] = useState([
-    'type', 'volume', 'openPrice', 'currentPrice', 'closePrice', 'tp', 'sl', 'ticket', 'openTime', 'swap', 'commission', 'marketCloses'
+    'type', 'volume', 'openPrice', 'currentPrice', 'closePrice', 'tp', 'sl', 'ticket', 'openTime', 'closeTime', 'swap', 'commission', 'marketCloses'
   ])
 
   const toggleColumn = (id: string) => {
@@ -125,6 +126,7 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
     sl: { label: 'Stop Loss', align: 'center' },
     ticket: { label: 'Position', align: 'left' },
     openTime: { label: 'Time', align: 'left' },
+    closeTime: { label: 'Close Time', align: 'left' },
     swap: { label: 'Swap', align: 'right' },
     commission: { label: 'Commission', align: 'right' },
     marketCloses: { label: 'Market Closes', align: 'left' }
@@ -215,6 +217,8 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
         return <span className="text-white">{!isGroupedView ? position.ticket : ''}</span>
       case 'openTime':
         return <span className="text-white">{position.openTime || position.time}</span>
+      case 'closeTime':
+        return <span className="text-white">{position.closeTime || '-'}</span>
       case 'swap':
         return <span className="text-white">{position.swap || '0'}</span>
       case 'commission':
@@ -356,10 +360,17 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
 
                   {/* Dynamic Columns */}
                   {columnOrder.map(colId => {
-                    // Hide swap, commission, and ticket (Position) columns for Pending tab
-                    if (activeTab === 'Pending' && (colId === 'swap' || colId === 'commission' || colId === 'ticket')) {
+                    // Hide swap, commission, and ticket (Position) columns for Pending and Closed tab
+                    if ((activeTab === 'Pending' || activeTab === 'Closed') && (colId === 'swap' || colId === 'commission' || colId === 'ticket')) {
                       return null;
                     }
+                    // Hide openTime and closeTime for non-Closed tabs (we handle openTime specifically below for Open tab if needed, but here we follow request)
+                    // Actually, for Closed tab we NEED openTime and closeTime.
+                    // For Open tab, we NEED openTime.
+                    if (activeTab !== 'Closed' && colId === 'closeTime') {
+                      return null;
+                    }
+
                     // Show closePrice only in Closed tab, hide currentPrice in Closed tab
                     if (activeTab === 'Closed') {
                       if (colId === 'currentPrice') return null; // Hide currentPrice in Closed tab
@@ -373,7 +384,8 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
                       : visibleColumns[colId];
                     return shouldShow && (
                       <th key={colId} className={`px-3 py-[3px] font-normal whitespace-nowrap text-${columnDefs[colId].align}`}>
-                        {activeTab === 'Pending' && colId === 'openPrice' ? 'Order Price' : columnDefs[colId].label}
+                        {activeTab === 'Pending' && colId === 'openPrice' ? 'Order Price' :
+                          (activeTab === 'Closed' && colId === 'openTime' ? 'Open Time' : columnDefs[colId].label)}
                       </th>
                     );
                   })}
@@ -419,10 +431,15 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
 
                       {/* Dynamic Columns */}
                       {columnOrder.map(colId => {
-                        // Hide swap, commission, and ticket (Position) columns for Pending tab
-                        if ((activeTab as string) === 'Pending' && (colId === 'swap' || colId === 'commission' || colId === 'ticket')) {
+                        // Hide swap, commission, and ticket (Position) columns for Pending and Closed tab
+                        if (((activeTab as string) === 'Pending' || (activeTab as string) === 'Closed') && (colId === 'swap' || colId === 'commission' || colId === 'ticket')) {
                           return null;
                         }
+                        // Hide closeTime for non-Closed tabs
+                        if ((activeTab as string) !== 'Closed' && colId === 'closeTime') {
+                          return null;
+                        }
+
                         // Show closePrice only in Closed tab, hide currentPrice in Closed tab
                         if ((activeTab as string) === 'Closed') {
                           if (colId === 'currentPrice') return null; // Hide currentPrice in Closed tab
@@ -523,10 +540,15 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
 
                                       {/* Dynamic Columns */}
                                       {columnOrder.map(colId => {
-                                        // Hide swap, commission, and ticket (Position) columns for Pending tab
-                                        if ((activeTab as string) === 'Pending' && (colId === 'swap' || colId === 'commission' || colId === 'ticket')) {
+                                        // Hide swap, commission, and ticket (Position) columns for Pending and Closed tab
+                                        if (((activeTab as string) === 'Pending' || (activeTab as string) === 'Closed') && (colId === 'swap' || colId === 'commission' || colId === 'ticket')) {
                                           return null;
                                         }
+                                        // Hide closeTime for non-Closed tabs
+                                        if ((activeTab as string) !== 'Closed' && colId === 'closeTime') {
+                                          return null;
+                                        }
+
                                         // Show closePrice only in Closed tab, hide currentPrice in Closed tab
                                         if ((activeTab as string) === 'Closed') {
                                           if (colId === 'currentPrice') return null; // Hide currentPrice in Closed tab
@@ -609,10 +631,15 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
 
                     {/* Dynamic Columns */}
                     {columnOrder.map(colId => {
-                      // Hide swap, commission, and ticket (Position) columns for Pending tab
-                      if ((activeTab as string) === 'Pending' && (colId === 'swap' || colId === 'commission' || colId === 'ticket')) {
+                      // Hide swap, commission, and ticket (Position) columns for Pending and Closed tab
+                      if (((activeTab as string) === 'Pending' || (activeTab as string) === 'Closed') && (colId === 'swap' || colId === 'commission' || colId === 'ticket')) {
                         return null;
                       }
+                      // Hide closeTime for non-Closed tabs
+                      if ((activeTab as string) !== 'Closed' && colId === 'closeTime') {
+                        return null;
+                      }
+
                       // Show closePrice only in Closed tab, hide currentPrice in Closed tab
                       if ((activeTab as string) === 'Closed') {
                         if (colId === 'currentPrice') return null; // Hide currentPrice in Closed tab
@@ -668,10 +695,15 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
 
                         {/* Dynamic Columns */}
                         {columnOrder.map(colId => {
-                          // Hide swap, commission, and ticket (Position) columns for Pending tab
-                          if ((activeTab as string) === 'Pending' && (colId === 'swap' || colId === 'commission' || colId === 'ticket')) {
+                          // Hide swap, commission, and ticket (Position) columns for Pending and Closed tab
+                          if (((activeTab as string) === 'Pending' || (activeTab as string) === 'Closed') && (colId === 'swap' || colId === 'commission' || colId === 'ticket')) {
                             return null;
                           }
+                          // Hide closeTime for non-Closed tabs
+                          if ((activeTab as string) !== 'Closed' && colId === 'closeTime') {
+                            return null;
+                          }
+
                           // Show closePrice only in Closed tab, hide currentPrice in Closed tab
                           if ((activeTab as string) === 'Closed') {
                             if (colId === 'currentPrice') return null; // Hide currentPrice in Closed tab
