@@ -1730,12 +1730,10 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
           <>
             {renderPriceButtonsBordered(false, true)}
 
-            <Tabs value={orderType} onValueChange={(value: string) => setOrderType(value as "market" | "limit" | "pending")}>
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="market">Market</TabsTrigger>
-                <TabsTrigger value="pending">Pending</TabsTrigger>
-              </TabsList>
-            </Tabs>
+            {/* Removed redundant Tabs for Market/Pending in Risk Calculator */}
+            <div className="text-sm font-semibold text-white/90 border-b border-white/5 pb-2 mb-1">
+              Market Execution
+            </div>
 
             <div className="space-y-2">
               <div className="flex items-center justify-between">
@@ -1759,7 +1757,8 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
                 <button
                   onClick={() => {
                     const currentValue = parseFloat(risk) || 0
-                    setRisk(Math.max(0, currentValue - 1).toString())
+                    const jump = riskMode === "usd" ? 10 : 1
+                    setRisk(Math.max(0, currentValue - jump).toString())
                   }}
                   className="h-9 w-9 flex items-center justify-center hover:bg-white/5 cursor-pointer"
                 >
@@ -1768,7 +1767,8 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
                 <button
                   onClick={() => {
                     const currentValue = parseFloat(risk) || 0
-                    setRisk((currentValue + 1).toString())
+                    const jump = riskMode === "usd" ? 10 : 1
+                    setRisk((currentValue + jump).toString())
                   }}
                   className="h-9 w-9 flex items-center justify-center hover:bg-white/5 cursor-pointer"
                 >
