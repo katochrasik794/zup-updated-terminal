@@ -124,6 +124,10 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
 
   // Handle form type change - show modal for one-click or risk calculator if needed
   const handleFormTypeChange = React.useCallback((newFormType: FormType) => {
+    // Reset TP and SL when switching forms as requested
+    setTakeProfit("")
+    setStopLoss("")
+
     if (newFormType === "one-click" && shouldShowOneClickModal()) {
       setPendingFormType(newFormType)
       setShowOneClickModal(true)
@@ -131,9 +135,15 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
       setPendingFormType(newFormType)
       setShowRiskCalculatorModal(true)
     } else {
+      // Force market and clear pending state for Risk Calculator
+      if (newFormType === "risk-calculator") {
+        setOrderType("market")
+        setPendingOrderSide(null)
+        setOpenPrice("")
+      }
       setFormType(newFormType)
     }
-  }, [shouldShowOneClickModal, shouldShowRiskCalculatorModal])
+  }, [setFormType, setTakeProfit, setStopLoss, setOrderType, setPendingOrderSide, setOpenPrice, shouldShowOneClickModal, shouldShowRiskCalculatorModal])
 
   // Handle one-click modal confirmation
   const handleOneClickModalConfirm = React.useCallback((dontShowAgain: boolean) => {
@@ -141,11 +151,16 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
       localStorage.setItem('zup_oneclick_modal_dismissed', 'true')
     }
     if (pendingFormType) {
+      if (pendingFormType === "risk-calculator") {
+        setOrderType("market")
+        setPendingOrderSide(null)
+        setOpenPrice("")
+      }
       setFormType(pendingFormType)
       setPendingFormType(null)
     }
     setShowOneClickModal(false)
-  }, [pendingFormType])
+  }, [pendingFormType, setOrderType, setPendingOrderSide, setOpenPrice, setFormType])
 
   // Ref for orderType to avoid stale usage in event listener
   const orderTypeRef = React.useRef(orderType)
@@ -312,11 +327,16 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
       localStorage.setItem('zup_riskcalculator_modal_dismissed', 'true')
     }
     if (pendingFormType) {
+      if (pendingFormType === "risk-calculator") {
+        setOrderType("market")
+        setPendingOrderSide(null)
+        setOpenPrice("")
+      }
       setFormType(pendingFormType)
       setPendingFormType(null)
     }
     setShowRiskCalculatorModal(false)
-  }, [pendingFormType])
+  }, [pendingFormType, setOrderType, setPendingOrderSide, setOpenPrice, setFormType])
 
   // Handle risk calculator modal cancel
   const handleRiskCalculatorModalCancel = React.useCallback(() => {
