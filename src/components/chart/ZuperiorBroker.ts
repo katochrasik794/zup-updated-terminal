@@ -1094,9 +1094,35 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 	public async cancelOrder(orderId: string): Promise<void> {
 		if (!this._accessToken || !this._accountId) return Promise.reject("Auth failed");
 
-		// If this is a preview order, just clear it locally and notify panel
-		if (orderId.startsWith(PREVIEW_ORDER_ID)) {
-			console.log('[ZuperiorBroker] Cancelling preview order:', orderId);
+		console.log('[ZuperiorBroker] cancelOrder called for:', orderId);
+
+		// 1. CHECK IF THIS IS A BRACKET CANCELLATION
+		const isTP = orderId.endsWith('_TP');
+		const isSL = orderId.endsWith('_SL');
+
+		if (isTP || isSL) {
+			const parentId = orderId.replace('_TP', '').replace('_SL', '');
+			console.log('[ZuperiorBroker] Bracket cancellation detected. Modifying parent:', parentId);
+
+			// Check if parent is a position
+			if (this._positionById[parentId]) {
+				const modification = isTP ? { takeProfit: 0 } : { stopLoss: 0 };
+				return this.editPositionBrackets(parentId, modification);
+			}
+
+			// Check if parent is an order (Handles GHOST_PREVIEW_ID too)
+			if (this._orderById[parentId]) {
+				const modification = isTP ? { takeProfit: 0 } : { stopLoss: 0 };
+				return this.editOrder(parentId, modification);
+			}
+
+			console.warn('[ZuperiorBroker] Parent entity not found for bracket cancel:', parentId);
+			return Promise.resolve(); // Fallback
+		}
+
+		// 2. MAIN PREVIEW / GHOST ORDER CANCELLATION (Not a bracket)
+		if (orderId === PREVIEW_ORDER_ID || (orderId.startsWith(PREVIEW_ORDER_ID) && !isTP && !isSL)) {
+			console.log('[ZuperiorBroker] Cancelling preview order (ghost):', orderId);
 			const order = this._orderById[orderId];
 
 			// Cancel main order
@@ -1143,32 +1169,6 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 
 			this._notifyAllPositionsAndOrders();
 			return Promise.resolve();
-		}
-
-		console.log('[ZuperiorBroker] cancelOrder called for:', orderId);
-
-		// CHECK IF THIS IS A BRACKET CANCELLATION
-		const isTP = orderId.endsWith('_TP');
-		const isSL = orderId.endsWith('_SL');
-
-		if (isTP || isSL) {
-			const parentId = orderId.replace('_TP', '').replace('_SL', '');
-			console.log('[ZuperiorBroker] Bracket cancellation detected. Modifying parent:', parentId);
-
-			// Check if parent is a position
-			if (this._positionById[parentId]) {
-				const modification = isTP ? { takeProfit: 0 } : { stopLoss: 0 };
-				return this.editPositionBrackets(parentId, modification);
-			}
-
-			// Check if parent is an order
-			if (this._orderById[parentId]) {
-				const modification = isTP ? { takeProfit: 0 } : { stopLoss: 0 };
-				return this.editOrder(parentId, modification);
-			}
-
-			console.warn('[ZuperiorBroker] Parent entity not found for bracket cancel:', parentId);
-			return Promise.resolve(); // Fallback
 		}
 
 		// Optimistic update for regular orders
