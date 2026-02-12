@@ -423,8 +423,7 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
       if (!isValid) slPrice = undefined
     }
 
-    console.log("[OrderPanel] Preview calculation:", { previewPrice, tpPrice, slPrice, pipSize, symbol });
-
+    // 4. Send to chart
     const previewPayload = {
       symbol: symbol,
       side: pendingOrderSide,
@@ -436,8 +435,13 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
       text: (parseFloat(volume) || 0.01).toString()
     }
 
-    console.log("[OrderPanel] Sending preview payload to chart:", previewPayload);
-
+    // Performance Optimization: 
+    // If we are currently receiving an update from the chart, don't send one back.
+    // This breaks the infinite loop and makes dragging much smoother.
+    if (isSyncingFromChart.current) {
+      console.log("[OrderPanel] Skipping preview update to chart: Syncing from chart in progress");
+      return
+    }
 
     // Dirty check: Only update if anything meaningful changed to avoid chart flicker
     const payloadStr = JSON.stringify(previewPayload)

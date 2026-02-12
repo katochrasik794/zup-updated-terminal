@@ -2168,73 +2168,93 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			return;
 		}
 
-		// Clear previous state before creating new one to avoid visual artifacts
-		clearAllPreviews();
-
 		const side = previewData.side === 'buy' ? Side.Buy : Side.Sell;
 		const qty = previewData.qty || 1;
 		const price = previewData.price || 0;
 		const symbol = previewData.symbol || 'XAUUSD';
 		const isMarket = previewData.type === 'market';
 
+		// 1. CLEVER SYNC: Determine if we need to switch modes
+		const existingMarket = !!this._positionById[PREVIEW_POSITION_ID];
+		const existingPending = !!this._orderById[PREVIEW_ORDER_ID];
+
+		if (isMarket && existingPending) clearAllPreviews();
+		if (!isMarket && existingMarket) clearAllPreviews();
+
 		if (isMarket) {
-			// Create ghost position for market preview
-			const previewPos: Position = {
-				id: PREVIEW_POSITION_ID,
-				symbol: symbol,
-				side: side,
-				qty: qty,
-				avgPrice: price,
-				price: price,
-				pl: 0,
-				text: previewData.text || qty.toString(),
-				takeProfit: previewData.takeProfit || 0,
-				stopLoss: previewData.stopLoss || 0,
-				sideText: "\u200B",
-				typeText: "\u200B",
-			} as any;
-
-			this._positionById[PREVIEW_POSITION_ID] = previewPos;
-			this._positions.push(previewPos);
-
-			// Notify TV about the new position
-			if (typeof this._host.positionUpdate === 'function') {
-				this._host.positionUpdate(previewPos);
+			let previewPos = this._positionById[PREVIEW_POSITION_ID];
+			if (!previewPos) {
+				previewPos = {
+					id: PREVIEW_POSITION_ID,
+					symbol: symbol,
+					side: side,
+					qty: qty,
+					avgPrice: price,
+					price: price,
+					pl: 0,
+					text: previewData.text || qty.toString(),
+					takeProfit: previewData.takeProfit || 0,
+					stopLoss: previewData.stopLoss || 0,
+					sideText: "\u200B",
+					typeText: "\u200B",
+				} as any;
+				this._positionById[PREVIEW_POSITION_ID] = previewPos;
+				this._positions.push(previewPos);
+			} else {
+				// Update in place for smoothness
+				previewPos.avgPrice = price;
+				previewPos.price = price;
+				previewPos.side = side;
+				previewPos.qty = qty;
+				previewPos.takeProfit = previewData.takeProfit || 0;
+				previewPos.stopLoss = previewData.stopLoss || 0;
 			}
 
-			// Handle brackets for ghost position (returned in orders())
+			if (this._host && typeof this._host.positionUpdate === 'function') {
+				this._host.positionUpdate(previewPos);
+			}
 			this._handlePreviewBrackets(previewPos, PREVIEW_POSITION_ID);
 		} else {
-			// Create ghost order for pending preview
-			const previewOrder: Order = {
-				id: PREVIEW_ORDER_ID,
-				symbol: symbol,
-				side: side,
-				qty: qty,
-				status: OrderStatus.Working,
-				type: previewData.type === 'stop' ? OrderType.Stop : OrderType.Limit,
-				limitPrice: price,
-				stopPrice: previewData.type === 'stop' ? price : undefined,
-				takeProfit: previewData.takeProfit,
-				stopLoss: previewData.stopLoss,
-				text: previewData.text || qty.toString(),
-				sideText: "",
-				typeText: "",
-				qtyText: "",
-				interactive: true,
-			} as any;
+			let previewOrder = this._orderById[PREVIEW_ORDER_ID];
+			if (!previewOrder) {
+				previewOrder = {
+					id: PREVIEW_ORDER_ID,
+					symbol: symbol,
+					side: side,
+					qty: qty,
+					status: OrderStatus.Working,
+					type: previewData.type === 'stop' ? OrderType.Stop : OrderType.Limit,
+					limitPrice: price,
+					stopPrice: previewData.type === 'stop' ? price : undefined,
+					takeProfit: previewData.takeProfit,
+					stopLoss: previewData.stopLoss,
+					text: previewData.text || qty.toString(),
+					sideText: "",
+					typeText: "",
+					qtyText: "",
+					interactive: true,
+				} as any;
+				this._orderById[PREVIEW_ORDER_ID] = previewOrder;
+				this._orders.push(previewOrder);
+			} else {
+				// Update in place
+				previewOrder.limitPrice = price;
+				previewOrder.stopPrice = previewData.type === 'stop' ? price : undefined;
+				previewOrder.side = side;
+				previewOrder.qty = qty;
+				previewOrder.takeProfit = previewData.takeProfit;
+				previewOrder.stopLoss = previewData.stopLoss;
+				previewOrder.type = previewData.type === 'stop' ? OrderType.Stop : OrderType.Limit;
+			}
 
-			this._orderById[PREVIEW_ORDER_ID] = previewOrder;
-			this._orders.push(previewOrder);
-
-			// Notify TV about the new order
-			this._host.orderUpdate(previewOrder);
-
-			// Handle brackets for ghost order
+			if (this._host && typeof this._host.orderUpdate === 'function') {
+				this._host.orderUpdate(previewOrder);
+			}
 			this._handlePreviewBrackets(previewOrder, PREVIEW_ORDER_ID);
 		}
 
-		this._notifyAllPositionsAndOrders();
+		// Avoid heavy global notification if only preview changed
+		// this._notifyAllPositionsAndOrders();
 	}
 
 	private _handlePreviewBrackets(parent: any, parentId: string): void {
