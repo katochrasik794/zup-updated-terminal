@@ -186,7 +186,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 					this._positionById[cleanPosition.id] = cleanPosition;
 
 					if (typeof this._host.positionUpdate === 'function') {
-						console.log('[ZuperiorBroker] Notifying position update:', cleanPosition);
+
 						this._host.positionUpdate(cleanPosition);
 					}
 
@@ -204,18 +204,14 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 		const allOrdersFromMap = Object.values(this._orderById || {});
 		const bracketOrders = allOrdersFromMap.filter(o => this._isBracketOrder(o));
 
-		console.log(`[ZuperiorBroker] Notify: Total Orders in Map: ${allOrdersFromMap.length}, Brackets: ${bracketOrders.length}`);
-		if (bracketOrders.length === 0 && allOrdersFromMap.length > 0) {
-			console.log('[ZuperiorBroker] WARNING: Orders exist but no brackets found. Sample order:', allOrdersFromMap[0]);
-			console.log('[ZuperiorBroker] _isBracketOrder check result for sample:', this._isBracketOrder(allOrdersFromMap[0]));
-		}
+
 
 		// Regular orders are in _orders array (already filtered to exclude brackets)
 		const regularOrders = this._orders.filter(o => o && !this._isBracketOrder(o));
 
 		// 2. Send bracket orders via orderUpdate() with correct status and parentId/parentType set
 		bracketOrders.forEach(bracket => {
-			console.log(`[ZuperiorBroker] Processing bracket ${bracket.id} for update`);
+
 			try {
 				if (this._host && typeof this._host.orderUpdate === 'function') {
 					if (bracket.parentType === undefined) {
@@ -828,6 +824,9 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			parentId: position.id,
 			parentType: ParentType.Position,
 			text: "TP",
+			sideText: " ",
+			typeText: " ",
+			qtyText: " ",
 		} as unknown as Order;
 	}
 
@@ -843,6 +842,9 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			parentId: position.id,
 			parentType: ParentType.Position,
 			text: "SL",
+			sideText: " ",
+			typeText: " ",
+			qtyText: " ",
 		} as unknown as Order;
 	}
 
@@ -867,9 +869,9 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			parentId: order.id,
 			parentType: ParentType.Order,
 			text: "TP",
-			sideText: isPreview ? " " : undefined,
-			typeText: isPreview ? " " : undefined,
-			qtyText: isPreview ? " " : undefined,
+			sideText: " ",
+			typeText: " ",
+			qtyText: " ",
 		} as unknown as Order;
 	}
 
@@ -886,9 +888,9 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			parentId: order.id,
 			parentType: ParentType.Order,
 			text: "SL",
-			sideText: isPreview ? " " : undefined,
-			typeText: isPreview ? " " : undefined,
-			qtyText: isPreview ? " " : undefined,
+			sideText: " ",
+			typeText: " ",
+			qtyText: " ",
 		} as unknown as Order;
 	}
 
@@ -1991,14 +1993,15 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			takeProfit: previewData.takeProfit,
 			stopLoss: previewData.stopLoss,
 			text: " ",
-			sideText: isMarket ? "\u00A0" : sideText,
-			// Using Non-Breaking Space is safer to ensure it renders "nothing" instead of fallback
-			typeText: isMarket ? "\u00A0" : undefined,
+			// Explicitly set "Buy" or "Sell" for market orders, instead of hiding it
+			sideText: isMarket ? (side === Side.Buy ? "Buy" : "Sell") : sideText,
+			// Suppress "Limit" text for market orders by using a single space
+			typeText: isMarket ? " " : undefined,
 			// Show only Lot Size for market orders (e.g., "0.01"), hide for others or as requested
 			qtyText: isMarket ? qty.toString() : " ",
 		};
-        //add this
-		console.log('[ZuperiorBroker] Setting order preview:', previewOrder);
+		//add this
+
 		this._orderById[PREVIEW_ORDER_ID] = previewOrder;
 
 		// Update _orders array as well so orders() returns it

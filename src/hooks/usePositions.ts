@@ -61,12 +61,12 @@ const formatPosition = (pos: any, isClosedTrade: boolean = false): Position => {
 
   // Get Type field for order type mapping (for pending orders) - MUST be before ticketId calculation
   const orderType = pos.Type ?? pos.type ?? pos.OrderType ?? pos.orderType;
-  
+
   // For closed trades from tradehistory, use OrderId or DealId as ticket
   // For pending orders (Type 2-5), prefer OrderId or Ticket
   // For open positions, use PositionId or Ticket
   const isPendingOrderType = typeof orderType === 'number' && orderType >= 2 && orderType <= 5;
-  
+
   const ticketId = isClosedTrade
     ? (pos.OrderId ?? pos.orderId ?? pos.DealId ?? pos.dealId ?? pos.PositionId ?? pos.PositionID ?? pos.Ticket ?? pos.ticket ?? pos.Id ?? pos.id ?? generateStableId())
     : isPendingOrderType
@@ -185,7 +185,7 @@ const formatPosition = (pos: any, isClosedTrade: boolean = false): Position => {
   // For pending orders, also store OrderId separately if available
   // Use isPendingOrderType (defined earlier) for consistency
   const orderId = isPendingOrderType ? (pos.OrderId ?? pos.orderId ?? ticketId) : undefined;
-  
+
   return {
     id,
     ticket: Number(ticketId) || 0,
@@ -284,24 +284,13 @@ export function usePositions({ accountId, enabled = true }: UsePositionsProps): 
         const pendingArray = response.pendingOrders || [];
         const closedArray = response.closedPositions || [];
 
-        console.log('[usePositions] Raw API response:', {
-          positionsCount: positionsArray.length,
-          pendingCount: pendingArray.length,
-          closedCount: closedArray.length,
-          samplePosition: positionsArray[0],
-          samplePending: pendingArray[0]
-        });
+
 
         const formattedPositions = formatPositions(positionsArray, false);
         const formattedPending = formatPositions(pendingArray, false);
         const formattedClosed = formatPositions(closedArray, true); // Mark as closed trades for proper formatting
 
-        console.log('[usePositions] Formatted positions:', {
-          positionsCount: formattedPositions.length,
-          pendingCount: formattedPending.length,
-          closedCount: formattedClosed.length,
-          sampleFormattedPosition: formattedPositions[0]
-        });
+
 
         if (isMountedRef.current) {
           setPositions(formattedPositions);

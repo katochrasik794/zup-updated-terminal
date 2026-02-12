@@ -73,7 +73,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
                 // Subscribe to a default symbol to heartbeat the connection for ping
                 sendSubscription(socket, ['BTCUSD']);
             }
-            console.log('[WebSocketContext] Connected. Subscriptions sent.');
+
 
             // Start application-level ping
             if (pingIntervalRef.current) clearInterval(pingIntervalRef.current);
@@ -139,15 +139,15 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
                         setPing(latency);
                     } else {
                         // Debug: Log if ts is missing
-                        console.log('[WebSocket] Missing TS in watch message:', data);
+
                     }
                 } else if (data.type === 'quote') {
                     // Handle potential alternative message type
-                    console.log('[WebSocket] Quote message:', data);
+
                 }
 
                 // Debug all messages to find where TS is
-                if (Math.random() < 0.05) console.log('[WebSocket] Sample message:', data);
+
             } catch (e) {
                 // Ignore parse errors
             }
