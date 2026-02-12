@@ -72,3 +72,45 @@ button[title*="Sell"] {
 .chart-controls-bar__buy-sell {
     display: none !important;
 }
+
+/* More specific targeting for internal library elements */
+.tv-order-line-label__text,
+.tv-order-line-label__type,
+.tv-order-line-label__side,
+.tv-order-line-label__status,
+.order-line-label__text,
+.order-line-label__type,
+.order-line-label__side,
+.order-line-label__status {
+    display: none !important;
+    visibility: hidden !important;
+    width: 0 !important;
+    height: 0 !important;
+    overflow: hidden !important;
+    padding: 0 !important;
+    margin: 0 !important;
+}
+
+/* Aggressive suppression using font-size: 0 */
+.tv-order-line-label,
+.order-line-label {
+    font-size: 0 !important;
+}
+
+/* Restore font size only for quantity segment */
+.tv-order-line-label__quantity,
+.order-line-label__quantity,
+.tv-order-line-label__price,
+.order-line-label__price {
+    font-size: 11px !important;
+    /* Adjust to match your theme's font size */
+    visibility: visible !important;
+    display: flex !important;
+}
+
+/* Ensure icons/buttons remain visible if needed, or hide them too */
+.tv-order-line-label__close,
+.order-line-label__close {
+    font-size: 11px !important;
+    visibility: visible !important;
+}

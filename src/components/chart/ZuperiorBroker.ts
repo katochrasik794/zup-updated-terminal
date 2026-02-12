@@ -104,7 +104,7 @@ function safeHostCall(host: any, method: string, ...args: any[]): any {
 	return undefined;
 }
 
-const PREVIEW_ORDER_ID = 'PREVIEW_ORDER_ID';
+const PREVIEW_ORDER_ID = 'GHOST_PREVIEW_ID';
 
 export class ZuperiorBroker extends AbstractBrokerMinimal {
 	private _accountId: string | null;
@@ -240,8 +240,6 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 								} else if ((parentPosition as any).pl !== undefined && (parentPosition as any).pl !== null) {
 									(bracket as any).pl = (parentPosition as any).pl * 100;
 								}
-							} else if ((parentPosition as any).pl !== undefined && (parentPosition as any).pl !== null) {
-								(bracket as any).pl = (parentPosition as any).pl * 100;
 							}
 						} else if (parentOrder) {
 							// For order brackets, no P/L calc needed; ensure parentType is Order
@@ -659,8 +657,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 
 		const side = isBuy ? Side.Buy : Side.Sell;
 
-		const openPrice = Number(apiPos.openPrice || apiPos.OpenPrice || apiPos.PriceOpen || apiPos.priceOpen || apiPos.price || apiPos.Price || 0);
-		const currentPrice = Number(apiPos.currentPrice || apiPos.CurrentPrice || apiPos.PriceCurrent || apiPos.priceCurrent || apiPos.price || apiPos.Price || openPrice);
+		const openPrice = Number(apiPos.openPrice || apiPos.OpenPrice || apiPos.PriceOpen || apiPos.priceOpen || apiPos.price || apiPos.Price || apiPos.currentPrice || apiPos.CurrentPrice || apiPos.PriceCurrent || apiPos.priceCurrent || 0);
 
 		const rawVolume = apiPos.volume || apiPos.Volume || apiPos.units || 0;
 		const volumeLots = apiPos.volumeLots || apiPos.VolumeLots;
@@ -869,8 +866,8 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			parentId: order.id,
 			parentType: ParentType.Order,
 			text: "TP",
-			sideText: " ",
-			typeText: " ",
+			sideText: isPreview ? "\u00A0" : " ",
+			typeText: isPreview ? "\u00A0" : " ",
 			qtyText: " ",
 		} as unknown as Order;
 	}
@@ -888,8 +885,8 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			parentId: order.id,
 			parentType: ParentType.Order,
 			text: "SL",
-			sideText: " ",
-			typeText: " ",
+			sideText: isPreview ? "\u00A0" : " ",
+			typeText: isPreview ? "\u00A0" : " ",
 			qtyText: " ",
 		} as unknown as Order;
 	}
@@ -962,6 +959,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 		console.log('[ZuperiorBroker] modifyOrder called:', order.id, order);
 
 		if (!this._accessToken || !this._accountId) {
+			console.error('[ZuperiorBroker] modifyOrder failed: Not authenticated');
 			return Promise.reject('Not authenticated');
 		}
 
@@ -993,10 +991,11 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			console.log('[ZuperiorBroker] modifyOrder: Is Preview?', order.parentId === 'PREVIEW_ORDER_ID');
 
 			if (order.parentType === ParentType.Position) {
+				console.log('[ZuperiorBroker] modifyOrder: Calling editPositionBrackets for position bracket modification');
 				return this.editPositionBrackets(order.parentId, mod);
 			} else {
 				// This will call editOrder which emits __ON_ORDER_PREVIEW_CHANGE__ for preview orders
-				console.log('[ZuperiorBroker] modifyOrder: Calling editOrder for bracket modification');
+				console.log('[ZuperiorBroker] modifyOrder: Calling editOrder for pending order bracket modification');
 				return this.editOrder(order.parentId, mod);
 			}
 		}
@@ -1043,18 +1042,22 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 
 		// Persist to API
 		try {
+			console.log('[ZuperiorBroker] modifyOrder triggered for:', order.id);
 			// SKIP API FOR PREVIEW
-			if (order.id === PREVIEW_ORDER_ID) {
-				console.log('[ZuperiorBroker] modifyOrder: Skipping API for preview order');
+			if (order.id === PREVIEW_ORDER_ID || order.id.toString().startsWith(PREVIEW_ORDER_ID)) {
+				console.log('[ZuperiorBroker] modifyOrder: Skipping API for preview entity');
 				// Emit event for OrderPanel sync
 				if (typeof window !== 'undefined') {
-					(window as any).dispatchEvent(new CustomEvent('__ON_ORDER_PREVIEW_CHANGE__', {
+					console.log("[ZuperiorBroker] modifyOrder: Dispatching sync event to window.top");
+					const targetWin = window.top || window;
+					targetWin.dispatchEvent(new CustomEvent('__ON_ORDER_PREVIEW_CHANGE__', {
 						detail: {
 							id: order.id,
 							price: originalOrder.type === OrderType.Limit ? originalOrder.limitPrice : originalOrder.stopPrice,
 							takeProfit: newTP,
 							stopLoss: newSL,
-							qty: originalOrder.qty
+							qty: originalOrder.qty,
+							source: 'chart'
 						}
 					}));
 				}
@@ -1481,6 +1484,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 		]);
 	}
 	public async orders(): Promise<Order[]> {
+		console.log('[ZuperiorBroker] orders() called, returning count:', this._orders.length, { ids: this._orders.map(o => o.id) });
 		return Promise.resolve(this._orders);
 	}
 
@@ -1645,9 +1649,16 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			this._notifyAllPositionsAndOrders();
 
 			// Emit event for OrderPanel sync
-			console.log("[ZuperiorBroker] editOrder: About to emit __ON_ORDER_PREVIEW_CHANGE__ event", { tp: originalOrder.takeProfit, sl: originalOrder.stopLoss });
+			console.log("[ZuperiorBroker] editOrder: Emitting __ON_ORDER_PREVIEW_CHANGE__ event to window.top", {
+				id: orderId,
+				takeProfit: originalOrder.takeProfit,
+				stopLoss: originalOrder.stopLoss,
+				price: (originalOrder.type === OrderType.Limit ? originalOrder.limitPrice : originalOrder.stopPrice)
+			});
 			if (typeof window !== 'undefined') {
-				(window as any).dispatchEvent(new CustomEvent('__ON_ORDER_PREVIEW_CHANGE__', {
+				// Use top window for event dispatch if we're in an iframe (TradingView case)
+				const targetWin = window.top || window;
+				targetWin.dispatchEvent(new CustomEvent('__ON_ORDER_PREVIEW_CHANGE__', {
 					detail: {
 						id: orderId,
 						price: originalOrder.type === OrderType.Limit ? originalOrder.limitPrice : originalOrder.stopPrice,
@@ -1885,9 +1896,10 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 						qty: parentOrder.qty,
 						source: 'chart'
 					};
-					console.log("[ZuperiorBroker] moveOrder: Emitting real-time sync event for preview bracket drag", payload);
-					if (typeof window !== "undefined") {
-						(window as any).dispatchEvent(new CustomEvent("__ON_ORDER_PREVIEW_CHANGE__", {
+					console.log("[ZuperiorBroker] moveOrder: Emitting real-time sync event for preview bracket drag to window.top", payload);
+					if (typeof window !== 'undefined') {
+						const targetWin = window.top || window;
+						targetWin.dispatchEvent(new CustomEvent('__ON_ORDER_PREVIEW_CHANGE__', {
 							detail: payload
 						}));
 					}
@@ -1946,6 +1958,15 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 		takeProfit?: number,
 		stopLoss?: number
 	}): void {
+		console.log('[ZuperiorBroker] setOrderPreview called with:', previewData);
+		console.log('[ZuperiorBroker] setOrderPreview received:', {
+			symbol: previewData.symbol,
+			side: previewData.side,
+			price: previewData.price,
+			tp: previewData.takeProfit,
+			sl: previewData.stopLoss,
+			type: previewData.type
+		});
 		if (!this._host || typeof this._host.orderUpdate !== 'function') return;
 
 		if (!previewData.side) {
@@ -1980,26 +2001,23 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 		const sideText = previewData.side === 'buy' ? 'Buy' : 'Sell';
 
 		const previewOrder: Order = {
-			id: PREVIEW_ORDER_ID,
+			id: PREVIEW_ORDER_ID,  // Correct variable name
 			symbol: symbol,
 			side: side,
 			qty: qty,
 			status: OrderStatus.Working,
-			// For market preview, we revert to Limit type to ensure the line is drawn.
-			// We use a Non-Breaking Space (\u00A0) for typeText to hide "Limit".
+			// Market preview must use Limit or Stop to ensure the line is drawn in most library versions
 			type: previewData.type === 'stop' ? OrderType.Stop : OrderType.Limit,
 			limitPrice: price,
 			stopPrice: previewData.type === 'stop' ? price : undefined,
 			takeProfit: previewData.takeProfit,
 			stopLoss: previewData.stopLoss,
-			text: " ",
-			// Explicitly set "Buy" or "Sell" for market orders, instead of hiding it
-			sideText: isMarket ? (side === Side.Buy ? "Buy" : "Sell") : sideText,
-			// Suppress "Limit" text for market orders by using a single space
-			typeText: isMarket ? " " : undefined,
-			// Show only Lot Size for market orders (e.g., "0.01"), hide for others or as requested
-			qtyText: isMarket ? qty.toString() : " ",
-		};
+			text: "",
+			sideText: "",
+			typeText: "",
+			qtyText: qty.toString(),
+			interactive: true,
+		} as any;
 		//add this
 
 		this._orderById[PREVIEW_ORDER_ID] = previewOrder;

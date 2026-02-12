@@ -205,7 +205,6 @@ export const TVChartContainer = () => {
                 ],
                 enabled_features: [
                     'study_templates',
-                    'order_panel',
                     'trading_bracket_orders',
                 ],
                 charts_storage_url: 'https://saveload.tradingview.com',
@@ -226,6 +225,9 @@ export const TVChartContainer = () => {
                     "mainSeriesProperties.candleStyle.borderDownColor": "#EF4444",
                     "mainSeriesProperties.candleStyle.wickUpColor": "#16A34A",
                     "mainSeriesProperties.candleStyle.wickDownColor": "#EF4444",
+                    "tradingProperties.showOrderLabels": false,
+                    "tradingProperties.showOrderQty": true,
+                    "tradingProperties.showOrderPrice": true,
                 },
                 toolbar_bg: '#02040d',
 
@@ -398,7 +400,7 @@ export const TVChartContainer = () => {
                     if (typeof (chart as any).onOrderMove === 'function') {
                         (chart as any).onOrderMove().subscribe(null, (order: any) => {
                             if (!order) return;
-                            if (brokerRef.current && order.id.toString().includes('PREVIEW_ORDER_ID')) {
+                            if (brokerRef.current && (order.id.toString().includes('GHOST_PREVIEW_ID') || order.id.toString().includes('PREVIEW_ORDER_ID'))) {
                                 // TradingView can put the dragged price on different fields depending on line type
                                 const movedPriceRaw = order.price ?? order.limitPrice ?? order.stopPrice;
                                 const movedPrice = typeof movedPriceRaw === 'string' ? parseFloat(movedPriceRaw) : movedPriceRaw;

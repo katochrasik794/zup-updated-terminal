@@ -160,9 +160,13 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
   React.useEffect(() => {
     const handlePreviewChange = (e: any) => {
       const { takeProfit: tp, stopLoss: sl, price, source } = e.detail || {}
+      console.log("[OrderPanel] Received __ON_ORDER_PREVIEW_CHANGE__ event:", { tp, sl, price, source });
 
       // Prevent loops - only if we initiated the change
-      if (source === 'panel') return;
+      if (source === 'panel') {
+        console.log("[OrderPanel] Ignoring event from 'panel' source to avoid loops");
+        return;
+      }
 
       // Start syncing: Cancel any pending clear
       if (syncTimeoutRef.current) {
@@ -174,33 +178,33 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
       try {
         if (tp !== undefined) {
           const tpNum = parseFloat(tp);
-          // If 0, null, or NaN, set empty
-          const val = (!isNaN(tpNum) && tpNum > 0) ? tpNum.toFixed(5).replace(/\.?0+$/, "") : ""
-          setTakeProfit(val)
-          if (val && parseFloat(val) > 0) setTakeProfitMode("price")
-        }
-
-        if (sl !== undefined) {
-          const slNum = parseFloat(sl);
-          const val = (!isNaN(slNum) && slNum > 0) ? slNum.toFixed(5).replace(/\.?0+$/, "") : ""
-          setStopLoss(val)
-          if (val && parseFloat(val) > 0) setStopLossMode("price")
-        }
-
-        if (price !== undefined) {
-          const priceNum = parseFloat(price);
-          if (!isNaN(priceNum) && priceNum > 0) {
-            setOpenPrice(priceNum.toFixed(5).replace(/\.?0+$/, ""))
-            // Use ref to check current order type
-            if (orderTypeRef.current === 'market') {
-              setOrderType('pending');
-              setPendingOrderType('limit');
-            }
+          if (!isNaN(tpNum) && tpNum > 0) {
+            const val = tpNum.toFixed(5).replace(/\.?0+$/, "");
+            setTakeProfit(val);
+            setTakeProfitMode('price');
+          } else if (tpNum === 0 || tp === "") {
+            setTakeProfit("");
           }
         }
+        if (sl !== undefined) {
+          const slNum = parseFloat(sl);
+          if (!isNaN(slNum) && slNum > 0) {
+            const val = slNum.toFixed(5).replace(/\.?0+$/, "");
+            setStopLoss(val);
+            setStopLossMode('price');
+          } else if (slNum === 0 || sl === "") {
+            setStopLoss("");
+          }
+        }
+        if (price !== undefined) {
+          const priceNum = parseFloat(price);
+          if (!isNaN(priceNum)) setOpenPrice(priceNum.toString());
+        }
+      } catch (err) {
+        console.error("[OrderPanel] Error updating values from chart:", err);
       } finally {
-        // Debounce the clearing of the flag
         syncTimeoutRef.current = setTimeout(() => {
+          console.log("[OrderPanel] isSyncingFromChart cleared to false");
           isSyncingFromChart.current = false
           syncTimeoutRef.current = null
         }, 300)
@@ -219,17 +223,25 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
   React.useEffect(() => {
     if (typeof window !== "undefined") {
       (window as any).testOrderPanelSync = () => {
-        console.log("[TEST] Manually triggering __ON_ORDER_PREVIEW_CHANGE__ event");
-        window.dispatchEvent(new CustomEvent("__ON_ORDER_PREVIEW_CHANGE__", {
-          detail: {
-            id: "PREVIEW_ORDER_ID",
-            price: 1.10000,
-            takeProfit: 1.10500,
-            stopLoss: 1.09500,
-            qty: 0.01,
-            source: "chart"
-          }
-        }));
+        // Emit event for OrderPanel sync
+        console.log("[ZuperiorBroker] editOrder: Emitting __ON_ORDER_PREVIEW_CHANGE__ event", {
+          id: "PREVIEW_ORDER_ID", // Placeholder for orderId
+          takeProfit: 1.10500, // Placeholder for originalOrder.takeProfit
+          stopLoss: 1.09500, // Placeholder for originalOrder.stopLoss
+          price: 1.10000 // Placeholder for originalOrder.type === OrderType.Limit ? originalOrder.limitPrice : originalOrder.stopPrice
+        });
+        if (typeof window !== 'undefined') {
+          (window as any).dispatchEvent(new CustomEvent('__ON_ORDER_PREVIEW_CHANGE__', {
+            detail: {
+              id: "PREVIEW_ORDER_ID", // Placeholder for orderId
+              price: 1.10000, // Placeholder for originalOrder.type === OrderType.Limit ? originalOrder.limitPrice : originalOrder.stopPrice
+              takeProfit: 1.10500, // Placeholder for originalOrder.takeProfit
+              stopLoss: 1.09500, // Placeholder for originalOrder.stopLoss
+              qty: 0.01, // Placeholder for originalOrder.qty
+              source: 'chart'
+            }
+          }));
+        }
       };
       console.log("[OrderPanel] Test function available: window.testOrderPanelSync()");
     }
@@ -305,30 +317,31 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
       }
     }
 
-    const tpVal = parseFloat(takeProfit)
-    const slVal = parseFloat(stopLoss)
-    let tpPrice: number | undefined
-    let slPrice: number | undefined
+    const tpVal = parseFloat(takeProfit);
+    const slVal = parseFloat(stopLoss);
+    let tpPrice: number | undefined;
+    let slPrice: number | undefined;
 
-    if (!isNaN(tpVal) && tpVal > 0) {
-      if (takeProfitMode === 'price') {
-        tpPrice = tpVal
-      } else {
-        // Pips mode (pipSize * value)
-        const pipSize = getPipSize
-        const offset = tpVal * pipSize
-        tpPrice = pendingOrderSide === 'buy' ? previewPrice + offset : previewPrice - offset
-      }
+    // Determine if we should use default offset (100 pips)
+    const isTpSet = !isNaN(tpVal) && tpVal > 0;
+    const isSlSet = !isNaN(slVal) && slVal > 0;
+
+    const pipSize = getPipSize;
+
+    if (takeProfitMode === 'price' && isTpSet) {
+      tpPrice = tpVal;
+    } else {
+      // Use 100 pips default if not set
+      const offset = (isTpSet ? tpVal : 100) * pipSize;
+      tpPrice = pendingOrderSide === 'buy' ? previewPrice + offset : previewPrice - offset;
     }
 
-    if (!isNaN(slVal) && slVal > 0) {
-      if (stopLossMode === 'price') {
-        slPrice = slVal
-      } else {
-        const pipSize = getPipSize
-        const offset = slVal * pipSize
-        slPrice = pendingOrderSide === 'buy' ? previewPrice - offset : previewPrice + offset
-      }
+    if (stopLossMode === 'price' && isSlSet) {
+      slPrice = slVal;
+    } else {
+      // Use 100 pips default if not set
+      const offset = (isSlSet ? slVal : 100) * pipSize;
+      slPrice = pendingOrderSide === 'buy' ? previewPrice - offset : previewPrice + offset;
     }
 
     // Directional validation (User request: TP must be below for Sell, above for Buy)
@@ -341,20 +354,32 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
       if (!isValid) slPrice = undefined
     }
 
+    // Auto-populate panel if values are not set
+    if (!isTpSet && tpPrice !== undefined) {
+      const val = tpPrice.toFixed(instrument?.digits || 5).replace(/\.?0+$/, "");
+      setTakeProfit(val);
+      setTakeProfitMode('price');
+    }
+    if (!isSlSet && slPrice !== undefined) {
+      const val = slPrice.toFixed(instrument?.digits || 5).replace(/\.?0+$/, "");
+      setStopLoss(val);
+      setStopLossMode('price');
+    }
+
+    console.log("[OrderPanel] Preview calculation:", { previewPrice, tpPrice, slPrice, pipSize, symbol });
+
     const previewPayload = {
       symbol: symbol,
       side: pendingOrderSide,
       qty: parseFloat(volume) || 0.01,
       price: previewPrice,
-      // For market orders, send 'market' type so Broker can label it "Buy"/"Sell" instead of "Buy Limit"
-      // For pending orders, send the specific type (limit/stop)
       type: orderType === 'market' ? 'market' : pendingOrderType,
       takeProfit: tpPrice || 0,
       stopLoss: slPrice || 0,
       text: " "
     }
 
-    console.log(`[OrderPanel] Preview Update: ${orderType} ${pendingOrderSide} @ ${previewPrice}`)
+    console.log("[OrderPanel] Sending preview payload to chart:", previewPayload);
 
 
     // Dirty check: Only update if anything meaningful changed to avoid chart flicker
@@ -385,7 +410,7 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
 
   // Get default TP/SL offsets in "points/pips" (20 for all instruments as requested)
   const getDefaultOffsets = React.useMemo(() => {
-    return { tp: 20, sl: 20 }
+    return { tp: 100, sl: 100 }
   }, [])
 
   // Get pip value per lot based on symbol type
