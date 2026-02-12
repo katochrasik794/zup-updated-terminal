@@ -348,36 +348,44 @@ export const TVChartContainer = () => {
                     customUI: {
                         showOrderDialog: (order: any) => {
                             console.log('[TVChartContainer] showOrderDialog called:', order.id, order.type);
-                            // Bypass modal for preview order or any order modification (bracket drag)
-                            if (order.id === PREVIEW_ORDER_ID || order.id) {
-                                // For PREVIEW_ORDER_ID, check if it's a drag (price changed) or a click (price same)
-                                if (order.id === PREVIEW_ORDER_ID && brokerRef.current) {
-                                    const currentOrder = (brokerRef.current as any)._orderById[PREVIEW_ORDER_ID];
-                                    if (currentOrder) {
-                                        const newPrice = order.limitPrice || order.stopPrice;
-                                        const oldPrice = currentOrder.limitPrice || currentOrder.stopPrice;
 
-                                        const priceChanged = Math.abs(newPrice - oldPrice) > 0.00001;
-                                        const tpChanged = Math.abs((order.takeProfit || 0) - (currentOrder.takeProfit || 0)) > 0.00001;
-                                        const slChanged = Math.abs((order.stopLoss || 0) - (currentOrder.stopLoss || 0)) > 0.00001;
-
-                                        // If NOTHING changed, assume it's a click to open modal
-                                        if (!priceChanged && !tpChanged && !slChanged) {
-                                            console.log('[TVChartContainer] Preview order click detected (no changes), allowing modal.');
-                                            // Fallthrough to showOrderDialog below
-                                            if (window.CustomDialogs) return window.CustomDialogs.showOrderDialog(customOrderDialog, order);
-                                            return Promise.resolve(true);
-                                        }
-                                    }
-                                }
-
-                                console.log('[TVChartContainer] Instant order/preview modification:', order.id);
+                            // 1. ALWAYS bypass modal for preview order (GHOST line)
+                            // There is no need for a modification dialog for a preview line,
+                            // and this avoids the "race condition" where dragging triggers the modal.
+                            if (order.id === PREVIEW_ORDER_ID || (order.id && order.id.toString().includes('GHOST'))) {
+                                console.log('[TVChartContainer] Suppressing dialog for preview order move/click.');
                                 if (brokerRef.current) {
                                     brokerRef.current.editOrder(order.id, order)
-                                        .catch((e: any) => console.error('Instant order edit failed:', e));
+                                        .catch((e: any) => console.error('Instant preview edit failed:', e));
                                 }
-                                return Promise.resolve(true);
+                                return Promise.resolve(true); // true = handled, suppresses TV dialog
                             }
+
+                            // 2. For real orders, we still want the dialog on click, 
+                            // but we want to avoid showing it *if the user was clearly dragging*.
+                            if (brokerRef.current) {
+                                const currentOrder = (brokerRef.current as any)._orderById[order.id];
+                                if (currentOrder) {
+                                    const newPrice = order.limitPrice || order.stopPrice;
+                                    const oldPrice = currentOrder.limitPrice || currentOrder.stopPrice;
+
+                                    const priceChanged = Math.abs(newPrice - oldPrice) > 0.00001;
+                                    const tpChanged = Math.abs((order.takeProfit || 0) - (currentOrder.takeProfit || 0)) > 0.00001;
+                                    const slChanged = Math.abs((order.stopLoss || 0) - (currentOrder.stopLoss || 0)) > 0.00001;
+                                    const qtyChanged = (order.qty !== undefined && order.qty !== currentOrder.qty);
+
+                                    // If something major changed, it was likely a drag that moveOrder already handled.
+                                    // We return true (handled) to prevent the dialog from popping up on mouse-up.
+                                    if (priceChanged || tpChanged || slChanged || qtyChanged) {
+                                        console.log('[TVChartContainer] Detected drag finish for real order, suppressing dialog.');
+                                        brokerRef.current.editOrder(order.id, order)
+                                            .catch((e: any) => console.error('Instant real order edit failed:', e));
+                                        return Promise.resolve(true);
+                                    }
+                                }
+                            }
+
+                            // 3. Fallback: Show the dialog (for manual clicks or if no changes detected)
                             if (window.CustomDialogs) return window.CustomDialogs.showOrderDialog(customOrderDialog, order);
                             return Promise.resolve(true);
                         },

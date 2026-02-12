@@ -159,8 +159,8 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
   // Sync TP/SL from chart preview
   React.useEffect(() => {
     const handlePreviewChange = (e: any) => {
-      const { takeProfit: tp, stopLoss: sl, price, source, type: orderTypeFromChart } = e.detail || {}
-      console.log("[OrderPanel] Received __ON_ORDER_PREVIEW_CHANGE__ event:", { tp, sl, price, source, type: orderTypeFromChart });
+      const { takeProfit: tp, stopLoss: sl, price, source, type: orderTypeFromChart, side: sideFromChart } = e.detail || {}
+      console.log("[OrderPanel] Received __ON_ORDER_PREVIEW_CHANGE__ event:", { tp, sl, price, source, type: orderTypeFromChart, side: sideFromChart });
 
       // Prevent loops - only if we initiated the change
       if (source === 'panel') {
@@ -207,14 +207,23 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
             setStopLoss("");
           }
         }
-        if (price !== undefined) {
+        if (price !== undefined && price !== null) {
           const priceNum = parseFloat(price);
-          if (!isNaN(priceNum)) setOpenPrice(priceNum.toString());
+          if (!isNaN(priceNum)) {
+            console.log("[OrderPanel] Updating OpenPrice to:", priceNum);
+            setOpenPrice(priceNum.toString());
+          }
         }
 
         if (orderTypeFromChart === 'limit' || orderTypeFromChart === 'stop') {
-          console.log("[OrderPanel] Syncing pending order type from chart:", orderTypeFromChart);
+          console.log(`[OrderPanel] >>> SYNCING TAB: Switching to ${orderTypeFromChart.toUpperCase()} <<<`);
           setPendingOrderType(orderTypeFromChart as "limit" | "stop");
+        }
+
+        if (sideFromChart === 'buy' || sideFromChart === 'sell') {
+          console.log(`[OrderPanel] >>> SYNCING SIDE: Switching to ${sideFromChart.toUpperCase()} <<<`);
+          setPendingOrderSide(sideFromChart as 'buy' | 'sell');
+          setOrderType('pending'); // Ensure we are in pending mode
         }
       } catch (err) {
         console.error("[OrderPanel] Error updating values from chart:", err);
@@ -234,6 +243,33 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
       }
     }
   }, [])
+
+  // Local Auto-switch logic for Limit/Stop tabs in OrderPanel
+  React.useEffect(() => {
+    // Only auto-switch if we are in pending mode and have an active preview side
+    if (orderType !== "pending" || !pendingOrderSide) return;
+
+    // Skip if we just synced from the chart (to avoid bouncing, though less likely now)
+    // if (isSyncingFromChart.current) return;
+
+    const priceNum = parseFloat(openPrice);
+    if (isNaN(priceNum) || priceNum <= 0) return;
+
+    const marketPrice = pendingOrderSide === 'buy' ? currentBuyPrice : currentSellPrice;
+    if (!marketPrice || marketPrice <= 0) return;
+
+    let newType: "limit" | "stop" = pendingOrderType;
+    if (pendingOrderSide === 'buy') {
+      newType = priceNum < marketPrice ? "limit" : "stop";
+    } else {
+      newType = priceNum > marketPrice ? "limit" : "stop";
+    }
+
+    if (newType !== pendingOrderType) {
+      console.log(`[OrderPanel] Local Auto-Switch detected: price=${priceNum} market=${marketPrice} side=${pendingOrderSide} -> switching to ${newType.toUpperCase()}`);
+      setPendingOrderType(newType);
+    }
+  }, [openPrice, currentBuyPrice, currentSellPrice, pendingOrderSide, orderType]);
 
   // TEST FUNCTION - Remove after debugging
   React.useEffect(() => {

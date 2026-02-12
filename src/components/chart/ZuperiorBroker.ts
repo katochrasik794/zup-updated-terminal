@@ -1442,19 +1442,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 				this._positions = this._positions.filter(p => p.id !== positionId);
 
 				// 3. Notify UI to Reset
-				if (typeof window !== 'undefined') {
-					const targetWin = window.top || window;
-					targetWin.dispatchEvent(new CustomEvent('__ON_ORDER_PREVIEW_CHANGE__', {
-						detail: {
-							id: positionId,
-							price: 0,
-							takeProfit: 0,
-							stopLoss: 0,
-							qty: 0,
-							source: 'chart_cancel'
-						}
-					}));
-				}
+				this._syncToPanel(position, 'chart_cancel');
 
 				// 4. Update Chart
 				this._notifyAllPositionsAndOrders();
@@ -1764,12 +1752,12 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 				}
 			} else {
 				// Updating the main order itself
-				if (modification.limitPrice !== undefined) targetOrder.limitPrice = modification.limitPrice;
-				if (modification.stopPrice !== undefined) targetOrder.stopPrice = modification.stopPrice;
-				if (modification.qty !== undefined) targetOrder.qty = modification.qty;
-				if (modification.takeProfit !== undefined) targetOrder.takeProfit = modification.takeProfit;
-				if (modification.stopLoss !== undefined) targetOrder.stopLoss = modification.stopLoss;
-				if (modification.type !== undefined) targetOrder.type = modification.type;
+				if (modification.hasOwnProperty('limitPrice')) targetOrder.limitPrice = modification.limitPrice;
+				if (modification.hasOwnProperty('stopPrice')) targetOrder.stopPrice = modification.stopPrice;
+				if (modification.hasOwnProperty('qty')) targetOrder.qty = modification.qty;
+				if (modification.hasOwnProperty('takeProfit')) targetOrder.takeProfit = modification.takeProfit;
+				if (modification.hasOwnProperty('stopLoss')) targetOrder.stopLoss = modification.stopLoss;
+				if (modification.hasOwnProperty('type')) targetOrder.type = modification.type;
 			}
 
 			// Regents brackets for the parent/target order
@@ -1777,25 +1765,9 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 
 			this._notifyAllPositionsAndOrders();
 
-			// Emit event for OrderPanel sync
-			console.log("[ZuperiorBroker] editOrder Preview: id=", targetId, "type=", targetOrder.type, "price=", (targetOrder.type === OrderType.Limit ? targetOrder.limitPrice : targetOrder.stopPrice));
+			// Sync to panel
+			this._syncToPanel(targetOrder, 'chart');
 
-			if (typeof window !== 'undefined') {
-				const targetWin = window.top || window;
-				const syncType = targetOrder.type === OrderType.Limit ? 'limit' : 'stop';
-				console.log("[ZuperiorBroker] editOrder: Dispatching sync event to window.top. Type:", syncType);
-				targetWin.dispatchEvent(new CustomEvent('__ON_ORDER_PREVIEW_CHANGE__', {
-					detail: {
-						id: targetId,
-						price: targetOrder.type === OrderType.Limit ? targetOrder.limitPrice : targetOrder.stopPrice,
-						takeProfit: targetOrder.takeProfit,
-						stopLoss: targetOrder.stopLoss,
-						qty: targetOrder.qty,
-						type: syncType,
-						source: 'chart'
-					}
-				}));
-			}
 			return Promise.resolve();
 		}
 
@@ -1810,10 +1782,12 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 		const existingSL = this._orderById[slId];
 
 		// Update local order object with new values
-		if (modification.limitPrice !== undefined) originalOrder.limitPrice = modification.limitPrice;
-		if (modification.stopPrice !== undefined) originalOrder.stopPrice = modification.stopPrice;
-		if (modification.takeProfit !== undefined) originalOrder.takeProfit = modification.takeProfit;
-		if (modification.stopLoss !== undefined) originalOrder.stopLoss = modification.stopLoss;
+		if (modification.hasOwnProperty('limitPrice')) originalOrder.limitPrice = modification.limitPrice;
+		if (modification.hasOwnProperty('stopPrice')) originalOrder.stopPrice = modification.stopPrice;
+		if (modification.hasOwnProperty('takeProfit')) originalOrder.takeProfit = modification.takeProfit;
+		if (modification.hasOwnProperty('stopLoss')) originalOrder.stopLoss = modification.stopLoss;
+		if (modification.hasOwnProperty('type')) originalOrder.type = modification.type;
+		if (modification.hasOwnProperty('qty')) originalOrder.qty = modification.qty;
 
 		// --- Handle TP Bracket ---
 		if (originalOrder.takeProfit && originalOrder.takeProfit > 0) {
@@ -1907,6 +1881,9 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			});
 			// Re-fetch to validate
 			setTimeout(() => this._fetchPositionsAndOrders(true), 400);
+
+			// Synchronize final state back to panel
+			this._syncToPanel(originalOrder, 'chart');
 		} catch (e) {
 			console.error('[ZuperiorBroker] Modify order failed', e);
 			// Rollback (Simplified: just re-fetch to restore state)
@@ -2078,41 +2055,45 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 		// Base pending order line drag
 		const mod: any = {};
 
-		// AUTO-SWITCH logic based on price relative to market
 		let effectiveType = order.type;
 		const symbol = order.symbol;
 		const lastPrice = (this._quotesProvider as any).getLastPrice ? (this._quotesProvider as any).getLastPrice(symbol) : undefined;
 
 		if (lastPrice !== undefined && lastPrice > 0) {
-			const sideVal = order.side;
-			const isBuy = sideVal === Side.Buy || (sideVal as any) === 1 || (sideVal as any) === 'buy';
+			const sideValue = order.side;
+			// TradingView Side enum: Buy = 1, Sell = -1 or 2. MetaAPI uses "buy"/"sell".
+			// Check for both number and string variants to be 100% sure
+			const isBuy = sideValue === Side.Buy ||
+				(sideValue as any) === 1 ||
+				(sideValue as any) === 'buy' ||
+				(sideValue as any) === 'Buy';
 
 			if (isBuy) {
 				effectiveType = effectivePrice < lastPrice ? OrderType.Limit : OrderType.Stop;
 			} else {
 				effectiveType = effectivePrice > lastPrice ? OrderType.Limit : OrderType.Stop;
 			}
-			console.log(`[ZuperiorBroker] moveOrder Result: sym=${symbol} price=${effectivePrice} market=${lastPrice} side=${sideVal} (isBuy=${isBuy}) -> NEW TYPE=${effectiveType === OrderType.Limit ? 'Limit' : 'Stop'}`);
+			console.log(`[ZuperiorBroker] moveOrder Auto-Switch: sym=${symbol} price=${effectivePrice} market=${lastPrice} side=${sideValue} (isBuy=${isBuy}) -> ${effectiveType === OrderType.Limit ? 'LIMIT' : 'STOP'}`);
 		} else {
-			console.log(`[ZuperiorBroker] Market price MISSING for ${symbol}. Cache size: ${(this._quotesProvider as any).wsManager?.lastPrices?.size}`);
+			console.warn(`[ZuperiorBroker] moveOrder: Market price MISSING for ${symbol}. Auto-switch skipped.`);
 		}
 
 		order.type = effectiveType;
 		if (effectiveType === OrderType.Stop) {
 			order.stopPrice = effectivePrice;
-			order.limitPrice = undefined;
+			order.limitPrice = undefined; // CLEAR limitPrice
 			mod.stopPrice = effectivePrice;
 			mod.limitPrice = undefined;
+			mod.type = OrderType.Stop;
 		} else {
 			order.limitPrice = effectivePrice;
-			order.stopPrice = undefined;
+			order.stopPrice = undefined; // CLEAR stopPrice
 			mod.limitPrice = effectivePrice;
 			mod.stopPrice = undefined;
+			mod.type = OrderType.Limit;
 		}
-		mod.type = effectiveType;
 
-		console.log('[ZuperiorBroker] Moving pending order main line -> editOrder', orderId, mod);
-
+		console.log('[ZuperiorBroker] moveOrder calling editOrder:', orderId, mod);
 		return this.editOrder(orderId, mod);
 	}
 
@@ -2309,5 +2290,46 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 				delete this._orderById[slId];
 			}
 		}
+	}
+
+	private _syncToPanel(order: Order | Position, source: string = 'chart') {
+		if (typeof window === 'undefined') return;
+
+		const sideValue = order.side;
+		const isBuy = sideValue === Side.Buy ||
+			(sideValue as any) === 1 ||
+			(sideValue as any) === 'buy' ||
+			(sideValue as any) === 'Buy' ||
+			(sideValue as any) === 0;
+
+		const sideStr = isBuy ? 'buy' : 'sell';
+
+		// Determine type and price based on whether it's an Order or Position
+		let typeStr = 'limit';
+		let price = 0;
+
+		if ('type' in order) {
+			typeStr = (order as Order).type === OrderType.Limit ? 'limit' : 'stop';
+			price = (order as Order).type === OrderType.Limit ? (order as Order).limitPrice! : (order as Order).stopPrice!;
+		} else {
+			// It's a Position
+			price = (order as Position).avgPrice;
+		}
+
+		console.log(`[ZuperiorBroker] Syncing to panel: id=${order.id} side=${sideStr} type=${typeStr} price=${price}`);
+
+		const targetWin = window.top || window;
+		targetWin.dispatchEvent(new CustomEvent('__ON_ORDER_PREVIEW_CHANGE__', {
+			detail: {
+				id: order.id,
+				price: price,
+				takeProfit: order.takeProfit,
+				stopLoss: order.stopLoss,
+				qty: order.qty,
+				type: typeStr,
+				side: sideStr,
+				source: source
+			}
+		}));
 	}
 }
