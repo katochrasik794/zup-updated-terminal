@@ -3,7 +3,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 
 import { RealtimeDataFeed } from './RealtimeDataFeed';
-import { ZuperiorBroker } from './ZuperiorBroker';
+import { ZuperiorBroker, PREVIEW_ORDER_ID, PREVIEW_POSITION_ID } from './ZuperiorBroker';
 import { formatSymbolDisplay } from '@/lib/utils';
 
 
@@ -347,26 +347,55 @@ export const TVChartContainer = () => {
                     durations: [{ name: 'DAY', value: 'DAY' }, { name: 'GTT', value: 'GTT' }],
                     customUI: {
                         showOrderDialog: (order: any) => {
-                            console.log('[TVChartContainer] showOrderDialog called:', order);
-                            // Bypass modal for preview order
-                            if (order.id === 'PREVIEW_ORDER_ID') {
+                            console.log('[TVChartContainer] showOrderDialog called:', order.id, order.type);
+                            // Bypass modal for preview order or any order modification (bracket drag)
+                            if (order.id === PREVIEW_ORDER_ID || order.id) {
+                                console.log('[TVChartContainer] Instant order/preview modification:', order.id);
+                                if (brokerRef.current) {
+                                    brokerRef.current.editOrder(order.id, order)
+                                        .catch((e: any) => console.error('Instant order edit failed:', e));
+                                }
                                 return Promise.resolve(true);
-                            }
-                            // If order has an ID, it is an existing order being modified -> Use our modal
-                            if (order.id) {
-                                return openModifyPositionModal(order);
                             }
                             if (window.CustomDialogs) return window.CustomDialogs.showOrderDialog(customOrderDialog, order);
                             return Promise.resolve(true);
                         },
+                        showOrderBracketsDialog: (order: any, brackets: any) => {
+                            console.log('[TVChartContainer] Instant order bracket update:', order.id, brackets);
+                            if (brokerRef.current) {
+                                brokerRef.current.editOrder(order.id, { ...order, ...brackets })
+                                    .catch((e: any) => console.error('Order bracket update failed:', e));
+                            }
+                            return Promise.resolve(true);
+                        },
                         showPositionDialog: (position: any, brackets: any) => {
+                            console.log('[TVChartContainer] showPositionDialog called for:', position.id, 'with brackets:', brackets);
+                            // Bypass modal for preview position or if ANY brackets are provided (usually indicates a drag)
+                            if (position.id === PREVIEW_POSITION_ID || brackets) {
+                                console.log('[TVChartContainer] Instant position modification (likely drag):', position.id);
+                                if (brokerRef.current) {
+                                    brokerRef.current.editPositionBrackets(position.id, brackets)
+                                        .catch((e: any) => console.error('Position dialog bracket update failed:', e));
+                                }
+                                return Promise.resolve(true);
+                            }
                             return openModifyPositionModal(position, brackets);
                         },
                         showPositionBracketsDialog: (position: any, brackets: any) => {
-                            return openModifyPositionModal(position, brackets);
+                            console.log('[TVChartContainer] Instant bracket update for position:', position.id, brackets);
+                            if (brokerRef.current) {
+                                brokerRef.current.editPositionBrackets(position.id, brackets)
+                                    .catch((e: any) => console.error('Instant bracket update failed:', e));
+                            }
+                            return Promise.resolve(true);
                         },
                         showIndividualPositionBracketsDialog: (position: any, brackets: any) => {
-                            return openModifyPositionModal(position, brackets);
+                            console.log('[TVChartContainer] Instant individual bracket update for position:', position.id, brackets);
+                            if (brokerRef.current) {
+                                brokerRef.current.editPositionBrackets(position.id, brackets)
+                                    .catch((e: any) => console.error('Instant individual bracket update failed:', e));
+                            }
+                            return Promise.resolve(true);
                         },
                         showCancelOrderDialog: (order: any) => {
                             // SKIP MODAL: Call broker directly for instant cancel
