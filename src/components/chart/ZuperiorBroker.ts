@@ -971,10 +971,10 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			takeProfit: preOrder.takeProfit,
 		};
 
-		// Dispatch to TradingTerminal for central optimistic handling & API execution
+		// Dispatch to TradingTerminal for central central execution & API call
 		if (typeof window !== 'undefined') {
-			console.log('[ZuperiorBroker] Dispatching zuperior-optimistic-trade for chart-placed order');
-			window.dispatchEvent(new CustomEvent('zuperior-optimistic-trade', {
+			console.log('[ZuperiorBroker] Dispatching zuperior-trigger-trade for chart-placed order');
+			window.dispatchEvent(new CustomEvent('zuperior-trigger-trade', {
 				detail: { orderData, side }
 			}));
 		}
@@ -1028,62 +1028,48 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			}
 		}
 
-		// Handle pending order modification (dragging order line)
+		// NO OPTIMISTIC UPDATE. Wait for API response.
 		const pendingPriceRaw = order.limitPrice ?? order.stopPrice ?? order.price;
 		const pendingPrice = typeof pendingPriceRaw === 'string' ? parseFloat(pendingPriceRaw) : pendingPriceRaw;
-		originalOrder.limitPrice = order.limitPrice !== undefined ? order.limitPrice : originalOrder.limitPrice;
-		originalOrder.stopPrice = order.stopPrice !== undefined ? order.stopPrice : originalOrder.stopPrice;
-		// If neither limitPrice nor stopPrice is present but price is, apply it to the correct field based on order type
-		if (pendingPrice !== undefined) {
-			if (originalOrder.type === OrderType.Stop) {
-				originalOrder.stopPrice = pendingPrice;
-			} else {
-				originalOrder.limitPrice = pendingPrice;
-			}
-		}
-		originalOrder.takeProfit = order.takeProfit !== undefined ? order.takeProfit : originalOrder.takeProfit;
-		originalOrder.stopLoss = order.stopLoss !== undefined ? order.stopLoss : originalOrder.stopLoss;
-		originalOrder.qty = order.qty !== undefined ? order.qty : originalOrder.qty;
 
-		this._orderById[order.id] = originalOrder;
+		const finalPrice = pendingPrice !== undefined
+			? pendingPrice
+			: (originalOrder.type === OrderType.Limit ? originalOrder.limitPrice : originalOrder.stopPrice);
 
-		const newTP = originalOrder.takeProfit;
-		const newSL = originalOrder.stopLoss;
-
-		// Regenerate brackets
-		delete this._orderById[`${order.id}_TP`];
-		delete this._orderById[`${order.id}_SL`];
-		this._orders = this._orders.filter(o => !(o.id === `${order.id}_TP` || o.id === `${order.id}_SL`));
-
-		if (newTP && newTP > 0) {
-			const tpB = this._createOrderTakeProfitBracket(originalOrder);
-			this._orderById[tpB.id] = tpB;
-			this._orders.push(tpB);
-		}
-		if (newSL && newSL > 0) {
-			const slB = this._createOrderStopLossBracket(originalOrder);
-			this._orderById[slB.id] = slB;
-			this._orders.push(slB);
-		}
-
-		this._notifyAllPositionsAndOrders();
+		const finalTP = order.takeProfit !== undefined ? order.takeProfit : originalOrder.takeProfit;
+		const finalSL = order.stopLoss !== undefined ? order.stopLoss : originalOrder.stopLoss;
 
 		// Persist to API
 		try {
-			console.log('[ZuperiorBroker] modifyOrder triggered for:', order.id);
+			console.log('[ZuperiorBroker] modifyOrder (Wait for Conf) triggered for:', order.id);
+
 			// SKIP API FOR PREVIEW
 			if (order.id === PREVIEW_ORDER_ID || order.id.toString().startsWith(PREVIEW_ORDER_ID)) {
-				console.log('[ZuperiorBroker] modifyOrder: Skipping API for preview entity');
+				console.log('[ZuperiorBroker] modifyOrder: Handling preview modification');
+
+				// Update local preview state to keep drag lines in sync until placed
+				originalOrder.limitPrice = order.limitPrice !== undefined ? order.limitPrice : originalOrder.limitPrice;
+				originalOrder.stopPrice = order.stopPrice !== undefined ? order.stopPrice : originalOrder.stopPrice;
+				if (pendingPrice !== undefined) {
+					if (originalOrder.type === OrderType.Stop) originalOrder.stopPrice = pendingPrice;
+					else originalOrder.limitPrice = pendingPrice;
+				}
+				originalOrder.takeProfit = finalTP;
+				originalOrder.stopLoss = finalSL;
+				originalOrder.qty = order.qty !== undefined ? order.qty : originalOrder.qty;
+
+				this._orderById[order.id] = { ...originalOrder };
+				this._notifyAllPositionsAndOrders();
+
 				// Emit event for OrderPanel sync
 				if (typeof window !== 'undefined') {
-					console.log("[ZuperiorBroker] modifyOrder: Dispatching sync event to window.top");
 					const targetWin = window.top || window;
 					targetWin.dispatchEvent(new CustomEvent('__ON_ORDER_PREVIEW_CHANGE__', {
 						detail: {
 							id: order.id,
-							price: originalOrder.type === OrderType.Limit ? originalOrder.limitPrice : originalOrder.stopPrice,
-							takeProfit: newTP,
-							stopLoss: newSL,
+							price: finalPrice,
+							takeProfit: finalTP,
+							stopLoss: finalSL,
 							qty: originalOrder.qty,
 							source: 'chart'
 						}
@@ -1096,18 +1082,18 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 				accountId: this._accountId,
 				accessToken: this._accessToken,
 				orderId: order.id,
-				price: originalOrder.type === OrderType.Limit ? originalOrder.limitPrice : originalOrder.stopPrice,
-				stopLoss: newSL,
-				takeProfit: newTP
+				price: finalPrice,
+				stopLoss: finalSL,
+				takeProfit: finalTP
 			});
-			setTimeout(() => this._fetchPositionsAndOrders(true), 400);
+
+			await this._fetchPositionsAndOrders(true);
 		} catch (e) {
 			console.error('[ZuperiorBroker] modifyOrder API call failed:', e);
-			this._fetchPositionsAndOrders();
+			this._fetchPositionsAndOrders(true);
 			throw e;
 		}
 	}
-
 
 	public async cancelOrder(orderId: string): Promise<void> {
 		if (!this._accessToken || !this._accountId) return Promise.reject("Auth failed");
@@ -1257,20 +1243,13 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 
 		if (!this._accessToken || !this._accountId) return Promise.reject("Auth failed");
 
-		// Pause polling to protect optimistic update
-		this._lastActionTime = Date.now();
-
-		// 1. Capture current state for rollback
+		// Get current state to calculate final values
 		const originalPosition = this._positionById[positionId];
 		if (!originalPosition) {
 			console.error('[ZuperiorBroker] Position not found for edit:', positionId);
 			return;
 		}
-		// Clone for safety
-		const originalState = { ...originalPosition };
 
-		// Normalize TP/SL values (TradingView may send null/undefined to clear)
-		// Preserve existing brackets when the other one is modified.
 		const newTPRaw = modification.takeProfit ?? modification.tp;
 		const newSLRaw = modification.stopLoss ?? modification.sl;
 
@@ -1288,113 +1267,10 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 					? originalPosition.stopLoss ?? 0
 					: Number(newSLRaw);
 
-		// 2. Optimistic Update
-		console.log('[ZuperiorBroker] Optimistic Update for Position:', positionId, modification);
-
-		if (newSL !== undefined) originalPosition.stopLoss = newSL;
-		if (newTP !== undefined) originalPosition.takeProfit = newTP;
-
-		// Update _positions array reference
-		const index = this._positions.findIndex(p => p.id === positionId);
-		if (index !== -1) {
-			this._positions[index] = { ...originalPosition };
-			// Ensure map points to new object reference
-			this._positionById[positionId] = this._positions[index];
-		}
-
-		// CRITICAL: Update existing brackets in-place if possible, or create new ones
-		const tpId = `${positionId}_TP`;
-		const slId = `${positionId}_SL`;
-		const existingTP = this._orderById[tpId];
-		const existingSL = this._orderById[slId];
-
-		// Regenerate brackets with new values
-		const newPos = this._positionById[positionId];
-
-		// --- Handle TP Bracket ---
-		if (newPos.takeProfit && newPos.takeProfit > 0) {
-			if (existingTP) {
-				// Update existing TP bracket (Immutable update)
-				const updatedTP = {
-					...existingTP,
-					limitPrice: newPos.takeProfit,
-					qty: newPos.qty, // Update qty in case position size changed
-					status: OrderStatus.Working
-				};
-				this._orderById[tpId] = updatedTP;
-				// Update array reference
-				const tpIndex = this._orders.findIndex(o => o.id === tpId);
-				if (tpIndex !== -1) {
-					this._orders[tpIndex] = updatedTP;
-				} else {
-					// Should be in array if in map, but safe fallback
-					this._orders.push(updatedTP);
-				}
-				console.log('[ZuperiorBroker] Updated existing Position TP Bracket:', updatedTP.id, updatedTP.limitPrice);
-			} else {
-				// Create new TP bracket
-				try {
-					const tpBracket = this._createTakeProfitBracket(newPos);
-					this._orderById[tpBracket.id] = tpBracket;
-					this._orders.push(tpBracket);
-					console.log('[ZuperiorBroker] Created new Position TP Bracket:', tpBracket);
-				} catch (e) {
-					console.error('[ZuperiorBroker] Error creating TP bracket', e);
-				}
-			}
-		} else {
-			// TP removed
-			if (existingTP) {
-				this._notifyBracketCancelled(tpId, existingTP);
-				delete this._orderById[tpId];
-				this._orders = this._orders.filter(o => o.id !== tpId);
-			}
-		}
-
-		// --- Handle SL Bracket ---
-		if (newPos.stopLoss && newPos.stopLoss > 0) {
-			if (existingSL) {
-				// Update existing SL bracket (Immutable update)
-				const updatedSL = {
-					...existingSL,
-					stopPrice: newPos.stopLoss,
-					qty: newPos.qty,
-					status: OrderStatus.Working
-				};
-				this._orderById[slId] = updatedSL;
-				// Update array reference
-				const slIndex = this._orders.findIndex(o => o.id === slId);
-				if (slIndex !== -1) {
-					this._orders[slIndex] = updatedSL;
-				} else {
-					this._orders.push(updatedSL);
-				}
-				console.log('[ZuperiorBroker] Updated existing Position SL Bracket:', updatedSL.id, updatedSL.stopPrice);
-			} else {
-				// Create new SL bracket
-				try {
-					const slBracket = this._createStopLossBracket(newPos);
-					this._orderById[slBracket.id] = slBracket;
-					this._orders.push(slBracket);
-					console.log('[ZuperiorBroker] Created new Position SL Bracket:', slBracket);
-				} catch (e) {
-					console.error('[ZuperiorBroker] Error creating SL bracket', e);
-				}
-			}
-		} else {
-			// SL removed
-			if (existingSL) {
-				this._notifyBracketCancelled(slId, existingSL);
-				delete this._orderById[slId];
-				this._orders = this._orders.filter(o => o.id !== slId);
-			}
-		}
-
-		// 3. Notify Chart IMMEDIATELY
-		this._notifyAllPositionsAndOrders();
+		console.log('[ZuperiorBroker] Modifying Brackets (Wait for Conf):', positionId, { newSL, newTP });
 
 		try {
-			// 4. API Call in Background
+			// API Call
 			await modifyPositionDirect({
 				accountId: this._accountId,
 				accessToken: this._accessToken,
@@ -1403,26 +1279,13 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 				takeProfit: newTP
 			});
 
-			// Fetch validation after a short delay to confirm backend state
-			setTimeout(() => this._fetchPositionsAndOrders(true), 400);
+			// Fetch updates immediately to show new brackets
+			await this._fetchPositionsAndOrders(true);
 
 		} catch (e) {
 			console.error('Modify position failed', e);
-
-			// 5. Rollback on Failure
-			console.log('[ZuperiorBroker] Rolling back optimistic update');
-			const posToRevert = this._positionById[positionId];
-			if (posToRevert) {
-				posToRevert.takeProfit = originalState.takeProfit;
-				posToRevert.stopLoss = originalState.stopLoss;
-
-				// Regenerate old brackets? Or just let fetch fix it?
-				// Re-notifying will at least correct the position lines
-				this._notifyAllPositionsAndOrders();
-			}
-			// Force re-fetch to ensure sync
+			// Refresh to ensure we are in sync with reality
 			this._fetchPositionsAndOrders(true);
-
 			throw e;
 		}
 	}
@@ -1468,31 +1331,8 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			return Promise.resolve();
 		}
 
-		// Optimistic update: Remove from local state immediately
+		// NO OPTIMISTIC UPDATE HERE. Wait for API and then fetch.
 		const position = this._positionById[positionId];
-		if (position) {
-			// Notify chart/AM of closure BEFORE removing from state
-			if (this._host && typeof this._host.positionUpdate === 'function') {
-				const closedPosition = { ...position, qty: 0, avgPrice: 0 };
-				console.log('[ZuperiorBroker] Optimistic Close - Notifying host:', closedPosition);
-				this._host.positionUpdate(closedPosition);
-
-				if ((position as any).pl !== undefined && typeof this._host.plUpdate === 'function') {
-					// Update P/L to 0 or remove it? Usually just updating position is enough.
-				}
-			}
-
-			// Remove from maps
-			delete this._positionById[positionId];
-			delete this._orderById[`${positionId}_TP`];
-			delete this._orderById[`${positionId}_SL`];
-
-			// Remove from array
-			this._positions = this._positions.filter(p => p.id !== positionId);
-
-			// Notify chart (updates the rest)
-			this._notifyAllPositionsAndOrders();
-		}
 
 		try {
 			await closePositionDirect({
@@ -1501,11 +1341,11 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 				positionId: positionId,
 				volume: position ? position.qty : 0 // Pass known volume (lots) to help API
 			});
-			// Fetch validation after delay
-			setTimeout(() => this._fetchPositionsAndOrders(true), 500);
+			// Fetch confirmation immediately
+			await this._fetchPositionsAndOrders(true);
 		} catch (e) {
 			console.error('Close position failed', e);
-			// Re-fetch to restore if failed
+			// Re-fetch to satisfy state
 			this._fetchPositionsAndOrders(true);
 			throw e;
 		}

@@ -36,8 +36,6 @@ export default function TradingTerminal() {
   const [orderToast, setOrderToast] = useState<any>(null)
   const [isRightSidebarOpen, setIsRightSidebarOpen] = useState(true)
   const [isBottomPanelVisible, setIsBottomPanelVisible] = useState(true)
-  const [optimisticPositions, setOptimisticPositions] = useState<Position[]>([])
-  const [optimisticPendingOrders, setOptimisticPendingOrders] = useState<Position[]>([])
 
   // Memoize toast close handlers to prevent timer resets
   const handleOrderToastClose = useCallback(() => {
@@ -61,19 +59,17 @@ export default function TradingTerminal() {
     enabled: !!currentAccountId,
   });
 
-  // CRITICAL: Expose live positions data to TradingView broker
-  // This ensures Account Manager shows the same data as the open positions table
   useEffect(() => {
     if (typeof window !== 'undefined') {
       (window as any).__LIVE_POSITIONS_DATA__ = {
-        openPositions: [...(rawPositions || []), ...optimisticPositions],
-        pendingOrders: [...(rawPendingOrders || []), ...optimisticPendingOrders],
+        openPositions: rawPositions || [],
+        pendingOrders: rawPendingOrders || [],
         closedPositions: rawClosedPositions || [],
       };
       // Notify ZuperiorBroker to refresh immediately
       window.dispatchEvent(new CustomEvent('zuperior-positions-updated'));
     }
-  }, [rawPositions, optimisticPositions, rawPendingOrders, optimisticPendingOrders, rawClosedPositions]);
+  }, [rawPositions, rawPendingOrders, rawClosedPositions]);
 
   // Market closed helper (weekend for non-crypto instruments)
   const isMarketClosed = useCallback((sym?: string) => {
@@ -100,10 +96,9 @@ export default function TradingTerminal() {
 
   // Format positions for BottomPanel display
   const openPositions = useMemo(() => {
-    const combined = [...(rawPositions || []), ...optimisticPositions];
-    if (combined.length === 0) return [];
+    if (!rawPositions || rawPositions.length === 0) return [];
 
-    return combined.map((pos: Position) => {
+    return rawPositions.map((pos: Position) => {
       const profit = pos.profit || 0;
       const plFormatted = profit >= 0 ? `+${profit.toFixed(2)}` : profit.toFixed(2);
       const plColor = profit >= 0 ? 'text-[#00ffaa]' : 'text-[#f6465d]';
@@ -113,8 +108,7 @@ export default function TradingTerminal() {
       return {
         symbol,
         type: pos.type,
-        // For optimistic positions, volume is already in lots. 
-        volume: pos.id.startsWith('optimistic-') ? pos.volume.toFixed(2) : (pos.volume / 10000).toFixed(2),
+        volume: (pos.volume / 10000).toFixed(2),
         openPrice: pos.openPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 }),
         currentPrice: pos.currentPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 }),
         tp: pos.takeProfit && pos.takeProfit !== 0 ? pos.takeProfit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 }) : 'Add',
@@ -136,14 +130,13 @@ export default function TradingTerminal() {
         id: pos.id, // Keep original ID for closing
       };
     });
-  }, [rawPositions, optimisticPositions]);
+  }, [rawPositions]);
 
   // Format pending orders for BottomPanel display
   const pendingPositions = useMemo(() => {
-    const combined = [...(rawPendingOrders || []), ...optimisticPendingOrders];
-    if (combined.length === 0) return [];
+    if (!rawPendingOrders || rawPendingOrders.length === 0) return [];
 
-    return combined.map((pos: Position) => {
+    return rawPendingOrders.map((pos: Position) => {
       const profit = pos.profit || 0;
       const plFormatted = profit >= 0 ? `+${profit.toFixed(2)}` : profit.toFixed(2);
       const plColor = profit >= 0 ? 'text-[#00ffaa]' : 'text-[#f6465d]';
@@ -153,9 +146,7 @@ export default function TradingTerminal() {
       return {
         symbol,
         type: pos.type,
-        // For optimistic orders, volume is already in lots. 
-        // For real orders, we divide by 100.
-        volume: pos.id.startsWith('optimistic-') ? pos.volume.toFixed(2) : (pos.volume / 100).toFixed(2),
+        volume: (pos.volume / 100).toFixed(2),
         openPrice: pos.openPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 }),
         currentPrice: pos.currentPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 }),
         tp: pos.takeProfit && pos.takeProfit !== 0 ? pos.takeProfit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 }) : 'Add',
@@ -177,7 +168,7 @@ export default function TradingTerminal() {
         id: pos.id,
       };
     });
-  }, [rawPendingOrders, optimisticPendingOrders]);
+  }, [rawPendingOrders]);
 
   // Format closed positions for BottomPanel display
   const closedPositions = useMemo(() => {
@@ -524,28 +515,9 @@ export default function TradingTerminal() {
     }
 
     try {
-      const optimisticId = `optimistic-${Date.now()}`;
       const chosenSymbol = normalizeSymbolForOrder(symbol || 'BTCUSD');
 
       if (orderData.orderType === 'market') {
-        // Add optimistic position
-        const newOptimisticPos: Position = {
-          id: optimisticId,
-          ticket: 0,
-          symbol: chosenSymbol,
-          type: 'Buy',
-          volume: orderData.volume,
-          openPrice: orderData.openPrice || 0,
-          currentPrice: orderData.openPrice || 0,
-          openTime: new Date().toISOString(),
-          swap: 0,
-          profit: 0,
-          commission: 0,
-          takeProfit: orderData.takeProfit,
-          stopLoss: orderData.stopLoss,
-        };
-        setOptimisticPositions(prev => [...prev, newOptimisticPos]);
-
         // Get MetaAPI access token - Try cache first for speed
         let accessToken = (metaApiTokens as any)[currentAccountId];
         if (!accessToken) {
@@ -553,7 +525,6 @@ export default function TradingTerminal() {
         }
 
         if (!accessToken) {
-          setOptimisticPositions(prev => prev.filter(p => p.id !== optimisticId));
           throw new Error('Failed to get MetaAPI access token');
         }
 
@@ -568,9 +539,6 @@ export default function TradingTerminal() {
           takeProfit: orderData.takeProfit,
           comment: 'Buy from Terminal (Fast)'
         });
-
-        // Always remove optimistic position once API responds
-        setOptimisticPositions(prev => prev.filter(p => p.id !== optimisticId));
 
         if (response.success) {
           refetchPositions();
@@ -611,28 +579,6 @@ export default function TradingTerminal() {
           return;
         }
 
-        // Add optimistic pending order
-        const pendingTypeMap: Record<string, Position['type']> = {
-          'limit': 'Buy Limit',
-          'stop': 'Buy Stop'
-        };
-        const newOptimisticPending: Position = {
-          id: optimisticId,
-          ticket: 0,
-          symbol: chosenSymbol,
-          type: pendingTypeMap[orderData.pendingOrderType || 'limit'] || 'Buy Limit',
-          volume: orderData.volume,
-          openPrice: orderData.openPrice,
-          currentPrice: orderData.openPrice || 0,
-          openTime: new Date().toISOString(),
-          swap: 0,
-          profit: 0,
-          commission: 0,
-          takeProfit: orderData.takeProfit,
-          stopLoss: orderData.stopLoss,
-        };
-        setOptimisticPendingOrders(prev => [...prev, newOptimisticPending]);
-
         // Get MetaAPI access token - Try cache first for speed
         let accessToken = (metaApiTokens as any)[currentAccountId];
         if (!accessToken) {
@@ -640,7 +586,6 @@ export default function TradingTerminal() {
         }
 
         if (!accessToken) {
-          setOptimisticPendingOrders(prev => prev.filter(p => p.id !== optimisticId));
           throw new Error('Failed to get MetaAPI access token');
         }
 
@@ -657,9 +602,6 @@ export default function TradingTerminal() {
           takeProfit: orderData.takeProfit,
           comment: 'Buy Limit/Stop from Terminal (Fast)'
         });
-
-        // Always remove optimistic pending order once API responds
-        setOptimisticPendingOrders(prev => prev.filter(p => p.id !== optimisticId));
 
         if (response.success) {
           // Immediately refresh UI
@@ -709,28 +651,9 @@ export default function TradingTerminal() {
     }
 
     try {
-      const optimisticId = `optimistic-${Date.now()}`;
       const chosenSymbol = normalizeSymbolForOrder(symbol || 'BTCUSD');
 
       if (orderData.orderType === 'market') {
-        // Add optimistic position
-        const newOptimisticPos: Position = {
-          id: optimisticId,
-          ticket: 0,
-          symbol: chosenSymbol,
-          type: 'Sell',
-          volume: orderData.volume,
-          openPrice: orderData.openPrice || 0,
-          currentPrice: orderData.openPrice || 0,
-          openTime: new Date().toISOString(),
-          swap: 0,
-          profit: 0,
-          commission: 0,
-          takeProfit: orderData.takeProfit,
-          stopLoss: orderData.stopLoss,
-        };
-        setOptimisticPositions(prev => [...prev, newOptimisticPos]);
-
         // Get MetaAPI access token - Try cache first for speed
         let accessToken = (metaApiTokens as any)[currentAccountId];
         if (!accessToken) {
@@ -738,7 +661,6 @@ export default function TradingTerminal() {
         }
 
         if (!accessToken) {
-          setOptimisticPositions(prev => prev.filter(p => p.id !== optimisticId));
           throw new Error('Failed to get MetaAPI access token');
         }
 
@@ -753,9 +675,6 @@ export default function TradingTerminal() {
           takeProfit: orderData.takeProfit,
           comment: 'Sell from Terminal (Fast)'
         });
-
-        // Always remove optimistic position once API responds
-        setOptimisticPositions(prev => prev.filter(p => p.id !== optimisticId));
 
         if (response.success) {
           refetchPositions();
@@ -796,28 +715,6 @@ export default function TradingTerminal() {
           return;
         }
 
-        // Add optimistic pending order
-        const pendingTypeMap: Record<string, Position['type']> = {
-          'limit': 'Sell Limit',
-          'stop': 'Sell Stop'
-        };
-        const newOptimisticPending: Position = {
-          id: optimisticId,
-          ticket: 0,
-          symbol: chosenSymbol,
-          type: pendingTypeMap[orderData.pendingOrderType || 'limit'] || 'Sell Limit',
-          volume: orderData.volume,
-          openPrice: orderData.openPrice,
-          currentPrice: 0,
-          openTime: new Date().toISOString(),
-          swap: 0,
-          profit: 0,
-          commission: 0,
-          takeProfit: orderData.takeProfit,
-          stopLoss: orderData.stopLoss,
-        };
-        setOptimisticPendingOrders(prev => [...prev, newOptimisticPending]);
-
         // Get MetaAPI access token - Try cache first for speed
         let accessToken = (metaApiTokens as any)[currentAccountId];
         if (!accessToken) {
@@ -825,7 +722,6 @@ export default function TradingTerminal() {
         }
 
         if (!accessToken) {
-          setOptimisticPendingOrders(prev => prev.filter(p => p.id !== optimisticId));
           throw new Error('Failed to get MetaAPI access token');
         }
 
@@ -842,9 +738,6 @@ export default function TradingTerminal() {
           takeProfit: orderData.takeProfit,
           comment: 'Sell Limit/Stop from Terminal (Fast)'
         });
-
-        // Always remove optimistic pending order once API responds
-        setOptimisticPendingOrders(prev => prev.filter(p => p.id !== optimisticId));
 
         if (response.success) {
           // Immediately refresh UI
@@ -1062,9 +955,9 @@ export default function TradingTerminal() {
     }
   }, [isSidebarExpanded])
 
-  // Listen for optimistic trades from the chart (ZuperiorBroker)
+  // Listen for trade triggers from the chart (ZuperiorBroker)
   useEffect(() => {
-    const handleOptimisticTrade = (e: any) => {
+    const handleTradeTrigger = (e: any) => {
       const { orderData, side } = e.detail;
       if (side === 'buy') {
         handleBuyOrder(orderData).catch(console.error);
@@ -1073,8 +966,8 @@ export default function TradingTerminal() {
       }
     };
 
-    window.addEventListener('zuperior-optimistic-trade', handleOptimisticTrade);
-    return () => window.removeEventListener('zuperior-optimistic-trade', handleOptimisticTrade);
+    window.addEventListener('zuperior-trigger-trade', handleTradeTrigger);
+    return () => window.removeEventListener('zuperior-trigger-trade', handleTradeTrigger);
   }, [handleBuyOrder, handleSellOrder]);
 
   return (
