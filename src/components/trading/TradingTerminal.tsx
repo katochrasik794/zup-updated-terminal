@@ -22,6 +22,7 @@ import { ImperativePanelHandle } from 'react-resizable-panels'
 
 import ModifyPositionModal from '@/components/modals/ModifyPositionModal'
 import OrderPlacedToast from '@/components/ui/OrderPlacedToast'
+import MarketClosedToast from '@/components/ui/MarketClosedToast'
 import ReactDOM from 'react-dom'
 
 export default function TradingTerminal() {
@@ -29,7 +30,7 @@ export default function TradingTerminal() {
   const { currentAccountId, currentBalance, getMetaApiToken } = useAccount();
   const { symbol, lastModification, clearLastModification } = useTrading();
   const { instruments } = useInstruments();
-  const [marketClosedToast, setMarketClosedToast] = useState<string | null>(null);
+  const [marketClosedToast, setMarketClosedToast] = useState<any | null>(null);
   const leftPanelRef = useRef<ImperativePanelHandle>(null)
   const [closedToast, setClosedToast] = useState<any>(null)
   const [orderToast, setOrderToast] = useState<any>(null)
@@ -325,7 +326,11 @@ export default function TradingTerminal() {
     }
 
     if (isMarketClosed(symbol)) {
-      setMarketClosedToast('Market closed for this instrument. Trading resumes Sunday 21:05 UTC.');
+      setMarketClosedToast({
+        symbol: symbol,
+        message: 'Market is currently closed for this instrument.',
+        nextOpen: 'Sunday 21:05 UTC'
+      });
       return;
     }
 
@@ -344,25 +349,37 @@ export default function TradingTerminal() {
       const accessToken = await getMetaApiToken(currentAccountId);
       if (!accessToken) return;
 
-      // Close all positions for this symbol in parallel
-      const closePromises = symbolPositions.map((pos: any) => {
-        const positionId = pos.ticket || pos.id || pos.positionId;
-        if (!positionId) return Promise.resolve({ success: false });
+      // Implement Lead Trade pattern: Pick first position as lead, fire remaining with tiny stagger
+      const [leadPos, ...remainingPositions] = symbolPositions;
+      console.log(`[LeadTrade] Closing Lead Position: ${leadPos.ticket || leadPos.id}`);
 
-        // Get position volume in MT5 format (convert from lots to MT5 format)
+      const leadPromise = closePositionDirect({
+        positionId: leadPos.ticket || leadPos.id,
+        accountId: currentAccountId,
+        accessToken: accessToken,
+        volume: 0,
+        positionVolumeMT5: leadPos.volume ? Math.round(Number(leadPos.volume) * 100) : undefined,
+        comment: "Lead Trade (Symbol)"
+      });
+
+      // 50ms pulse
+      await new Promise(resolve => setTimeout(resolve, 50));
+
+      const remainingPromises = remainingPositions.map((pos: any) => {
+        const positionId = pos.ticket || pos.id;
         const positionVolumeMT5 = pos.volume ? Math.round(Number(pos.volume) * 100) : undefined;
 
         return closePositionDirect({
           positionId: positionId,
           accountId: currentAccountId,
           accessToken: accessToken,
-          volume: 0, // 0 = full close
-          positionVolumeMT5: positionVolumeMT5, // Actual position volume in MT5 format
-          comment: "Group Closed from Terminal (Fast)"
+          volume: 0,
+          positionVolumeMT5: positionVolumeMT5,
+          comment: "Group Closed Parallel"
         });
       });
 
-      const results = await Promise.allSettled(closePromises);
+      const results = await Promise.allSettled([leadPromise, ...remainingPromises]);
       const successful = results.filter(r => r.status === 'fulfilled' && r.value.success).length;
 
       if (successful > 0) {
@@ -399,7 +416,11 @@ export default function TradingTerminal() {
 
       const closedDueToMarket = positionsToClose.filter((pos: any) => isMarketClosed(pos.symbol));
       if (closedDueToMarket.length > 0) {
-        setMarketClosedToast('Market closed for one or more selected instruments. Trading resumes Sunday 21:05 UTC.');
+        setMarketClosedToast({
+          symbol: 'Multiple Symbols',
+          message: 'Market closed for one or more selected instruments.',
+          nextOpen: 'Sunday 21:05 UTC'
+        });
         positionsToClose = positionsToClose.filter((pos: any) => !isMarketClosed(pos.symbol));
       }
 
@@ -414,25 +435,37 @@ export default function TradingTerminal() {
       const accessToken = await getMetaApiToken(currentAccountId);
       if (!accessToken) return;
 
-      // Close each position individually in parallel
-      const closePromises = positionsToClose.map((pos: any) => {
-        const positionId = pos.ticket || pos.id || pos.positionId;
-        if (!positionId) return Promise.resolve({ success: false });
+      // Implement Lead Trade pattern for Close All
+      const [leadPos, ...remainingPositions] = positionsToClose;
+      console.log(`[LeadTrade] Closing Lead Position (Close All): ${leadPos.ticket || leadPos.id}`);
 
-        // Get position volume in MT5 format (convert from lots to MT5 format)
+      const leadPromise = closePositionDirect({
+        positionId: leadPos.ticket || leadPos.id,
+        accountId: currentAccountId,
+        accessToken: accessToken,
+        volume: 0,
+        positionVolumeMT5: leadPos.volume ? Math.round(Number(leadPos.volume) * 100) : undefined,
+        comment: "Lead Trade (All)"
+      });
+
+      // 50ms pulse
+      await new Promise(resolve => setTimeout(resolve, 50));
+
+      const remainingPromises = remainingPositions.map((pos: any) => {
+        const positionId = pos.ticket || pos.id;
         const positionVolumeMT5 = pos.volume ? Math.round(Number(pos.volume) * 100) : undefined;
 
         return closePositionDirect({
           positionId: positionId,
           accountId: currentAccountId,
           accessToken: accessToken,
-          volume: 0, // 0 = full close
-          positionVolumeMT5: positionVolumeMT5, // Actual position volume in MT5 format
-          comment: "Close All from Terminal (Fast)"
+          volume: 0,
+          positionVolumeMT5: positionVolumeMT5,
+          comment: "Close All Parallel"
         });
       });
 
-      const results = await Promise.allSettled(closePromises);
+      const results = await Promise.allSettled([leadPromise, ...remainingPromises]);
       const successful = results.filter(r => r.status === 'fulfilled' && r.value.success).length;
 
       if (successful > 0) {
@@ -1295,26 +1328,10 @@ export default function TradingTerminal() {
         order={orderToast}
         onClose={handleOrderToastClose}
       />
-      {marketClosedToast && ReactDOM.createPortal(
-        <div className="fixed bottom-4 left-4 z-[99999] bg-[#0b0e14] text-[#d1d5db] rounded-md shadow-lg border border-amber-500/60 w-[320px] overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-300">
-          <div className="p-4 relative">
-            <button
-              onClick={() => setMarketClosedToast(null)}
-              className="absolute top-2 right-2 text-[#9ca3af] hover:text-white transition-colors"
-            >
-              ×
-            </button>
-            <div className="flex items-start gap-3">
-              <div className="mt-0.5 text-amber-400">⚠</div>
-              <div className="flex-1">
-                <h3 className="text-white font-medium text-[14px] leading-tight mb-1">Market closed</h3>
-                <p className="text-[13px] text-[#d1d5db]">{marketClosedToast}</p>
-              </div>
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
+      <MarketClosedToast
+        info={marketClosedToast}
+        onClose={() => setMarketClosedToast(null)}
+      />
     </>
   )
 }

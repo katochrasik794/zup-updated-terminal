@@ -8,6 +8,9 @@
 
 const METAAPI_BASE_URL = 'https://metaapi.zuperior.com';
 
+// Cache for the best close method per account to avoid sequential fallbacks
+const bestCloseMethodCache: Record<string, 'DELETE' | 'POST_CLOSE' | 'TRADING'> = {};
+
 export interface ClosePositionDirectParams {
     positionId: string | number;
     accountId: string;
@@ -228,181 +231,103 @@ export async function closePositionDirect({
         }
 
         // Try primary method first: DELETE /client/position/{positionId}
-        let response = await fetch(deleteUrl, {
-            method: 'DELETE',
-            headers: baseHeaders,
-        });
+        const currentBestMethod = bestCloseMethodCache[accountId];
+        console.log(`[ClosePosition] Best method for ${accountId}: ${currentBestMethod || 'None'}`);
 
-        let finalResponse = response;
+        let response: any = { ok: false, status: 0 };
+        let finalResponse: any = response;
         let finalError: string | null = null;
+        let methodUsed: 'DELETE' | 'POST_CLOSE' | 'TRADING' | null = null;
 
-        // If DELETE fails, try POST fallbacks
-        // Auth errors (401/403) on DELETE/POST endpoints are expected - they may not support our token format
-        // We'll skip directly to Trading endpoint which works
-        if (!response.ok && response.status !== 204) {
-            const isAuthError = response.status === 401 || response.status === 403;
-            const isMethodError = response.status === 405 || response.status === 415;
+        // --- METHOD 1: DELETE (Primary) ---
+        const tryDelete = async () => {
+            console.debug(`[ClosePosition] Trying DELETE...`);
+            const res = await fetch(deleteUrl, { method: 'DELETE', headers: baseHeaders });
+            if (res.ok || res.status === 204) {
+                bestCloseMethodCache[accountId] = 'DELETE';
+                methodUsed = 'DELETE';
+            }
+            return res;
+        };
 
-            // Skip fallback 1 if auth error - go directly to Trading endpoint
-            let shouldTryFallback2 = isAuthError || isMethodError;
+        // --- METHOD 2: POST /client/position/close ---
+        const tryPostClose = async () => {
+            console.debug(`[ClosePosition] Trying POST fallback 1...`);
+            const payload: any = { positionId: positionIdNum };
+            if (volume && volume > 0) payload.volume = Number(volume);
+            const res = await fetch(`${API_BASE}/client/position/close`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', ...baseHeaders },
+                body: JSON.stringify(payload),
+            });
+            if (res.ok || res.status === 204) {
+                bestCloseMethodCache[accountId] = 'POST_CLOSE';
+                methodUsed = 'POST_CLOSE';
+            }
+            return res;
+        };
 
-            if (!isAuthError && !isMethodError) {
-                // Only log as debug/info, not error, since this is expected fallback behavior
-                console.debug(`[ClosePosition] DELETE failed with ${response.status}, trying POST fallbacks`);
-
-                // Fallback 1: POST /client/position/close with JSON payload (camelCase)
+        // --- METHOD 3: Trading endpoint (Final resort) ---
+        const tryTradingEndpoint = async () => {
+            console.debug(`[ClosePosition] Trying Trading endpoint fallback 2...`);
+            const accountIdNum = parseInt(String(accountId), 10);
+            let volumeToSend = 0;
+            if (volume && volume > 0) {
+                volumeToSend = Math.round(volume * 100);
+                if (volumeToSend >= 100) volumeToSend = Math.round(volumeToSend / 100) * 100;
+            } else if (positionVolumeMT5 !== undefined && positionVolumeMT5 !== null) {
+                volumeToSend = Number(positionVolumeMT5);
+                if (volumeToSend >= 100) volumeToSend = Math.round(volumeToSend / 100) * 100;
+            } else {
+                // Fetch position volume if not provided
                 try {
-                    const payload: any = { positionId: positionIdNum };
-                    if (volume && volume > 0) payload.volume = Number(volume);
-
-                    const postUrl = `${API_BASE}/client/position/close`;
-                    const fallback1Response = await fetch(postUrl, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            ...baseHeaders,
-                        },
-                        body: JSON.stringify(payload),
-                    });
-
-                    if (fallback1Response.ok || fallback1Response.status === 204) {
-                        finalResponse = fallback1Response;
-                        console.log(`[ClosePosition] Success via POST fallback 1`);
-                        shouldTryFallback2 = false; // Success, don't try fallback 2
-                    } else {
-                        // Check if it's an auth/method error - skip to Trading endpoint
-                        if (fallback1Response.status === 401 || fallback1Response.status === 403 ||
-                            fallback1Response.status === 405 || fallback1Response.status === 415) {
-                            console.debug(`[ClosePosition] POST fallback 1 not supported (${fallback1Response.status}), trying Trading endpoint`);
-                            shouldTryFallback2 = true;
-                        } else {
-                            console.log(`[ClosePosition] POST fallback 1 failed with ${fallback1Response.status}, trying Trading endpoint`);
-                            shouldTryFallback2 = true;
+                    const positionsResponse = await fetch(`${API_BASE}/client/Positions`, { method: 'GET', headers: baseHeaders });
+                    if (positionsResponse.ok) {
+                        const positionsData = await positionsResponse.json() as any;
+                        const positions = positionsData?.positions || positionsData || [];
+                        const pos = positions.find((p: any) => (p.PositionId || p.positionId || p.Id || p.id) === positionIdNum);
+                        if (pos) {
+                            const rawVolume = pos.Volume || pos.volume || 0;
+                            const posLots = pos.VolumeLots || pos.volumeLots;
+                            volumeToSend = rawVolume > 0 ? Number(rawVolume) : Math.round(Number(posLots) * 100);
+                            if (volumeToSend >= 100) volumeToSend = Math.round(volumeToSend / 100) * 100;
                         }
                     }
-                } catch (fallbackError: any) {
-                    console.debug(`[ClosePosition] Fallback 1 error:`, fallbackError);
-                    shouldTryFallback2 = true; // Try Trading endpoint on error
-                }
-            } else {
-                // Auth or method error on DELETE - skip fallback 1
-                console.debug(`[ClosePosition] DELETE endpoint issue (${response.status}), skipping to Trading endpoint`);
+                } catch { }
             }
 
-            // Fallback 2: POST /Trading/position/close with PascalCase payload (always try this as last resort)
-            if (shouldTryFallback2) {
-                try {
-                    // Trading endpoint requires Login, PositionId, and Volume (all required)
-                    // Login must be parsed as integer from accountId string
-                    const accountIdNum = parseInt(String(accountId), 10);
-                    if (isNaN(accountIdNum)) {
-                        throw new Error(`Invalid accountId: ${accountId}`);
-                    }
+            if (volumeToSend === 0) throw new Error('Cannot determine volume');
 
-                    // Trading endpoint requires Volume in MT5 internal format
-                    // Volume must be multiples of 100 (step 100) where 100 = 1 lot
-                    // But volumes < 100 are also valid (e.g., 1 = 0.01 lot, 10 = 0.1 lot)
-                    // If volume is 0 (full close), use positionVolumeMT5 if provided, otherwise fetch position
-                    let volumeToSend = 0;
+            const res = await fetch(`${API_BASE}/Trading/position/close`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', ...baseHeaders },
+                body: JSON.stringify({ Login: accountIdNum, PositionId: positionIdNum, Volume: volumeToSend }),
+            });
+            if (res.ok || res.status === 204) {
+                bestCloseMethodCache[accountId] = 'TRADING';
+                methodUsed = 'TRADING';
+            }
+            return res;
+        };
 
-                    if (volume && volume > 0) {
-                        // Partial close: convert lots to MT5 format (multiply by 100)
-                        volumeToSend = Math.round(volume * 100);
-                        // If >= 100, ensure it's a multiple of 100
-                        if (volumeToSend >= 100) {
-                            volumeToSend = Math.round(volumeToSend / 100) * 100;
-                        }
-                    } else if (positionVolumeMT5 !== undefined && positionVolumeMT5 !== null) {
-                        // Full close: positionVolumeMT5 is already in MT5 format from TradingTerminal
-                        // (it was converted from lots to MT5 by multiplying by 100)
-                        volumeToSend = Number(positionVolumeMT5);
-
-                        // If >= 100, ensure it's a multiple of 100
-                        if (volumeToSend >= 100) {
-                            volumeToSend = Math.round(volumeToSend / 100) * 100;
-                        }
-                    } else {
-                        // Fetch position to get actual volume
-                        try {
-                            const positionsUrl = `${API_BASE}/client/Positions`;
-                            const positionsResponse = await fetch(positionsUrl, {
-                                method: 'GET',
-                                headers: baseHeaders,
-                            });
-
-                            if (positionsResponse.ok) {
-                                const positionsData = await positionsResponse.json() as any;
-                                const positions = positionsData?.positions || positionsData?.data || positionsData || [];
-                                const position = positions.find((p: any) =>
-                                    (p.PositionId || p.positionId || p.Id || p.id) === positionIdNum
-                                );
-
-                                if (position) {
-                                    console.log('[ClosePosition] Fetched position for volume calculation:', position);
-
-                                    // Get volume - prefer Volume (MT5 format), otherwise VolumeLots (convert to MT5)
-                                    const rawVolume = position.Volume || position.volume || 0;
-                                    const posVolumeLots = position.VolumeLots || position.volumeLots;
-
-                                    if (rawVolume > 0) {
-                                        // Already in MT5 format
-                                        volumeToSend = Number(rawVolume);
-                                        // If >= 100, ensure it's a multiple of 100
-                                        if (volumeToSend >= 100) {
-                                            volumeToSend = Math.round(volumeToSend / 100) * 100;
-                                        }
-                                    } else if (posVolumeLots !== undefined && posVolumeLots !== null) {
-                                        // Convert from lots to MT5 format (multiply by 100)
-                                        volumeToSend = Math.round(Number(posVolumeLots) * 100);
-                                        // If >= 100, ensure it's a multiple of 100
-                                        if (volumeToSend >= 100) {
-                                            volumeToSend = Math.round(volumeToSend / 100) * 100;
-                                        }
-                                    }
-                                    console.log(`[ClosePosition] Fetched position volume: ${volumeToSend} (MT5 format)`);
-                                }
-                            }
-                        } catch (fetchError) {
-                            console.warn(`[ClosePosition] Could not fetch position volume:`, fetchError);
-                            // If we can't get volume, we can't close - throw error
-                            throw new Error('Cannot determine position volume for closing');
-                        }
-                    }
-
-                    // Trading endpoint requires Volume - use MT5 format volume directly
-                    const tradingPayload: any = {
-                        Login: accountIdNum, // Must be integer
-                        PositionId: positionIdNum, // Must be integer
-                        Volume: volumeToSend, // Volume in MT5 format (e.g., 1 = 0.01 lot, 100 = 1 lot)
-                    };
-
-                    console.log(`[ClosePosition] Trading payload (Volume: ${volumeToSend} MT5 units):`, tradingPayload);
-
-                    const tradingUrl = `${API_BASE}/Trading/position/close`;
-                    const fallback2Response = await fetch(tradingUrl, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            ...baseHeaders,
-                        },
-                        body: JSON.stringify(tradingPayload),
-                    });
-
-                    if (fallback2Response.ok || fallback2Response.status === 204) {
-                        finalResponse = fallback2Response;
-                        console.log(`[ClosePosition] Success via Trading endpoint`);
-                    } else {
-                        // All methods failed, use the last error
-                        finalResponse = fallback2Response;
-                        const errorText = await fallback2Response.text().catch(() => '');
-                        finalError = errorText || `All close methods failed. Last status: ${fallback2Response.status}`;
-                    }
-                } catch (tradingError: any) {
-                    console.error(`[ClosePosition] Trading endpoint error:`, tradingError);
-                    finalError = tradingError.message || 'Trading endpoint failed';
+        // EXECUTOR BASED ON CACHE
+        if (currentBestMethod === 'TRADING') {
+            response = await tryTradingEndpoint();
+        } else if (currentBestMethod === 'POST_CLOSE') {
+            response = await tryPostClose();
+            if (!response.ok) response = await tryTradingEndpoint();
+        } else {
+            // Default: DELETE -> POST_CLOSE -> TRADING
+            response = await tryDelete();
+            if (!response.ok && response.status !== 204) {
+                response = await tryPostClose();
+                if (!response.ok && response.status !== 204) {
+                    response = await tryTradingEndpoint();
                 }
             }
         }
+
+        finalResponse = response;
 
         // Check final response
         if (!finalResponse.ok && finalResponse.status !== 204) {

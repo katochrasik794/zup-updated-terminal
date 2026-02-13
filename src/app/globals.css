@@ -229,6 +229,11 @@ body,
   50% { transform: translateY(-3px); opacity: 0.8; }
 }
 
+@keyframes progress {
+  from { width: 100%; }
+  to { width: 0%; }
+}
+
 .animate-wavy {
   display: inline-block;
   animation: wavyText 1s ease-in-out infinite;
