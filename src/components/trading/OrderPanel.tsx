@@ -16,8 +16,8 @@ import ReactDOM from 'react-dom'
 
 export interface OrderPanelProps extends React.HTMLAttributes<HTMLDivElement> {
   onClose?: () => void
-  onBuy?: (data: OrderData) => void
-  onSell?: (data: OrderData) => void
+  onBuy?: (data: OrderData) => any
+  onSell?: (data: OrderData) => any
 }
 
 export interface OrderData {
@@ -649,9 +649,9 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
           }
           if (isLoading) return;
           setPendingOrderSide('sell');
-          setIsLoading(true);
           try {
-            onSell?.({
+            // Optimistic execution: Trigger and move on
+            const sellCall = onSell?.({
               orderType,
               pendingOrderType: orderType === "pending" ? pendingOrderType : undefined,
               volume: parseFloat(volume),
@@ -659,7 +659,12 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
               stopLoss: undefined,
               takeProfit: undefined,
             });
-            // Clear preview on success
+
+            if (sellCall && typeof sellCall.catch === 'function') {
+              sellCall.catch(() => { });
+            }
+
+            // INSTANT UI RESET (10ms feel)
             setPendingOrderSide(null);
             setTakeProfit("");
             setStopLoss("");
@@ -668,32 +673,16 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
               (window as any).__SET_ORDER_PREVIEW__({ side: null });
               lastPreviewData.current = 'null';
             }
-            setTimeout(() => {
-              setIsLoading(false);
-            }, 1000);
+            setIsLoading(false);
           } catch (err) {
             setIsLoading(false);
-            // Don't clear preview on error so user can retry
           }
         }}
         disabled={isLoading}
         className={cn(
-          "rounded-md p-3 bg-[#FF5555] hover:bg-[#FF5555]/90 cursor-pointer text-left relative overflow-hidden transition-all text-white",
-          isLoading && "opacity-80"
+          "rounded-md p-3 bg-[#FF5555] hover:bg-[#FF5555]/90 cursor-pointer text-left relative overflow-hidden transition-all text-white"
         )}
       >
-        {isLoading && pendingOrderSide === 'sell' && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/20 backdrop-blur-[1px] z-10">
-            <div className="flex gap-1">
-              {[0, 1, 2].map((i) => (
-                <div
-                  key={i}
-                  className="w-1.5 h-1.5 bg-white rounded-full opacity-80"
-                />
-              ))}
-            </div>
-          </div>
-        )}
         <div className="text-xs text-white/80 mb-1">Sell</div>
         <div className="price-font text-white font-bold text-sm leading-tight">
           {Math.floor(currentSellPrice).toLocaleString()}
@@ -712,7 +701,8 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
           setPendingOrderSide('buy');
           setIsLoading(true);
           try {
-            onBuy?.({
+            // Optimistic execution
+            const buyCall = onBuy?.({
               orderType,
               pendingOrderType: orderType === "pending" ? pendingOrderType : undefined,
               volume: parseFloat(volume),
@@ -720,41 +710,30 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
               stopLoss: undefined,
               takeProfit: undefined,
             });
+
+            if (buyCall && typeof buyCall.catch === 'function') {
+              buyCall.catch(() => { });
+            }
+
+            // INSTANT UI RESET
             setStopLoss("");
             setTakeProfit("");
             setRisk("");
-            // Clear preview on success
             setPendingOrderSide(null);
             if (typeof window !== 'undefined' && (window as any).__SET_ORDER_PREVIEW__) {
               (window as any).__SET_ORDER_PREVIEW__({ side: null });
               lastPreviewData.current = 'null';
             }
-            setTimeout(() => {
-              setIsLoading(false);
-            }, 1000);
+            setIsLoading(false);
           } catch (err) {
             setIsLoading(false);
-            // Don't clear preview on error so user can retry
           }
         }}
         disabled={isLoading}
         className={cn(
-          "rounded-md p-3 bg-[#4A9EFF] hover:bg-[#4A9EFF]/90 cursor-pointer text-right relative overflow-hidden transition-all text-white",
-          isLoading && "opacity-80"
+          "rounded-md p-3 bg-[#4A9EFF] hover:bg-[#4A9EFF]/90 cursor-pointer text-right relative overflow-hidden transition-all text-white"
         )}
       >
-        {isLoading && pendingOrderSide === 'buy' && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/20 backdrop-blur-[1px] z-10">
-            <div className="flex gap-1">
-              {[0, 1, 2].map((i) => (
-                <div
-                  key={i}
-                  className="w-1.5 h-1.5 bg-white rounded-full opacity-80"
-                />
-              ))}
-            </div>
-          </div>
-        )}
         <div className="text-xs text-white/80 mb-1">Buy</div>
         <div className="price-font text-white font-bold text-sm leading-tight">
           {Math.floor(currentBuyPrice).toLocaleString()}
@@ -766,7 +745,7 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
       <div className="absolute left-1/2 bottom-0 -translate-x-1/2 px-2 py-0.5 rounded backdrop-blur-xl bg-white/[0.03] border border-white/10 text-[10px] text-white/80 font-medium whitespace-nowrap z-10">
         {currentSpread} {isConnected && <span className="text-green-500 ml-1">●</span>}
       </div>
-    </div>
+    </div >
   )
 
   // Render buy/sell price buttons with spread overlay - bordered for regular/risk calculator
@@ -1183,15 +1162,18 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
 
               setIsLoading(true);
               try {
-                handler(orderData);
-                // Reset fields after successful order placement
+                // Optimistic execution
+                const result = handler(orderData);
+                if (result && typeof result.catch === 'function') {
+                  result.catch(() => { });
+                }
+
+                // INSTANT UI RESET
                 setStopLoss("");
                 setTakeProfit("");
-                setRisk(""); // Reset risk as well if in risk calculator mode
-                setTimeout(() => {
-                  setIsLoading(false);
-                  setPendingOrderSide(null);
-                }, 1000);
+                setRisk("");
+                setIsLoading(false);
+                setPendingOrderSide(null);
               } catch (err) {
                 setIsLoading(false);
                 setPendingOrderSide(null);
@@ -1200,21 +1182,8 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
             className={cn(
               "w-full font-semibold py-3 px-4 rounded-md transition-all flex flex-col items-center justify-center relative overflow-hidden text-white",
               pendingOrderSide === 'buy' ? 'bg-[#4A9EFF] hover:bg-[#4A9EFF]/90' : 'bg-[#FF5555] hover:bg-[#FF5555]/90',
-              isLoading && "opacity-80"
             )}
           >
-            {isLoading && (
-              <div className="absolute inset-0 flex items-center justify-center bg-black/20 backdrop-blur-[1px] z-10 focus:outline-none">
-                <div className="flex gap-1">
-                  {[0, 1, 2].map((i) => (
-                    <div
-                      key={i}
-                      className="w-1.5 h-1.5 bg-white rounded-full opacity-80"
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
             <span className="text-sm">Confirm {pendingOrderSide === 'buy' ? 'Buy' : 'Sell'}</span>
             <span className="text-xs opacity-90">{formType === "risk-calculator" && calculateRiskBasedVolume !== null ? calculateRiskBasedVolume.toFixed(2) : volume} lots</span>
           </button>

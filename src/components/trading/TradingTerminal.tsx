@@ -314,6 +314,8 @@ export default function TradingTerminal() {
       } else {
         // Show toast ONLY after successful closing
         setClosedToast(position);
+        // Refresh positions immediately
+        refetchPositions();
       }
     } catch (error) {
       console.error('[ClosePosition] Error:', error);
@@ -384,6 +386,8 @@ export default function TradingTerminal() {
 
       if (successful > 0) {
         setClosedToast(symbolPositions[0]);
+        // Refresh positions immediately
+        refetchPositions();
       }
     } catch (error) {
     }
@@ -470,6 +474,8 @@ export default function TradingTerminal() {
 
       if (successful > 0) {
         setClosedToast(positionsToClose[0]);
+        // Refresh positions immediately
+        refetchPositions();
       }
     } catch (error) {
     }
@@ -676,6 +682,7 @@ export default function TradingTerminal() {
           comment: 'Buy from Terminal (Fast)'
         });
         if (response.success) {
+          refetchPositions();
           // Show toast notification
           const apiData: any = response.data || {};
           setOrderToast({
@@ -734,6 +741,9 @@ export default function TradingTerminal() {
         });
 
         if (response.success) {
+          // Immediately refresh UI
+          refetchPositions();
+
           // Show toast notification
           const apiData: any = response.data || {};
           setOrderToast({
@@ -946,6 +956,7 @@ export default function TradingTerminal() {
         });
 
         if (response.success) {
+          refetchPositions();
           // Show toast notification
           const apiData: any = response.data || {};
           setOrderToast({
@@ -1004,6 +1015,9 @@ export default function TradingTerminal() {
         });
 
         if (response.success) {
+          // Immediately refresh UI
+          refetchPositions();
+
           // Show toast notification
           const apiData: any = response.data || {};
           setOrderToast({

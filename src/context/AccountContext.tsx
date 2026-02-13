@@ -75,16 +75,31 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
           localStorage.removeItem('accountId');
         }
       }
+
+      // Load cached tokens
+      try {
+        const cachedTokens = localStorage.getItem('metaApiTokens');
+        if (cachedTokens) {
+          setMetaApiTokens(JSON.parse(cachedTokens));
+        }
+      } catch (e) { }
     }
   }, [])
 
   // Save current account to localStorage when it changes
   useEffect(() => {
-    if (currentAccountId && typeof window !== 'undefined') {
-      localStorage.setItem('defaultMt5Account', currentAccountId)
-      localStorage.setItem('accountId', currentAccountId)
+    if (typeof window !== 'undefined') {
+      if (currentAccountId) {
+        localStorage.setItem('defaultMt5Account', currentAccountId)
+        localStorage.setItem('accountId', currentAccountId)
+      }
+
+      // Persist tokens
+      if (Object.keys(metaApiTokens).length > 0) {
+        localStorage.setItem('metaApiTokens', JSON.stringify(metaApiTokens));
+      }
     }
-  }, [currentAccountId])
+  }, [currentAccountId, metaApiTokens])
 
   const fetchAccounts = useCallback(async () => {
     try {
