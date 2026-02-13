@@ -218,6 +218,7 @@ export const TVChartContainer = () => {
                     'objects_tree_widget',
                     'trading_notifications',
                     'trading_account_manager',
+                    'create_volume_indicator_by_default', // Removed default volume study/legend
                 ],
                 enabled_features: [
                     'study_templates',
