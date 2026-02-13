@@ -83,6 +83,8 @@ class WebSocketManager {
     private historyCallbacks: Map<string, { onSuccess: HistoryCallback; onError: (error: string) => void }> = new Map();
     private requestQueue: (() => void)[] = [];
     public lastPrices: Map<string, number> = new Map();
+    public lastBarTimestamp: number = 0;
+    public serverTimeOffset: number = 0;
 
     constructor(url: string) {
         this.url = url;
@@ -213,7 +215,20 @@ class WebSocketManager {
 
                 // Cache last price from history
                 if (bars.length > 0) {
-                    this.lastPrices.set(normalizeSymbol(response.symbol), bars[bars.length - 1].close);
+                    const lastBar = bars[bars.length - 1];
+                    this.lastPrices.set(normalizeSymbol(response.symbol), lastBar.close);
+
+                    if (lastBar.time > this.lastBarTimestamp) {
+                        this.lastBarTimestamp = lastBar.time;
+                        // RISING EDGE SYNC:
+                        // Only update offset on a NEW bar to avoid pinning the time to the bar open continuously.
+                        // If local time is behind bar open time, we shift local time forward.
+                        const barTimeSec = Math.floor(lastBar.time / 1000);
+                        const nowSec = Math.floor(Date.now() / 1000);
+                        if (barTimeSec > nowSec) {
+                            this.serverTimeOffset = barTimeSec - nowSec;
+                        }
+                    }
                 }
             }
         } else if (data.type === 'candle_update') {
@@ -234,6 +249,16 @@ class WebSocketManager {
                         close: update.c,
                         volume: update.v
                     };
+
+                    if (update.t > this.lastBarTimestamp) {
+                        this.lastBarTimestamp = update.t;
+
+                        const updateTimeSec = Math.floor(update.t / 1000);
+                        const nowSec = Math.floor(Date.now() / 1000);
+                        if (updateTimeSec > nowSec) {
+                            this.serverTimeOffset = updateTimeSec - nowSec;
+                        }
+                    }
 
                     sub.callback(bar);
                 }
@@ -261,6 +286,7 @@ export class RealtimeDataFeed {
             supported_resolutions: ['1', '3', '5', '15', '30', '60', '240', '1D', '1W', '1M'],
             supports_marks: false,
             supports_timescale_marks: false,
+            supports_time: true,
         };
     }
 
@@ -272,7 +298,16 @@ export class RealtimeDataFeed {
     }
 
     public onReady(callback: (config: any) => void) {
-        setTimeout(() => callback(this.configuration), 0);
+        callback(this.configuration);
+    }
+
+    public getServerTime(callback: (time: number) => void) {
+        // SIMPLIFIED: Just return local time.
+        // If the timer is not moving, it might be due to offset logic providing static values.
+        // Let's rely purely on local clock progression.
+        setTimeout(() => {
+            callback(Math.floor(Date.now() / 1000));
+        }, 100);
     }
 
     public searchSymbols(
@@ -291,22 +326,25 @@ export class RealtimeDataFeed {
     ) {
         const symbolInfo: LibrarySymbolInfo = {
             name: symbolName,
+            ticker: symbolName,
             description: symbolName,
-            type: 'crypto', // guess
+            type: 'forex',
             session: '24x7',
             timezone: 'Etc/UTC',
             exchange: '',
+            listed_exchange: '',
             minmov: 1,
             pricescale: 100, // Default
             has_intraday: true,
+            has_daily: true,
+            has_weekly_and_monthly: true,
             supported_resolutions: this.configuration.supported_resolutions,
+            intraday_multipliers: ['1', '3', '5', '15', '30', '60', '240'],
             volume_precision: 2,
             data_status: 'streaming',
             format: 'price',
-            listed_exchange: '',
-            sector: '',
-            industry: ''
-        };
+            supports_time: true, // Explicitly supported
+        } as any;
 
         if (symbolName.includes('JPY') || symbolName.includes('XAU')) {
             symbolInfo.pricescale = 1000;

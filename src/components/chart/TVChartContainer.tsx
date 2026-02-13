@@ -222,6 +222,9 @@ export const TVChartContainer = () => {
                 enabled_features: [
                     'study_templates',
                     'trading_bracket_orders',
+                    // 'countdown', // Disabled per user request
+                    'high_density_bars',
+                    'seconds_resolution',
                 ],
                 charts_storage_url: 'https://saveload.tradingview.com',
                 charts_storage_api_version: '1.1',
@@ -241,10 +244,11 @@ export const TVChartContainer = () => {
                     "mainSeriesProperties.candleStyle.borderDownColor": "#EF4444",
                     "mainSeriesProperties.candleStyle.wickUpColor": "#16A34A",
                     "mainSeriesProperties.candleStyle.wickDownColor": "#EF4444",
-                    "tradingProperties.showOrderLabels": false,
-                    "tradingProperties.showOrderQty": true,
                     "tradingProperties.showOrderPrice": true,
                     "tradingProperties.showOrderType": false,
+                    "mainSeriesProperties.showCountdown": false,
+                    "scalesProperties.showSeriesLastValue": true,
+                    "scalesProperties.showSymbolLabels": false,
                 },
                 toolbar_bg: '#02040d',
 

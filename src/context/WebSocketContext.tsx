@@ -116,6 +116,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
         socket.onmessage = (event) => {
             try {
                 const data = JSON.parse(event.data);
+                // console.log('[WebSocketContext] Received:', data.type, data);
 
                 if (data.type === 'watch') {
                     // Update quote cache
@@ -128,18 +129,19 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
                     }));
 
                     // Calculate latency (ping)
-                    if (data.ts) {
+                    const timestamp = data.ts || data.t || data.time;
+                    if (timestamp) {
                         const now = Date.now();
-                        // Assuming data.ts is in ms. If it's seconds, multiply by 1000.
+                        // Assuming timestamp is in ms. If it's seconds, multiply by 1000.
                         // Usually MT5/MetaApi sends ms.
                         // If delta is huge negative, checking raw values might be needed.
-                        const latency = Math.max(0, now - data.ts);
+                        const latency = Math.max(0, now - timestamp);
 
                         // Smooth the ping visually (optional) or just set it
                         setPing(latency);
                     } else {
                         // Debug: Log if ts is missing
-
+                        // console.log('[WebSocketContext] Missing timestamp in watch data:', data);
                     }
                 } else if (data.type === 'quote') {
                     // Handle potential alternative message type

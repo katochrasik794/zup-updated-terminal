@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState, useRef, useCallback, useMemo } from 'react'
-import { GiNetworkBars } from "react-icons/gi";
 import CloseAllPositionsDropdown from "../modals/CloseAllPositionsDropdown";
 import { usePrivacy } from '../../context/PrivacyContext';
 import { formatCurrency } from '../../lib/utils';
@@ -108,18 +107,6 @@ export default function StatusBar({ openPositions = [], onCloseAll }: any) {
           </svg>
         </button>
 
-        <div className="flex items-end gap-1 ml-2" title={`Network Latency: ${ping}ms`}>
-          <GiNetworkBars size={14} className={
-            ping < 100 ? "text-emerald-500" :
-              ping < 300 ? "text-yellow-500" :
-                "text-red-500 animate-pulse"
-          } />
-          <span className={`text-[10px] font-mono leading-none mb-0 ${ping === 0 ? "text-gray-500" :
-              ping < 100 ? "text-gray-500" :
-                ping < 300 ? "text-yellow-500/80" :
-                  "text-red-500/80"
-            }`}>{ping > 0 ? ping : '--'} ms</span>
-        </div>
       </div>
 
       <CloseAllPositionsDropdown
