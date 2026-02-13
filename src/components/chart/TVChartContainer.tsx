@@ -116,26 +116,6 @@ export const TVChartContainer = () => {
         if (lastModification && brokerRef.current) {
             console.log('[TVChartContainer] lastModification received:', lastModification);
 
-            // Handle CLOSE request
-            if (lastModification.close) {
-                if (lastModification.volume && lastModification.volume > 0) {
-                    // Partial Close
-                    if (brokerRef.current.partialClose) {
-                        brokerRef.current.partialClose(lastModification.id, lastModification.volume)
-                            .catch((err: any) => console.error('Partial close failed', err));
-                    } else {
-                        console.error('Broker does not support partialClose');
-                    }
-                } else {
-                    // Full Close
-                    if (brokerRef.current.closePosition) {
-                        brokerRef.current.closePosition(lastModification.id)
-                            .catch((err: any) => console.error('Close position failed', err));
-                    }
-                }
-                return;
-            }
-
             if (brokerRef.current.modifyEntity) {
                 brokerRef.current.modifyEntity(lastModification.id, lastModification)
                     .catch((err: any) => console.error(err));
@@ -268,7 +248,7 @@ export const TVChartContainer = () => {
                 },
                 toolbar_bg: '#02040d',
 
-                // Customize available timeframes (excluding 30 minutes)
+                // Customize available timeframes
                 favorites: {
                     intervals: ['1', '3', '5', '15', '30', '60', '240', '1D', '1W', '1M'],
                     chartTypes: ["1"]

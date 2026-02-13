@@ -1493,28 +1493,6 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 		}
 	}
 
-	public async partialClose(positionId: string, volume: number): Promise<void> {
-		if (!this._accessToken || !this._accountId) return Promise.reject("Auth failed");
-
-		console.log('[ZuperiorBroker] partialClose called for:', positionId, 'volume:', volume);
-
-		try {
-			await closePositionDirect({
-				accountId: this._accountId,
-				accessToken: this._accessToken,
-				positionId: positionId,
-				volume: volume
-			});
-
-			// Fetch validation after delay
-			setTimeout(() => this._fetchPositionsAndOrders(true), 500);
-		} catch (e) {
-			console.error('Partial close failed', e);
-			this._fetchPositionsAndOrders(true);
-			throw e;
-		}
-	}
-
 	public config(): any {
 		return {
 			supportPlaceOrderPreview: true,

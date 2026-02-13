@@ -228,25 +228,10 @@ export async function closePositionDirect({
         }
 
         // Try primary method first: DELETE /client/position/{positionId}
-        // ONLY try this if it's a FULL close (volume == 0 or undefined). Partial close is not supported by DELETE.
-        let response: Response;
-        let shouldTryFallback2 = true;
-
-        if (!volume || volume <= 0) {
-            response = await fetch(deleteUrl, {
-                method: 'DELETE',
-                headers: baseHeaders,
-            });
-
-            if (response.ok || response.status === 204) {
-                shouldTryFallback2 = false;
-                console.log(`[ClosePosition] Success via DELETE method`);
-            }
-        } else {
-            console.log(`[ClosePosition] Skipping DELETE method for partial close (volume: ${volume})`);
-            // Mock a failed response to trigger fallback
-            response = new Response(JSON.stringify({ message: "Skipped DELETE for partial close" }), { status: 400 });
-        }
+        let response = await fetch(deleteUrl, {
+            method: 'DELETE',
+            headers: baseHeaders,
+        });
 
         let finalResponse = response;
         let finalError: string | null = null;
@@ -259,9 +244,7 @@ export async function closePositionDirect({
             const isMethodError = response.status === 405 || response.status === 415;
 
             // Skip fallback 1 if auth error - go directly to Trading endpoint
-            if (isAuthError || isMethodError) {
-                shouldTryFallback2 = true;
-            }
+            let shouldTryFallback2 = isAuthError || isMethodError;
 
             if (!isAuthError && !isMethodError) {
                 // Only log as debug/info, not error, since this is expected fallback behavior
@@ -323,11 +306,12 @@ export async function closePositionDirect({
                     let volumeToSend = 0;
 
                     if (volume && volume > 0) {
-                        // Partial close: convert lots to MT5 format (multiply by 1000)
-                        volumeToSend = Math.round(volume * 1000);
-                        // If >= 100, ensure it's a multiple of 100 (only if that's a requirement, but let's stick to simple scaling first)
-                        // Actually, if step is 100, then 10 units (0.01 lot) might be invalid if it enforces that?
-                        // But let's assume 1000 multiplier is correct based on "30" (0.03).
+                        // Partial close: convert lots to MT5 format (multiply by 100)
+                        volumeToSend = Math.round(volume * 100);
+                        // If >= 100, ensure it's a multiple of 100
+                        if (volumeToSend >= 100) {
+                            volumeToSend = Math.round(volumeToSend / 100) * 100;
+                        }
                     } else if (positionVolumeMT5 !== undefined && positionVolumeMT5 !== null) {
                         // Full close: positionVolumeMT5 is already in MT5 format from TradingTerminal
                         // (it was converted from lots to MT5 by multiplying by 100)
@@ -368,8 +352,12 @@ export async function closePositionDirect({
                                             volumeToSend = Math.round(volumeToSend / 100) * 100;
                                         }
                                     } else if (posVolumeLots !== undefined && posVolumeLots !== null) {
-                                        // Convert from lots to MT5 format (multiply by 1000)
-                                        volumeToSend = Math.round(Number(posVolumeLots) * 1000);
+                                        // Convert from lots to MT5 format (multiply by 100)
+                                        volumeToSend = Math.round(Number(posVolumeLots) * 100);
+                                        // If >= 100, ensure it's a multiple of 100
+                                        if (volumeToSend >= 100) {
+                                            volumeToSend = Math.round(volumeToSend / 100) * 100;
+                                        }
                                     }
                                     console.log(`[ClosePosition] Fetched position volume: ${volumeToSend} (MT5 format)`);
                                 }
@@ -593,8 +581,8 @@ export async function placeMarketOrderDirect({
         const tradePath = side === 'sell' ? 'trade-sell' : 'trade';
         const url = `${METAAPI_BASE_URL}/api/client/${tradePath}?account_id=${encodeURIComponent(accountId)}`;
 
-        // Volume normalized to units (1 lot = 1000 units)
-        const volumeInUnits = Math.round(volume * 1000);
+        // Volume normalized to units
+        const volumeInUnits = Math.round(volume * 100);
 
         // Mirroring PascalCase keys from fast pending orders
         const payload = {
@@ -666,7 +654,7 @@ export async function placePendingOrderDirect({
         }
 
         const url = `${METAAPI_BASE_URL}/api/client/${endpoint}?account_id=${encodeURIComponent(accountId)}`;
-        const volumeInUnits = Math.round(volume * 1000);
+        const volumeInUnits = Math.round(volume * 100);
 
         const payload = {
             Symbol: symbol,

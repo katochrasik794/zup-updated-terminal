@@ -101,22 +101,17 @@ const InstrumentRow = ({ item, isVisible, toggleFavorite, lastQuote, handleDragS
           addNavbarTab(item.symbol);
         }
       }}
-      className="group grid grid-cols-[30px_36px_100px_auto_auto_30px] gap-0 items-center border-b border-gray-800 hover:bg-[#1c252f] transition-colors h-[40px] cursor-pointer min-w-0"
+      className="group grid grid-cols-[36px_minmax(70px,100px)_auto_auto_30px] gap-0 items-center border-b border-gray-800 hover:bg-[#1c252f] transition-colors h-[40px] cursor-pointer min-w-0"
     >
-      {/* Grip Handle */}
-      <div className="flex items-center justify-center text-[#565c66] cursor-grab active:cursor-grabbing bg-[#0b0e14] group-hover:bg-[#1c252f] h-full transition-colors border-r border-gray-800">
-        <LuGripVertical size={14} />
-      </div>
-
-      {/* Flag */}
-      <div className="flex items-center justify-center bg-[#0b0e14] group-hover:bg-[#1c252f] h-full transition-colors border-r border-gray-800 p-1.5">
+      {/* Flag - Sticky Left 0 */}
+      <div className="sticky left-0 z-10 flex items-center justify-center bg-[#0b0e14] group-hover:bg-[#1c252f] h-full transition-colors border-r border-gray-800 p-1.5">
         <div className="w-6 h-6 rounded-full overflow-hidden">
           <FlagIcon symbol={item.symbol} />
         </div>
       </div>
 
-      {/* Symbol */}
-      <div className="pl-2 flex flex-col justify-center border-r border-gray-800 bg-[#0b0e14] group-hover:bg-[#1c252f] h-full transition-colors overflow-hidden min-w-[100px] flex-shrink-0">
+      {/* Symbol - Sticky Left 36px */}
+      <div className="sticky left-[36px] z-10 pl-2 flex flex-col justify-center border-r border-gray-800 bg-[#0b0e14] group-hover:bg-[#1c252f] h-full transition-colors overflow-hidden min-w-[70px] flex-shrink-0">
         <span className="text-[13px] font-bold text-gray-200 truncate">{item.symbol}</span>
         {isVisible('description') && <span className="text-[10px] text-gray-500 truncate">{item.description || item.name}</span>}
         {isMarketClosed && (
@@ -150,15 +145,9 @@ const InstrumentRow = ({ item, isVisible, toggleFavorite, lastQuote, handleDragS
         </div>
       )}
 
-      {/* 1D Change */}
-      {isVisible('change') && (
-        <div className={cn(
-          "px-1 w-[70px] min-w-[70px] text-center text-[11px] font-medium flex items-center justify-center h-full truncate flex-shrink-0",
-          changeColor === 'green' ? 'text-[#2ebd85]' : 'text-[#f6465d]'
-        )}>
-          {dayChangeLabel}
-        </div>
-      )}
+
+
+
 
       {/* Star / Favorite */}
       <div className="flex items-center justify-center h-full">
@@ -199,6 +188,7 @@ export default function WatchlistPanel({ onClose }) {
     { id: 'bid', label: 'Bid', visible: true, draggable: true },
     { id: 'spread', label: 'Spread', visible: false, draggable: true },
     { id: 'ask', label: 'Ask', visible: true, draggable: true },
+    // { id: 'change', label: '1D change', visible: true, draggable: true }, // Removed
     { id: 'chart', label: 'Show chart', visible: false, draggable: false },
     { id: 'pl', label: 'P/L', visible: false, draggable: true },
   ])
@@ -369,8 +359,19 @@ export default function WatchlistPanel({ onClose }) {
         </div>
       </div>
 
-      {/* Table Content */}
       <div className="flex-1 overflow-y-auto overflow-x-auto custom-scrollbar">
+        {/* Sticky Header */}
+        <div className="sticky top-0 z-20 grid grid-cols-[36px_minmax(70px,100px)_auto_auto_30px] gap-0 border-b border-gray-800 bg-background text-[11px] font-medium text-gray-500 uppercase min-w-0">
+          <div className="sticky left-0 z-30 py-2 text-center bg-[#0b0e14] border-r border-gray-800"></div> {/* Flag placeholder */}
+          <div className="sticky left-[36px] z-30 py-2 pl-2 text-left bg-[#0b0e14] border-r border-gray-800 min-w-[70px] flex-shrink-0">Symbol</div>
+
+          {isVisible('bid') && <div className="py-2 px-1 text-center w-[90px] min-w-[90px] flex-shrink-0 bg-[#0b0e14] border-r border-gray-800">Bid</div>}
+          {isVisible('ask') && <div className="py-2 px-1 text-center w-[90px] min-w-[90px] flex-shrink-0 bg-[#0b0e14] border-r border-gray-800">Ask</div>}
+
+          <div className="py-2 text-center bg-[#0b0e14]"></div> {/* Star placeholder */}
+        </div>
+
+        {/* Content */}
         {filteredItems.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-gray-600 grayscale opacity-40 py-10">
             <FiSearch size={48} className="mb-4" />
@@ -379,19 +380,6 @@ export default function WatchlistPanel({ onClose }) {
           </div>
         ) : (
           <div className="min-w-max">
-            {/* Table Header */}
-            <div className="grid grid-cols-[30px_36px_100px_auto_auto_30px] gap-0 border-b border-gray-800 bg-background text-[11px] font-medium text-gray-500 uppercase min-w-0 sticky top-0 z-10">
-              <div className="py-2 text-center bg-[#0b0e14] border-r border-gray-800"></div> {/* Grip placeholder */}
-              <div className="py-2 text-center bg-[#0b0e14] border-r border-gray-800"></div> {/* Flag placeholder */}
-              <div className="py-2 pl-2 text-left bg-[#0b0e14] border-r border-gray-800 min-w-[100px] flex-shrink-0">Symbol</div>
-
-              {isVisible('bid') && <div className="py-2 px-1 text-center w-[90px] min-w-[90px] flex-shrink-0">Bid</div>}
-              {isVisible('ask') && <div className="py-2 px-1 text-center w-[90px] min-w-[90px] flex-shrink-0">Ask</div>}
-              {isVisible('change') && <div className="py-2 px-1 text-center w-[70px] min-w-[70px] flex-shrink-0">1D</div>}
-
-              <div className="py-2 text-center"></div> {/* Star placeholder */}
-            </div>
-
             {filteredItems.map((item, idx) => (
               <InstrumentRow
                 key={item.id}

@@ -377,20 +377,7 @@ export default function Navbar({ logoLarge, logoSmall }: NavbarProps) {
             />
           </div>
 
-          {/* Bell Icon */}
-          <div className="relative">
-            <IconButton
-              onClick={() => setIsPriceAlertsOpen(!isPriceAlertsOpen)}
-              className="p-1.5"
-              tooltip="Price Alerts"
-            >
-              <Bell className="h-3.5 w-3.5" />
-            </IconButton>
-            <PriceAlertsDropdown
-              isOpen={isPriceAlertsOpen}
-              onClose={() => setIsPriceAlertsOpen(false)}
-            />
-          </div>
+
 
           {/* User Icon */}
           <div className="relative">
