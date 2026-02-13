@@ -54,9 +54,10 @@ interface CandleHistoryRequest {
 // 1m, 5m, 15m, 30m, 1h, 4h, 1D, 1W, 1M => API: M1, M5, M15, M30, H1, H4, D1, W1, Mn1
 const resolutionToTimeframe = (resolution: string): string => {
     if (resolution === '1') return 'M1';
+    if (resolution === '3') return 'M3';
     if (resolution === '5') return 'M5';
     if (resolution === '15') return 'M15';
-    // if (resolution === '30') return 'M30';
+    if (resolution === '30') return 'M30';
     if (resolution === '60') return 'H1';
     if (resolution === '240') return 'H4';
     if (resolution === 'D' || resolution === '1D') return 'D1';
@@ -257,7 +258,7 @@ export class RealtimeDataFeed {
         this.configuration = {
             supports_search: false,
             supports_group_request: false,
-            supported_resolutions: ['1', '5', '15', '60', '240', '1D', '1W', '1M'],
+            supported_resolutions: ['1', '3', '5', '15', '30', '60', '240', '1D', '1W', '1M'],
             supports_marks: false,
             supports_timescale_marks: false,
         };

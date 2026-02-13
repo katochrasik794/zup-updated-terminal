@@ -116,6 +116,26 @@ export const TVChartContainer = () => {
         if (lastModification && brokerRef.current) {
             console.log('[TVChartContainer] lastModification received:', lastModification);
 
+            // Handle CLOSE request
+            if (lastModification.close) {
+                if (lastModification.volume && lastModification.volume > 0) {
+                    // Partial Close
+                    if (brokerRef.current.partialClose) {
+                        brokerRef.current.partialClose(lastModification.id, lastModification.volume)
+                            .catch((err: any) => console.error('Partial close failed', err));
+                    } else {
+                        console.error('Broker does not support partialClose');
+                    }
+                } else {
+                    // Full Close
+                    if (brokerRef.current.closePosition) {
+                        brokerRef.current.closePosition(lastModification.id)
+                            .catch((err: any) => console.error('Close position failed', err));
+                    }
+                }
+                return;
+            }
+
             if (brokerRef.current.modifyEntity) {
                 brokerRef.current.modifyEntity(lastModification.id, lastModification)
                     .catch((err: any) => console.error(err));
@@ -250,14 +270,15 @@ export const TVChartContainer = () => {
 
                 // Customize available timeframes (excluding 30 minutes)
                 favorites: {
-                    intervals: ['1', '5', '15', '60', '240', '1D', '1W', '1M'],
+                    intervals: ['1', '3', '5', '15', '30', '60', '240', '1D', '1W', '1M'],
                     chartTypes: ["1"]
                 },
                 time_frames: [
                     { text: "1m", resolution: "1", description: "1 Minute" },
+                    { text: "3m", resolution: "3", description: "3 Minutes" },
                     { text: "5m", resolution: "5", description: "5 Minutes" },
                     { text: "15m", resolution: "15", description: "15 Minutes" },
-                    // 30 minutes removed
+                    { text: "30m", resolution: "30", description: "30 Minutes" },
                     { text: "1h", resolution: "60", description: "1 Hour" },
                     { text: "4h", resolution: "240", description: "4 Hours" },
                     { text: "1d", resolution: "1D", description: "1 Day" },

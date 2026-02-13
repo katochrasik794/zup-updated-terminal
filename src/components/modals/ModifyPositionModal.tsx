@@ -197,9 +197,25 @@ const ModifyPositionModal = () => {
           sl: sl
         });
       } catch (error) {
+        console.error(error);
+      }
+    } else if (activeTab === 'partialclose') {
+      try {
+        const orderId = position.ticket || position.id;
+        if (!orderId) return;
+
+        console.log('[ModifyPositionModal] Requesting partial close:', { id: orderId, volume: partialVolume });
+
+        requestModifyPosition({
+          id: orderId,
+          close: true,
+          volume: parseFloat(partialVolume)
+        });
+
+      } catch (error) {
+        console.error(error);
       }
     }
-    // Add logic for partial close / close by if needed
     onClose();
   };
 

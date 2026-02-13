@@ -5,31 +5,12 @@ import IconButton from '../ui/IconButton'
 
 export default function SettingsPanel({ onClose }) {
   const [settings, setSettings] = useState({
-    signals: false,
-    hmrPeriods: true,
-    priceAlerts: true,
     openPositions: true,
     tpsl: false,
-    economicCalendar: true,
-    highImpact: true,
-    middleImpact: false,
-    lowImpact: false,
-    lowestImpact: false,
-    soundPriceAlerts: false,
-    soundClosing: false,
-    autoTPSL: false,
-    orderMode: 'regular',
-    priceSource: 'bid',
-    theme: 'dark',
-    timezone: 'Etc/UTC'
   })
 
   const handleToggle = (key) => {
     setSettings(prev => ({ ...prev, [key]: !prev[key] }))
-  }
-
-  const handleSelect = (key, value) => {
-    setSettings(prev => ({ ...prev, [key]: value }))
   }
 
   return (
@@ -53,18 +34,6 @@ export default function SettingsPanel({ onClose }) {
           <h3 className="text-gray-300 text-xs lg:text-sm font-bold mb-3 lg:mb-4">Show on chart</h3>
           <div className="space-y-3 lg:space-y-4">
             <div className="flex items-center justify-between">
-              <span className="text-gray-200 text-sm lg:text-base">Signals</span>
-              <Toggle checked={settings.signals} onChange={() => handleToggle('signals')} />
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-gray-200 text-sm lg:text-base">HMR periods</span>
-              <Toggle checked={settings.hmrPeriods} onChange={() => handleToggle('hmrPeriods')} />
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-gray-200 text-sm lg:text-base">Price alerts</span>
-              <Toggle checked={settings.priceAlerts} onChange={() => handleToggle('priceAlerts')} />
-            </div>
-            <div className="flex items-center justify-between">
               <span className="text-gray-200 text-sm lg:text-base">Open positions</span>
               <Toggle checked={settings.openPositions} onChange={() => handleToggle('openPositions')} />
             </div>
@@ -72,135 +41,7 @@ export default function SettingsPanel({ onClose }) {
               <span className="text-gray-200 text-sm lg:text-base">TP / SL / Stop / Limit</span>
               <Toggle checked={settings.tpsl} onChange={() => handleToggle('tpsl')} />
             </div>
-
-            {/* Economic Calendar */}
-            <div>
-              <div className="flex items-center justify-between mb-2 lg:mb-3">
-                <span className="text-gray-200 text-sm lg:text-base">Economic calendar</span>
-                <Toggle checked={settings.economicCalendar} onChange={() => handleToggle('economicCalendar')} />
-              </div>
-              {settings.economicCalendar && (
-                <div className="ml-4 lg:ml-6 space-y-2 lg:space-y-3">
-                  <div className="flex items-center gap-2 lg:gap-3">
-                    <input
-                      type="checkbox"
-                      checked={settings.highImpact}
-                      onChange={() => handleToggle('highImpact')}
-                      className="w-4 h-4 text-gray-500 bg-gray-700 border-gray-800 rounded focus:ring-gray-500 cursor-pointer"
-                    />
-                    <span className="text-gray-200 text-sm lg:text-base">High impact</span>
-                  </div>
-                  <div className="flex items-center gap-2 lg:gap-3">
-                    <input
-                      type="checkbox"
-                      checked={settings.middleImpact}
-                      onChange={() => handleToggle('middleImpact')}
-                      className="w-4 h-4 text-gray-500 bg-gray-700 border-gray-800 rounded focus:ring-gray-500 cursor-pointer"
-                    />
-                    <span className="text-gray-200 text-sm lg:text-base">Middle impact</span>
-                  </div>
-                  <div className="flex items-center gap-2 lg:gap-3">
-                    <input
-                      type="checkbox"
-                      checked={settings.lowImpact}
-                      onChange={() => handleToggle('lowImpact')}
-                      className="w-4 h-4 text-gray-500 bg-gray-700 border-gray-800 rounded focus:ring-gray-500 cursor-pointer"
-                    />
-                    <span className="text-gray-200 text-sm lg:text-base">Low impact</span>
-                  </div>
-                  <div className="flex items-center gap-2 lg:gap-3">
-                    <input
-                      type="checkbox"
-                      checked={settings.lowestImpact}
-                      onChange={() => handleToggle('lowestImpact')}
-                      className="w-4 h-4 text-gray-500 bg-gray-700 border-gray-800 rounded focus:ring-gray-500 cursor-pointer"
-                    />
-                    <span className="text-gray-200 text-sm lg:text-base">Lowest impact</span>
-                  </div>
-                </div>
-              )}
-            </div>
           </div>
-        </div>
-
-        {/* Sound effects */}
-        <div>
-          <h3 className="text-gray-300 text-xs lg:text-sm font-bold mb-3 lg:mb-4">Sound effects</h3>
-          <div className="space-y-3 lg:space-y-4">
-            <div className="flex items-center justify-between">
-              <span className="text-gray-200 text-sm lg:text-base">Price alerts</span>
-              <Toggle checked={settings.soundPriceAlerts} onChange={() => handleToggle('soundPriceAlerts')} />
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-gray-200 text-sm lg:text-base">Closing by TP / SL / SO</span>
-              <Toggle checked={settings.soundClosing} onChange={() => handleToggle('soundClosing')} />
-            </div>
-          </div>
-        </div>
-
-        {/* Trading settings */}
-        <div>
-          <h3 className="text-gray-300 text-xs lg:text-sm font-bold mb-3 lg:mb-4">Trading settings</h3>
-          <div className="flex items-center justify-between">
-            <span className="text-gray-200 text-sm lg:text-base">Set TP/SL automatically</span>
-            <Toggle checked={settings.autoTPSL} onChange={() => handleToggle('autoTPSL')} />
-          </div>
-        </div>
-
-        {/* Open order mode */}
-        <div>
-          <h3 className="text-gray-300 text-xs lg:text-sm font-bold mb-3 lg:mb-4">Open order mode</h3>
-          <select
-            value={settings.orderMode}
-            onChange={(e) => handleSelect('orderMode', e.target.value)}
-            className="w-full bg-[#2a3441] border border-gray-800 rounded px-3 py-2 text-sm lg:text-base text-gray-200 cursor-pointer"
-          >
-            <option value="regular">Regular form</option>
-            <option value="quick">Quick form</option>
-          </select>
-        </div>
-
-        {/* Price source */}
-        <div>
-          <h3 className="text-gray-300 text-xs lg:text-sm font-bold mb-3 lg:mb-4">Price source</h3>
-          <select
-            value={settings.priceSource}
-            onChange={(e) => handleSelect('priceSource', e.target.value)}
-            className="w-full bg-[#2a3441] border border-gray-800 rounded px-3 py-2 text-sm lg:text-base text-gray-200 cursor-pointer"
-          >
-            <option value="bid">Bid</option>
-            <option value="ask">Ask</option>
-            <option value="mid">Mid</option>
-          </select>
-        </div>
-
-        {/* Appearance */}
-        <div>
-          <h3 className="text-gray-300 text-xs lg:text-sm font-bold mb-3 lg:mb-4">Appearance</h3>
-          <select
-            value={settings.theme}
-            onChange={(e) => handleSelect('theme', e.target.value)}
-            className="w-full bg-[#2a3441] border border-gray-800 rounded px-3 py-2 text-sm lg:text-base text-gray-200 cursor-pointer"
-          >
-            <option value="dark">Always dark</option>
-            <option value="light">Always light</option>
-            <option value="auto">Auto</option>
-          </select>
-        </div>
-
-        {/* Time zone */}
-        <div>
-          <h3 className="text-gray-300 text-xs lg:text-sm font-bold mb-3 lg:mb-4">Time zone</h3>
-          <select
-            value={settings.timezone}
-            onChange={(e) => handleSelect('timezone', e.target.value)}
-            className="w-full bg-[#2a3441] border border-gray-800 rounded px-3 py-2 text-sm lg:text-base text-gray-200 cursor-pointer"
-          >
-            <option value="Etc/UTC">UTC</option>
-            <option value="America/New_York">New York</option>
-            <option value="Europe/London">London</option>
-            <option value="Asia/Tokyo">Tokyo</option>
-          </select>
         </div>
       </div>
     </div>

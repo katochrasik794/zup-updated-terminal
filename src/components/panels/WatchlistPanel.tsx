@@ -101,7 +101,7 @@ const InstrumentRow = ({ item, isVisible, toggleFavorite, lastQuote, handleDragS
           addNavbarTab(item.symbol);
         }
       }}
-      className="group grid grid-cols-[30px_36px_minmax(100px,1fr)_auto_auto_auto_30px] gap-0 items-center border-b border-gray-800 hover:bg-[#1c252f] transition-colors h-[40px] cursor-pointer min-w-0"
+      className="group grid grid-cols-[30px_36px_100px_auto_auto_30px] gap-0 items-center border-b border-gray-800 hover:bg-[#1c252f] transition-colors h-[40px] cursor-pointer min-w-0"
     >
       {/* Grip Handle */}
       <div className="flex items-center justify-center text-[#565c66] cursor-grab active:cursor-grabbing bg-[#0b0e14] group-hover:bg-[#1c252f] h-full transition-colors border-r border-gray-800">
@@ -199,7 +199,6 @@ export default function WatchlistPanel({ onClose }) {
     { id: 'bid', label: 'Bid', visible: true, draggable: true },
     { id: 'spread', label: 'Spread', visible: false, draggable: true },
     { id: 'ask', label: 'Ask', visible: true, draggable: true },
-    { id: 'change', label: '1D change', visible: true, draggable: true },
     { id: 'chart', label: 'Show chart', visible: false, draggable: false },
     { id: 'pl', label: 'P/L', visible: false, draggable: true },
   ])
@@ -370,19 +369,6 @@ export default function WatchlistPanel({ onClose }) {
         </div>
       </div>
 
-      {/* Table Header */}
-      <div className="grid grid-cols-[30px_36px_minmax(100px,1fr)_auto_auto_auto_30px] gap-0 border-b border-gray-800 bg-background text-[11px] font-medium text-gray-500 uppercase min-w-0">
-        <div className="py-2 text-center bg-[#0b0e14] border-r border-gray-800"></div> {/* Grip placeholder */}
-        <div className="py-2 text-center bg-[#0b0e14] border-r border-gray-800"></div> {/* Flag placeholder */}
-        <div className="py-2 pl-2 text-left bg-[#0b0e14] border-r border-gray-800 min-w-[100px] flex-shrink-0">Symbol</div>
-
-        {isVisible('bid') && <div className="py-2 px-1 text-center w-[90px] min-w-[90px] flex-shrink-0">Bid</div>}
-        {isVisible('ask') && <div className="py-2 px-1 text-center w-[90px] min-w-[90px] flex-shrink-0">Ask</div>}
-        {isVisible('change') && <div className="py-2 px-1 text-center w-[70px] min-w-[70px] flex-shrink-0">1D</div>}
-
-        <div className="py-2 text-center"></div> {/* Star placeholder */}
-      </div>
-
       {/* Table Content */}
       <div className="flex-1 overflow-y-auto overflow-x-auto custom-scrollbar">
         {filteredItems.length === 0 ? (
@@ -393,6 +379,19 @@ export default function WatchlistPanel({ onClose }) {
           </div>
         ) : (
           <div className="min-w-max">
+            {/* Table Header */}
+            <div className="grid grid-cols-[30px_36px_100px_auto_auto_30px] gap-0 border-b border-gray-800 bg-background text-[11px] font-medium text-gray-500 uppercase min-w-0 sticky top-0 z-10">
+              <div className="py-2 text-center bg-[#0b0e14] border-r border-gray-800"></div> {/* Grip placeholder */}
+              <div className="py-2 text-center bg-[#0b0e14] border-r border-gray-800"></div> {/* Flag placeholder */}
+              <div className="py-2 pl-2 text-left bg-[#0b0e14] border-r border-gray-800 min-w-[100px] flex-shrink-0">Symbol</div>
+
+              {isVisible('bid') && <div className="py-2 px-1 text-center w-[90px] min-w-[90px] flex-shrink-0">Bid</div>}
+              {isVisible('ask') && <div className="py-2 px-1 text-center w-[90px] min-w-[90px] flex-shrink-0">Ask</div>}
+              {isVisible('change') && <div className="py-2 px-1 text-center w-[70px] min-w-[70px] flex-shrink-0">1D</div>}
+
+              <div className="py-2 text-center"></div> {/* Star placeholder */}
+            </div>
+
             {filteredItems.map((item, idx) => (
               <InstrumentRow
                 key={item.id}
