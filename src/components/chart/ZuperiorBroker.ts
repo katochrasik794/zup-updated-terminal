@@ -134,8 +134,30 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 		super(host, quotesProvider);
 		this._accountId = accountId;
 		this._getMetaApiToken = getMetaApiToken || null;
+
+		// Instant refresh when TradingTerminal updates optimistic data
+		if (typeof window !== 'undefined') {
+			this._handleLiveUpdate = () => {
+				// Force immediate fetch from __LIVE_POSITIONS_DATA__
+				this._fetchPositionsAndOrders(true);
+			};
+			window.addEventListener('zuperior-positions-updated', this._handleLiveUpdate);
+		}
+
 		// Start fetching immediately so positions()/orders() have data when TradingView queries
 		this._startPolling();
+	}
+
+	private _handleLiveUpdate: () => void = () => { };
+
+	// Called when chart widget is removed
+	public __cleanup__() {
+		if (typeof window !== 'undefined' && this._handleLiveUpdate) {
+			window.removeEventListener('zuperior-positions-updated', this._handleLiveUpdate);
+		}
+		if (this._pollInterval) {
+			clearInterval(this._pollInterval);
+		}
 	}
 
 	// Method to update token function after broker creation
@@ -923,45 +945,41 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 
 		// Normalize symbol: convert trailing M/R to m/r
 		const symbol = preOrder.symbol.replace(/M$/, 'm').replace(/R$/, 'r');
-
 		const side = preOrder.side === 1 ? 'buy' : 'sell';
-		const volume = preOrder.qty; // already in lots? Standard TV sends what we configured (qty)
+		const volume = preOrder.qty;
 
-		try {
-			if (preOrder.type === OrderType.Market) { // Market
-				await placeMarketOrderDirect({
-					accountId: this._accountId,
-					accessToken: this._accessToken,
-					symbol: symbol,
-					side: side,
-					volume: volume,
-					stopLoss: preOrder.stopLoss,
-					takeProfit: preOrder.takeProfit
-				});
-			} else {
-				// Pending
-				const price = (preOrder as any).limitPrice || (preOrder as any).stopPrice || 0;
-				const orderType = preOrder.type === OrderType.Limit ? 'limit' : 'stop'; // simplified
+		// Convert TV OrderType to Terminal OrderType
+		let orderType: "market" | "pending" | "limit" = "market";
+		let pendingOrderType: "limit" | "stop" | undefined = undefined;
 
-				await placePendingOrderDirect({
-					accountId: this._accountId,
-					accessToken: this._accessToken,
-					symbol: symbol,
-					side: side,
-					volume: volume,
-					price: price,
-					orderType: orderType,
-					stopLoss: preOrder.stopLoss,
-					takeProfit: preOrder.takeProfit
-				});
-			}
-			// Refresh soon (force redraw quickly once backend confirms)
-			setTimeout(() => this._fetchPositionsAndOrders(true), 600);
-			return {};
-		} catch (e: any) {
-			console.error('Place order failed', e);
-			throw e;
+		if (preOrder.type === OrderType.Market) {
+			orderType = "market";
+		} else if (preOrder.type === OrderType.Limit) {
+			orderType = "pending";
+			pendingOrderType = "limit";
+		} else if (preOrder.type === OrderType.Stop) {
+			orderType = "pending";
+			pendingOrderType = "stop";
 		}
+
+		const orderData = {
+			orderType,
+			pendingOrderType,
+			volume,
+			openPrice: (preOrder as any).limitPrice || (preOrder as any).stopPrice || (preOrder as any).price,
+			stopLoss: preOrder.stopLoss,
+			takeProfit: preOrder.takeProfit,
+		};
+
+		// Dispatch to TradingTerminal for central optimistic handling & API execution
+		if (typeof window !== 'undefined') {
+			console.log('[ZuperiorBroker] Dispatching zuperior-optimistic-trade for chart-placed order');
+			window.dispatchEvent(new CustomEvent('zuperior-optimistic-trade', {
+				detail: { orderData, side }
+			}));
+		}
+
+		return {}; // Resolve immediately for instant chart feel
 	}
 
 

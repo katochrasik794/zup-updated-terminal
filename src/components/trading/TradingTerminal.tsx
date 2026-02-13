@@ -27,7 +27,7 @@ import ReactDOM from 'react-dom'
 
 export default function TradingTerminal() {
   const { isSidebarExpanded, setIsSidebarExpanded } = useSidebar();
-  const { currentAccountId, currentBalance, getMetaApiToken } = useAccount();
+  const { currentAccountId, currentBalance, getMetaApiToken, metaApiTokens } = useAccount();
   const { symbol, lastModification, clearLastModification } = useTrading();
   const { instruments } = useInstruments();
   const [marketClosedToast, setMarketClosedToast] = useState<any | null>(null);
@@ -36,6 +36,8 @@ export default function TradingTerminal() {
   const [orderToast, setOrderToast] = useState<any>(null)
   const [isRightSidebarOpen, setIsRightSidebarOpen] = useState(true)
   const [isBottomPanelVisible, setIsBottomPanelVisible] = useState(true)
+  const [optimisticPositions, setOptimisticPositions] = useState<Position[]>([])
+  const [optimisticPendingOrders, setOptimisticPendingOrders] = useState<Position[]>([])
 
   // Memoize toast close handlers to prevent timer resets
   const handleOrderToastClose = useCallback(() => {
@@ -64,12 +66,14 @@ export default function TradingTerminal() {
   useEffect(() => {
     if (typeof window !== 'undefined') {
       (window as any).__LIVE_POSITIONS_DATA__ = {
-        openPositions: rawPositions || [],
-        pendingOrders: rawPendingOrders || [],
+        openPositions: [...(rawPositions || []), ...optimisticPositions],
+        pendingOrders: [...(rawPendingOrders || []), ...optimisticPendingOrders],
         closedPositions: rawClosedPositions || [],
       };
+      // Notify ZuperiorBroker to refresh immediately
+      window.dispatchEvent(new CustomEvent('zuperior-positions-updated'));
     }
-  }, [rawPositions, rawPendingOrders, rawClosedPositions]);
+  }, [rawPositions, optimisticPositions, rawPendingOrders, optimisticPendingOrders, rawClosedPositions]);
 
   // Market closed helper (weekend for non-crypto instruments)
   const isMarketClosed = useCallback((sym?: string) => {
@@ -96,9 +100,10 @@ export default function TradingTerminal() {
 
   // Format positions for BottomPanel display
   const openPositions = useMemo(() => {
-    if (!rawPositions || rawPositions.length === 0) return [];
+    const combined = [...(rawPositions || []), ...optimisticPositions];
+    if (combined.length === 0) return [];
 
-    return rawPositions.map((pos: Position) => {
+    return combined.map((pos: Position) => {
       const profit = pos.profit || 0;
       const plFormatted = profit >= 0 ? `+${profit.toFixed(2)}` : profit.toFixed(2);
       const plColor = profit >= 0 ? 'text-[#00ffaa]' : 'text-[#f6465d]';
@@ -108,7 +113,8 @@ export default function TradingTerminal() {
       return {
         symbol,
         type: pos.type,
-        volume: (pos.volume / 10000).toFixed(2), // Divide by 10000 to get lots
+        // For optimistic positions, volume is already in lots. 
+        volume: pos.id.startsWith('optimistic-') ? pos.volume.toFixed(2) : (pos.volume / 10000).toFixed(2),
         openPrice: pos.openPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 }),
         currentPrice: pos.currentPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 }),
         tp: pos.takeProfit && pos.takeProfit !== 0 ? pos.takeProfit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 }) : 'Add',
@@ -130,13 +136,14 @@ export default function TradingTerminal() {
         id: pos.id, // Keep original ID for closing
       };
     });
-  }, [rawPositions]);
+  }, [rawPositions, optimisticPositions]);
 
   // Format pending orders for BottomPanel display
   const pendingPositions = useMemo(() => {
-    if (!rawPendingOrders || rawPendingOrders.length === 0) return [];
+    const combined = [...(rawPendingOrders || []), ...optimisticPendingOrders];
+    if (combined.length === 0) return [];
 
-    return rawPendingOrders.map((pos: Position) => {
+    return combined.map((pos: Position) => {
       const profit = pos.profit || 0;
       const plFormatted = profit >= 0 ? `+${profit.toFixed(2)}` : profit.toFixed(2);
       const plColor = profit >= 0 ? 'text-[#00ffaa]' : 'text-[#f6465d]';
@@ -146,7 +153,9 @@ export default function TradingTerminal() {
       return {
         symbol,
         type: pos.type,
-        volume: (pos.volume / 100).toFixed(2), // Divide by 100 for pending orders
+        // For optimistic orders, volume is already in lots. 
+        // For real orders, we divide by 100.
+        volume: pos.id.startsWith('optimistic-') ? pos.volume.toFixed(2) : (pos.volume / 100).toFixed(2),
         openPrice: pos.openPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 }),
         currentPrice: pos.currentPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 }),
         tp: pos.takeProfit && pos.takeProfit !== 0 ? pos.takeProfit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 }) : 'Add',
@@ -168,7 +177,7 @@ export default function TradingTerminal() {
         id: pos.id,
       };
     });
-  }, [rawPendingOrders]);
+  }, [rawPendingOrders, optimisticPendingOrders]);
 
   // Format closed positions for BottomPanel display
   const closedPositions = useMemo(() => {
@@ -514,159 +523,37 @@ export default function TradingTerminal() {
       return;
     }
 
-    // For pending orders, skip free margin validation - only check when API responds with failure
-    const isPendingOrder = orderData.orderType === 'pending' || orderData.orderType === 'limit';
-
-    // For market orders only: Fetch latest balance data and validate free margin BEFORE API calls
-    if (!isPendingOrder) {
-      try {
-        const token = localStorage.getItem('token');
-        if (!token) {
-          setOrderToast({
-            side: 'buy',
-            symbol: symbol || 'BTCUSD',
-            volume: orderData.volume || 0,
-            price: null,
-            orderType: orderData.orderType || 'market',
-            profit: null,
-            error: 'Not enough money',
-          });
-          return;
-        }
-
-        const baseURL = apiClient.getBaseURL();
-        const balanceResponse = await fetch(`${baseURL}/api/accounts/${currentAccountId}/profile`, {
-          cache: 'no-store',
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        const balanceResult = await balanceResponse.json();
-
-        if (balanceResult.success && balanceResult.data) {
-          const balanceData = balanceResult.data;
-          const equity = Number(balanceData.Equity ?? balanceData.equity ?? 0);
-          const margin = Number(balanceData.Margin ?? balanceData.margin ?? balanceData.MarginUsed ?? balanceData.marginUsed ?? 0);
-          const freeMargin = parseFloat((equity - margin).toFixed(2));
-
-          // CRITICAL: Block if free margin is negative or zero (only for market orders)
-          if (freeMargin <= 0) {
-            setOrderToast({
-              side: 'buy',
-              symbol: symbol || 'BTCUSD',
-              volume: orderData.volume || 0,
-              price: null,
-              orderType: orderData.orderType || 'market',
-              profit: null,
-              error: 'Not enough money',
-            });
-            return;
-          }
-        } else {
-          // If we can't get balance data, block the order to be safe
-          setOrderToast({
-            side: 'buy',
-            symbol: symbol || 'BTCUSD',
-            volume: orderData.volume || 0,
-            price: null,
-            orderType: orderData.orderType || 'market',
-            profit: null,
-            error: 'Not enough money',
-          });
-          return;
-        }
-      } catch (error) {
-        // If balance fetch fails, block the order to be safe
-        setOrderToast({
-          side: 'buy',
-          symbol: symbol || 'BTCUSD',
-          volume: orderData.volume || 0,
-          price: null,
-          orderType: orderData.orderType || 'market',
-          profit: null,
-          error: 'Not enough money',
-        });
-        return;
-      }
-
-      // Additional margin validation for market orders only
-      if (currentBalance) {
-        const equity = currentBalance.Equity ?? currentBalance.equity ?? 0;
-        const margin = currentBalance.Margin ?? currentBalance.margin ?? 0;
-        const freeMargin = currentBalance.MarginFree ?? currentBalance.marginFree ?? currentBalance.FreeMargin ?? currentBalance.freeMargin ?? 0;
-        const leverageStr = String(currentBalance.leverage || "1:400");
-        const leverageMatch = leverageStr.match(/:?(\d+)/);
-        const leverage = leverageMatch ? parseInt(leverageMatch[1], 10) : 400;
-
-        const chosenSymbol = symbol || 'BTCUSD';
-        const tradePrice = orderData.openPrice || 0;
-
-        if (tradePrice > 0) {
-          const requiredMargin = calculateRequiredMargin(orderData.volume, tradePrice, chosenSymbol, leverage);
-          const newMargin = margin + requiredMargin;
-          const newFreeMargin = equity - newMargin;
-
-          if (newMargin > equity) {
-            setOrderToast({
-              side: 'buy',
-              symbol: chosenSymbol,
-              volume: orderData.volume,
-              price: null,
-              orderType: orderData.orderType || 'market',
-              profit: null,
-              error: `Insufficient funds. This trade would require ${requiredMargin.toFixed(2)} USD margin. Total margin would be ${newMargin.toFixed(2)} USD, exceeding equity of ${equity.toFixed(2)} USD.`,
-            });
-            return;
-          }
-
-          if (requiredMargin > freeMargin) {
-            setOrderToast({
-              side: 'buy',
-              symbol: chosenSymbol,
-              volume: orderData.volume,
-              price: null,
-              orderType: orderData.orderType || 'market',
-              profit: null,
-              error: `Insufficient margin. Required: ${requiredMargin.toFixed(2)} USD. Available: ${freeMargin.toFixed(2)} USD`,
-            });
-            return;
-          }
-
-          const newMarginLevel = equity > 0 ? (equity / newMargin) * 100 : 0;
-          if (newMarginLevel < 50 && newMarginLevel > 0) {
-            setOrderToast({
-              side: 'buy',
-              symbol: chosenSymbol,
-              volume: orderData.volume,
-              price: null,
-              orderType: orderData.orderType || 'market',
-              profit: null,
-              error: `Insufficient funds. Margin level would be ${newMarginLevel.toFixed(2)}%. Minimum required: 50%`,
-            });
-            return;
-          }
-
-          if (newFreeMargin < 0) {
-            setOrderToast({
-              side: 'buy',
-              symbol: chosenSymbol,
-              volume: orderData.volume,
-              price: null,
-              orderType: orderData.orderType || 'market',
-              profit: null,
-              error: `Insufficient funds. This trade would result in negative free margin.`,
-            });
-            return;
-          }
-        }
-      }
-    }
-
     try {
+      const optimisticId = `optimistic-${Date.now()}`;
       const chosenSymbol = normalizeSymbolForOrder(symbol || 'BTCUSD');
 
       if (orderData.orderType === 'market') {
-        // Get MetaAPI access token
-        const accessToken = await getMetaApiToken(currentAccountId);
+        // Add optimistic position
+        const newOptimisticPos: Position = {
+          id: optimisticId,
+          ticket: 0,
+          symbol: chosenSymbol,
+          type: 'Buy',
+          volume: orderData.volume,
+          openPrice: orderData.openPrice || 0,
+          currentPrice: orderData.openPrice || 0,
+          openTime: new Date().toISOString(),
+          swap: 0,
+          profit: 0,
+          commission: 0,
+          takeProfit: orderData.takeProfit,
+          stopLoss: orderData.stopLoss,
+        };
+        setOptimisticPositions(prev => [...prev, newOptimisticPos]);
+
+        // Get MetaAPI access token - Try cache first for speed
+        let accessToken = (metaApiTokens as any)[currentAccountId];
         if (!accessToken) {
+          accessToken = await getMetaApiToken(currentAccountId);
+        }
+
+        if (!accessToken) {
+          setOptimisticPositions(prev => prev.filter(p => p.id !== optimisticId));
           throw new Error('Failed to get MetaAPI access token');
         }
 
@@ -681,6 +568,10 @@ export default function TradingTerminal() {
           takeProfit: orderData.takeProfit,
           comment: 'Buy from Terminal (Fast)'
         });
+
+        // Always remove optimistic position once API responds
+        setOptimisticPositions(prev => prev.filter(p => p.id !== optimisticId));
+
         if (response.success) {
           refetchPositions();
           // Show toast notification
@@ -720,9 +611,36 @@ export default function TradingTerminal() {
           return;
         }
 
-        // Get MetaAPI access token
-        const accessToken = await getMetaApiToken(currentAccountId);
+        // Add optimistic pending order
+        const pendingTypeMap: Record<string, Position['type']> = {
+          'limit': 'Buy Limit',
+          'stop': 'Buy Stop'
+        };
+        const newOptimisticPending: Position = {
+          id: optimisticId,
+          ticket: 0,
+          symbol: chosenSymbol,
+          type: pendingTypeMap[orderData.pendingOrderType || 'limit'] || 'Buy Limit',
+          volume: orderData.volume,
+          openPrice: orderData.openPrice,
+          currentPrice: orderData.openPrice || 0,
+          openTime: new Date().toISOString(),
+          swap: 0,
+          profit: 0,
+          commission: 0,
+          takeProfit: orderData.takeProfit,
+          stopLoss: orderData.stopLoss,
+        };
+        setOptimisticPendingOrders(prev => [...prev, newOptimisticPending]);
+
+        // Get MetaAPI access token - Try cache first for speed
+        let accessToken = (metaApiTokens as any)[currentAccountId];
         if (!accessToken) {
+          accessToken = await getMetaApiToken(currentAccountId);
+        }
+
+        if (!accessToken) {
+          setOptimisticPendingOrders(prev => prev.filter(p => p.id !== optimisticId));
           throw new Error('Failed to get MetaAPI access token');
         }
 
@@ -739,6 +657,9 @@ export default function TradingTerminal() {
           takeProfit: orderData.takeProfit,
           comment: 'Buy Limit/Stop from Terminal (Fast)'
         });
+
+        // Always remove optimistic pending order once API responds
+        setOptimisticPendingOrders(prev => prev.filter(p => p.id !== optimisticId));
 
         if (response.success) {
           // Immediately refresh UI
@@ -787,159 +708,37 @@ export default function TradingTerminal() {
       return;
     }
 
-    // For pending orders, skip free margin validation - only check when API responds with failure
-    const isPendingOrder = orderData.orderType === 'pending' || orderData.orderType === 'limit';
-
-    // For market orders only: Fetch latest balance data and validate free margin BEFORE API calls
-    if (!isPendingOrder) {
-      try {
-        const token = localStorage.getItem('token');
-        if (!token) {
-          setOrderToast({
-            side: 'sell',
-            symbol: symbol || 'BTCUSD',
-            volume: orderData.volume || 0,
-            price: null,
-            orderType: orderData.orderType || 'market',
-            profit: null,
-            error: 'Not enough money',
-          });
-          return;
-        }
-
-        const baseURL = apiClient.getBaseURL();
-        const balanceResponse = await fetch(`${baseURL}/api/accounts/${currentAccountId}/profile`, {
-          cache: 'no-store',
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        const balanceResult = await balanceResponse.json();
-
-        if (balanceResult.success && balanceResult.data) {
-          const balanceData = balanceResult.data;
-          const equity = Number(balanceData.Equity ?? balanceData.equity ?? 0);
-          const margin = Number(balanceData.Margin ?? balanceData.margin ?? balanceData.MarginUsed ?? balanceData.marginUsed ?? 0);
-          const freeMargin = parseFloat((equity - margin).toFixed(2));
-
-          // CRITICAL: Block if free margin is negative or zero (only for market orders)
-          if (freeMargin <= 0) {
-            setOrderToast({
-              side: 'sell',
-              symbol: symbol || 'BTCUSD',
-              volume: orderData.volume || 0,
-              price: null,
-              orderType: orderData.orderType || 'market',
-              profit: null,
-              error: 'Not enough money',
-            });
-            return;
-          }
-        } else {
-          // If we can't get balance data, block the order to be safe
-          setOrderToast({
-            side: 'sell',
-            symbol: symbol || 'BTCUSD',
-            volume: orderData.volume || 0,
-            price: null,
-            orderType: orderData.orderType || 'market',
-            profit: null,
-            error: 'Not enough money',
-          });
-          return;
-        }
-      } catch (error) {
-        // If balance fetch fails, block the order to be safe
-        setOrderToast({
-          side: 'sell',
-          symbol: symbol || 'BTCUSD',
-          volume: orderData.volume || 0,
-          price: null,
-          orderType: orderData.orderType || 'market',
-          profit: null,
-          error: 'Not enough money',
-        });
-        return;
-      }
-
-      // Additional margin validation for market orders only
-      if (currentBalance) {
-        const equity = currentBalance.Equity ?? currentBalance.equity ?? 0;
-        const margin = currentBalance.Margin ?? currentBalance.margin ?? 0;
-        const freeMargin = currentBalance.MarginFree ?? currentBalance.marginFree ?? currentBalance.FreeMargin ?? currentBalance.freeMargin ?? 0;
-        const leverageStr = String(currentBalance.leverage || "1:400");
-        const leverageMatch = leverageStr.match(/:?(\d+)/);
-        const leverage = leverageMatch ? parseInt(leverageMatch[1], 10) : 400;
-
-        const chosenSymbol = symbol || 'BTCUSD';
-        const tradePrice = orderData.openPrice || 0;
-
-        if (tradePrice > 0) {
-          const requiredMargin = calculateRequiredMargin(orderData.volume, tradePrice, chosenSymbol, leverage);
-          const newMargin = margin + requiredMargin;
-          const newFreeMargin = equity - newMargin;
-
-          if (newMargin > equity) {
-            setOrderToast({
-              side: 'sell',
-              symbol: chosenSymbol,
-              volume: orderData.volume,
-              price: null,
-              orderType: orderData.orderType || 'market',
-              profit: null,
-              error: `Insufficient funds. This trade would require ${requiredMargin.toFixed(2)} USD margin. Total margin would be ${newMargin.toFixed(2)} USD, exceeding equity of ${equity.toFixed(2)} USD.`,
-            });
-            return;
-          }
-
-          if (requiredMargin > freeMargin) {
-            setOrderToast({
-              side: 'sell',
-              symbol: chosenSymbol,
-              volume: orderData.volume,
-              price: null,
-              orderType: orderData.orderType || 'market',
-              profit: null,
-              error: `Insufficient margin. Required: ${requiredMargin.toFixed(2)} USD. Available: ${freeMargin.toFixed(2)} USD`,
-            });
-            return;
-          }
-
-          const newMarginLevel = equity > 0 ? (equity / newMargin) * 100 : 0;
-          if (newMarginLevel < 50 && newMarginLevel > 0) {
-            setOrderToast({
-              side: 'sell',
-              symbol: chosenSymbol,
-              volume: orderData.volume,
-              price: null,
-              orderType: orderData.orderType || 'market',
-              profit: null,
-              error: `Insufficient funds. Margin level would be ${newMarginLevel.toFixed(2)}%. Minimum required: 50%`,
-            });
-            return;
-          }
-
-          if (newFreeMargin < 0) {
-            setOrderToast({
-              side: 'sell',
-              symbol: chosenSymbol,
-              volume: orderData.volume,
-              price: null,
-              orderType: orderData.orderType || 'market',
-              profit: null,
-              error: `Insufficient funds. This trade would result in negative free margin.`,
-            });
-            return;
-          }
-        }
-      }
-    }
-
     try {
+      const optimisticId = `optimistic-${Date.now()}`;
       const chosenSymbol = normalizeSymbolForOrder(symbol || 'BTCUSD');
 
       if (orderData.orderType === 'market') {
-        // Get MetaAPI access token
-        const accessToken = await getMetaApiToken(currentAccountId);
+        // Add optimistic position
+        const newOptimisticPos: Position = {
+          id: optimisticId,
+          ticket: 0,
+          symbol: chosenSymbol,
+          type: 'Sell',
+          volume: orderData.volume,
+          openPrice: orderData.openPrice || 0,
+          currentPrice: orderData.openPrice || 0,
+          openTime: new Date().toISOString(),
+          swap: 0,
+          profit: 0,
+          commission: 0,
+          takeProfit: orderData.takeProfit,
+          stopLoss: orderData.stopLoss,
+        };
+        setOptimisticPositions(prev => [...prev, newOptimisticPos]);
+
+        // Get MetaAPI access token - Try cache first for speed
+        let accessToken = (metaApiTokens as any)[currentAccountId];
         if (!accessToken) {
+          accessToken = await getMetaApiToken(currentAccountId);
+        }
+
+        if (!accessToken) {
+          setOptimisticPositions(prev => prev.filter(p => p.id !== optimisticId));
           throw new Error('Failed to get MetaAPI access token');
         }
 
@@ -954,6 +753,9 @@ export default function TradingTerminal() {
           takeProfit: orderData.takeProfit,
           comment: 'Sell from Terminal (Fast)'
         });
+
+        // Always remove optimistic position once API responds
+        setOptimisticPositions(prev => prev.filter(p => p.id !== optimisticId));
 
         if (response.success) {
           refetchPositions();
@@ -994,9 +796,36 @@ export default function TradingTerminal() {
           return;
         }
 
-        // Get MetaAPI access token
-        const accessToken = await getMetaApiToken(currentAccountId);
+        // Add optimistic pending order
+        const pendingTypeMap: Record<string, Position['type']> = {
+          'limit': 'Sell Limit',
+          'stop': 'Sell Stop'
+        };
+        const newOptimisticPending: Position = {
+          id: optimisticId,
+          ticket: 0,
+          symbol: chosenSymbol,
+          type: pendingTypeMap[orderData.pendingOrderType || 'limit'] || 'Sell Limit',
+          volume: orderData.volume,
+          openPrice: orderData.openPrice,
+          currentPrice: 0,
+          openTime: new Date().toISOString(),
+          swap: 0,
+          profit: 0,
+          commission: 0,
+          takeProfit: orderData.takeProfit,
+          stopLoss: orderData.stopLoss,
+        };
+        setOptimisticPendingOrders(prev => [...prev, newOptimisticPending]);
+
+        // Get MetaAPI access token - Try cache first for speed
+        let accessToken = (metaApiTokens as any)[currentAccountId];
         if (!accessToken) {
+          accessToken = await getMetaApiToken(currentAccountId);
+        }
+
+        if (!accessToken) {
+          setOptimisticPendingOrders(prev => prev.filter(p => p.id !== optimisticId));
           throw new Error('Failed to get MetaAPI access token');
         }
 
@@ -1013,6 +842,9 @@ export default function TradingTerminal() {
           takeProfit: orderData.takeProfit,
           comment: 'Sell Limit/Stop from Terminal (Fast)'
         });
+
+        // Always remove optimistic pending order once API responds
+        setOptimisticPendingOrders(prev => prev.filter(p => p.id !== optimisticId));
 
         if (response.success) {
           // Immediately refresh UI
@@ -1229,6 +1061,21 @@ export default function TradingTerminal() {
       }
     }
   }, [isSidebarExpanded])
+
+  // Listen for optimistic trades from the chart (ZuperiorBroker)
+  useEffect(() => {
+    const handleOptimisticTrade = (e: any) => {
+      const { orderData, side } = e.detail;
+      if (side === 'buy') {
+        handleBuyOrder(orderData).catch(console.error);
+      } else {
+        handleSellOrder(orderData).catch(console.error);
+      }
+    };
+
+    window.addEventListener('zuperior-optimistic-trade', handleOptimisticTrade);
+    return () => window.removeEventListener('zuperior-optimistic-trade', handleOptimisticTrade);
+  }, [handleBuyOrder, handleSellOrder]);
 
   return (
     <>
