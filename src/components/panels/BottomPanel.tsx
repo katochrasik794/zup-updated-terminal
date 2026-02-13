@@ -171,11 +171,16 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
         if (isGroupedView) {
           return <span className="text-[#8b9096]">...</span>
         }
+
+        // For Closed tab, show plain text
+        if (activeTab === 'Closed') {
+          return <span className="text-white">{position.tp}</span>
+        }
+
         // Check if TP is set (not 'Add', not 0, not empty, not null, not undefined)
         const tpValue = position.tp;
         const hasTP = tpValue && tpValue !== 'Add' && tpValue !== '0' && tpValue !== 0 && Number(tpValue) !== 0;
         // For pending orders and open positions, show "Modify" or "Add" instead of "Not Set"
-        const isPendingOrder = position.type === 'Buy Limit' || position.type === 'Sell Limit' || position.type === 'Buy Stop' || position.type === 'Sell Stop';
         const displayTP = hasTP ? tpValue : 'Add';
         return (
           <span
@@ -194,11 +199,16 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
         if (isGroupedView) {
           return <span className="text-[#8b9096]">...</span>
         }
+
+        // For Closed tab, show plain text
+        if (activeTab === 'Closed') {
+          return <span className="text-white">{position.sl}</span>
+        }
+
         // Check if SL is set (not 'Add', not 0, not empty, not null, not undefined)
         const slValue = position.sl;
         const hasSL = slValue && slValue !== 'Add' && slValue !== '0' && slValue !== 0 && Number(slValue) !== 0;
         // For pending orders and open positions, show "Modify" or "Add" instead of "Not Set"
-        const isPendingOrder = position.type === 'Buy Limit' || position.type === 'Sell Limit' || position.type === 'Buy Stop' || position.type === 'Sell Stop';
         const displaySL = hasSL ? slValue : 'Add';
         return (
           <span
