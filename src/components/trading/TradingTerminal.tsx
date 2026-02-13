@@ -36,6 +36,8 @@ export default function TradingTerminal() {
   const [orderToast, setOrderToast] = useState<any>(null)
   const [isRightSidebarOpen, setIsRightSidebarOpen] = useState(true)
   const [isBottomPanelVisible, setIsBottomPanelVisible] = useState(true)
+  const [confirmedInjections, setConfirmedInjections] = useState<any[]>([])
+  const [closedTickets, setClosedTickets] = useState<string[]>([])
 
   // Memoize toast close handlers to prevent timer resets
   const handleOrderToastClose = useCallback(() => {
@@ -96,9 +98,18 @@ export default function TradingTerminal() {
 
   // Format positions for BottomPanel display
   const openPositions = useMemo(() => {
-    if (!rawPositions || rawPositions.length === 0) return [];
+    const raw = rawPositions || [];
+    // Filter out closed tickets first
+    const activeRaw = raw.filter(p => !closedTickets.includes(p.ticket.toString()));
 
-    return rawPositions.map((pos: Position) => {
+    // Merge manual injections (confirmed by API but maybe not yet in poll)
+    const confirmedTickets = new Set(activeRaw.map(p => p.ticket.toString()));
+    const pendingInjections = confirmedInjections.filter(p => p.isPosition && !confirmedTickets.has(p.ticket.toString()) && !closedTickets.includes(p.ticket.toString()));
+
+    const combined = [...activeRaw, ...pendingInjections];
+    if (combined.length === 0) return [];
+
+    return combined.map((pos: Position) => {
       const profit = pos.profit || 0;
       const plFormatted = profit >= 0 ? `+${profit.toFixed(2)}` : profit.toFixed(2);
       const plColor = profit >= 0 ? 'text-[#00ffaa]' : 'text-[#f6465d]';
@@ -130,13 +141,22 @@ export default function TradingTerminal() {
         id: pos.id, // Keep original ID for closing
       };
     });
-  }, [rawPositions]);
+  }, [rawPositions, confirmedInjections, closedTickets]);
 
   // Format pending orders for BottomPanel display
   const pendingPositions = useMemo(() => {
-    if (!rawPendingOrders || rawPendingOrders.length === 0) return [];
+    const raw = rawPendingOrders || [];
+    // Filter out closed/cancelled tickets
+    const activeRaw = raw.filter(p => !closedTickets.includes(p.ticket.toString()));
 
-    return rawPendingOrders.map((pos: Position) => {
+    // Merge injections
+    const confirmedIds = new Set(activeRaw.map(p => p.ticket.toString()));
+    const pendingInjections = confirmedInjections.filter(p => !p.isPosition && !confirmedIds.has(p.ticket.toString()) && !closedTickets.includes(p.ticket.toString()));
+
+    const combined = [...activeRaw, ...pendingInjections];
+    if (combined.length === 0) return [];
+
+    return combined.map((pos: Position) => {
       const profit = pos.profit || 0;
       const plFormatted = profit >= 0 ? `+${profit.toFixed(2)}` : profit.toFixed(2);
       const plColor = profit >= 0 ? 'text-[#00ffaa]' : 'text-[#f6465d]';
@@ -168,7 +188,7 @@ export default function TradingTerminal() {
         id: pos.id,
       };
     });
-  }, [rawPendingOrders]);
+  }, [rawPendingOrders, confirmedInjections, closedTickets]);
 
   // Format closed positions for BottomPanel display
   const closedPositions = useMemo(() => {
@@ -276,6 +296,9 @@ export default function TradingTerminal() {
         if (!response.success) {
           console.error('[ClosePosition] Failed to cancel pending order:', response.message);
         } else {
+          // Confident Deletion: Hide immediately from UI
+          setClosedTickets(prev => [...prev, String(orderId)]);
+
           // Refresh positions/orders to update UI
           refetchPositions();
         }
@@ -312,6 +335,9 @@ export default function TradingTerminal() {
       if (!response.success) {
         // Optionally handle failure (e.g., revert toast or show error)
       } else {
+        // Confident Deletion: Hide immediately from UI
+        setClosedTickets(prev => [...prev, String(positionId)]);
+
         // Show toast ONLY after successful closing
         setClosedToast(position);
         // Refresh positions immediately
@@ -385,6 +411,15 @@ export default function TradingTerminal() {
       const successful = results.filter(r => r.status === 'fulfilled' && r.value.success).length;
 
       if (successful > 0) {
+        // Confident Deletion for Group
+        const closedThisGroup = results
+          .map((r, i) => r.status === 'fulfilled' && r.value.success ? (symbolPositions[i].ticket || symbolPositions[i].id) : null)
+          .filter(t => t !== null) as string[];
+
+        if (closedThisGroup.length > 0) {
+          setClosedTickets(prev => [...prev, ...closedThisGroup]);
+        }
+
         setClosedToast(symbolPositions[0]);
         // Refresh positions immediately
         refetchPositions();
@@ -473,6 +508,15 @@ export default function TradingTerminal() {
       const successful = results.filter(r => r.status === 'fulfilled' && r.value.success).length;
 
       if (successful > 0) {
+        // Confident Deletion for All
+        const closedAllMatch = results
+          .map((r, i) => (r.status === 'fulfilled' && (r.value as any).success) ? (positionsToClose[i].ticket || positionsToClose[i].id) : null)
+          .filter(t => t !== null) as string[];
+
+        if (closedAllMatch.length > 0) {
+          setClosedTickets(prev => [...prev, ...closedAllMatch]);
+        }
+
         setClosedToast(positionsToClose[0]);
         // Refresh positions immediately
         refetchPositions();
@@ -541,9 +585,32 @@ export default function TradingTerminal() {
         });
 
         if (response.success) {
+          // Confident Injection: Zero-latency confirmation UI
+          const apiData: any = response.data || {};
+          const ticket = apiData.PriceOpen || apiData.priceOpen || apiData.OrderId || apiData.Ticket || apiData.PositionId || 0;
+
+          if (ticket) {
+            const confirmedTrade: any = {
+              id: String(ticket),
+              ticket: Number(ticket),
+              symbol: chosenSymbol,
+              type: 'Buy',
+              volume: (orderData.volume || 0) * 10000, // Normalized to units for openPositions 1/10000 scaling
+              openPrice: apiData.PriceOpen || apiData.priceOpen || apiData.Price || 0,
+              currentPrice: apiData.PriceOpen || apiData.priceOpen || apiData.Price || 0,
+              takeProfit: orderData.takeProfit || 0,
+              stopLoss: orderData.stopLoss || 0,
+              openTime: new Date().toISOString(),
+              swap: 0,
+              profit: 0,
+              commission: 0,
+              isPosition: true
+            };
+            setConfirmedInjections(prev => [...prev, confirmedTrade]);
+          }
+
           refetchPositions();
           // Show toast notification
-          const apiData: any = response.data || {};
           setOrderToast({
             side: 'buy',
             symbol: chosenSymbol,
@@ -604,11 +671,35 @@ export default function TradingTerminal() {
         });
 
         if (response.success) {
+          // Confident Injection: Zero-latency confirmation UI for pending orders
+          const apiData: any = response.data || {};
+          const ticket = apiData.OrderId || apiData.Ticket || apiData.Id || 0;
+          const pType = orderData.pendingOrderType || 'limit';
+
+          if (ticket) {
+            const confirmedTrade: any = {
+              id: String(ticket),
+              ticket: Number(ticket),
+              symbol: chosenSymbol,
+              type: `Buy ${pType.charAt(0).toUpperCase() + pType.slice(1)}`,
+              volume: (orderData.volume || 0) * 100, // Normalized to lots * 100 for pending 1/100 scaling
+              openPrice: orderData.openPrice || 0,
+              currentPrice: orderData.openPrice || 0,
+              takeProfit: orderData.takeProfit || 0,
+              stopLoss: orderData.stopLoss || 0,
+              openTime: new Date().toISOString(),
+              swap: 0,
+              profit: 0,
+              commission: 0,
+              isPosition: false
+            };
+            setConfirmedInjections(prev => [...prev, confirmedTrade]);
+          }
+
           // Immediately refresh UI
           refetchPositions();
 
           // Show toast notification
-          const apiData: any = response.data || {};
           setOrderToast({
             side: 'buy',
             symbol: chosenSymbol,
@@ -677,9 +768,32 @@ export default function TradingTerminal() {
         });
 
         if (response.success) {
+          // Confident Injection: Zero-latency confirmation UI
+          const apiData: any = response.data || {};
+          const ticket = apiData.PriceOpen || apiData.priceOpen || apiData.OrderId || apiData.Ticket || apiData.PositionId || 0;
+
+          if (ticket) {
+            const confirmedTrade: any = {
+              id: String(ticket),
+              ticket: Number(ticket),
+              symbol: chosenSymbol,
+              type: 'Sell',
+              volume: (orderData.volume || 0) * 10000,
+              openPrice: apiData.PriceOpen || apiData.priceOpen || apiData.Price || 0,
+              currentPrice: apiData.PriceOpen || apiData.priceOpen || apiData.Price || 0,
+              takeProfit: orderData.takeProfit || 0,
+              stopLoss: orderData.stopLoss || 0,
+              openTime: new Date().toISOString(),
+              swap: 0,
+              profit: 0,
+              commission: 0,
+              isPosition: true
+            };
+            setConfirmedInjections(prev => [...prev, confirmedTrade]);
+          }
+
           refetchPositions();
           // Show toast notification
-          const apiData: any = response.data || {};
           setOrderToast({
             side: 'sell',
             symbol: chosenSymbol,
@@ -740,11 +854,35 @@ export default function TradingTerminal() {
         });
 
         if (response.success) {
+          // Confident Injection: Zero-latency confirmation UI for pending orders
+          const apiData: any = response.data || {};
+          const ticket = apiData.OrderId || apiData.Ticket || apiData.Id || 0;
+          const pType = orderData.pendingOrderType || 'limit';
+
+          if (ticket) {
+            const confirmedTrade: any = {
+              id: String(ticket),
+              ticket: Number(ticket),
+              symbol: chosenSymbol,
+              type: `Sell ${pType.charAt(0).toUpperCase() + pType.slice(1)}`,
+              volume: (orderData.volume || 0) * 100,
+              openPrice: orderData.openPrice || 0,
+              currentPrice: orderData.openPrice || 0,
+              takeProfit: orderData.takeProfit || 0,
+              stopLoss: orderData.stopLoss || 0,
+              openTime: new Date().toISOString(),
+              swap: 0,
+              profit: 0,
+              commission: 0,
+              isPosition: false
+            };
+            setConfirmedInjections(prev => [...prev, confirmedTrade]);
+          }
+
           // Immediately refresh UI
           refetchPositions();
 
           // Show toast notification
-          const apiData: any = response.data || {};
           setOrderToast({
             side: 'sell',
             symbol: chosenSymbol,

@@ -1028,7 +1028,6 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			}
 		}
 
-		// NO OPTIMISTIC UPDATE. Wait for API response.
 		const pendingPriceRaw = order.limitPrice ?? order.stopPrice ?? order.price;
 		const pendingPrice = typeof pendingPriceRaw === 'string' ? parseFloat(pendingPriceRaw) : pendingPriceRaw;
 
@@ -1341,7 +1340,16 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 				positionId: positionId,
 				volume: position ? position.qty : 0 // Pass known volume (lots) to help API
 			});
-			// Fetch confirmation immediately
+
+			// Confident Deletion: Remove immediately from local state for instant chart updates
+			if (position) {
+				console.log('[ZuperiorBroker] Confident Deletion for Position:', positionId);
+				this._positions = this._positions.filter(p => p.id !== positionId);
+				delete this._positionById[positionId];
+				this._notifyAllPositionsAndOrders();
+			}
+
+			// Fetch confirmation immediately to ensure sync
 			await this._fetchPositionsAndOrders(true);
 		} catch (e) {
 			console.error('Close position failed', e);

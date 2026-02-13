@@ -45,6 +45,12 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
   const [isAccountSwitching, setIsAccountSwitching] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [metaApiTokens, setMetaApiTokens] = useState<Record<string, string>>({})
+  const metaApiTokensRef = React.useRef<Record<string, string>>({})
+
+  // Update ref whenever state changes for instant access
+  useEffect(() => {
+    metaApiTokensRef.current = metaApiTokens
+  }, [metaApiTokens])
 
   // Get account IDs for balance polling
   const accountIds = useMemo(() => mt5Accounts.map(account => account.accountId), [mt5Accounts])
@@ -175,9 +181,9 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
 
   // Get MetaAPI access token for an account
   const getMetaApiToken = useCallback(async (accountId: string): Promise<string | null> => {
-    // Check cache first
-    if (metaApiTokens[accountId]) {
-      return metaApiTokens[accountId];
+    // Check ref first for synchronous access (0ms delay)
+    if (metaApiTokensRef.current[accountId]) {
+      return metaApiTokensRef.current[accountId];
     }
 
     try {
@@ -189,19 +195,29 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
         return token;
       }
     } catch (err) {
-
+      console.error('[AccountContext] Token fetch failed:', err);
     }
 
     return null;
-  }, [metaApiTokens])
+  }, [])
 
 
-  // Pre-fetch MetaAPI token when account changes
+  // Proactive Token Warm-up & Background Refresh
   useEffect(() => {
-    if (currentAccountId && isAuthenticated) {
-      getMetaApiToken(currentAccountId);
-    }
-  }, [currentAccountId, isAuthenticated, getMetaApiToken]);
+    if (!isAuthenticated || isAuthLoading) return;
+
+    const warmUp = () => {
+      if (currentAccountId) {
+        console.log('[AccountContext] Proactively warming up token for:', currentAccountId);
+        getMetaApiToken(currentAccountId);
+      }
+    };
+
+    warmUp();
+    // Refresh tokens every 50 minutes (they last 60-day in storage but we keep server session alive)
+    const interval = setInterval(warmUp, 50 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [currentAccountId, isAuthenticated, isAuthLoading, getMetaApiToken]);
 
   return (
     <AccountContext.Provider
