@@ -17,6 +17,7 @@ import { normalizeSymbol as normalizeWsSymbol } from '@/context/WebSocketContext
 import { usePositions, Position } from '@/hooks/usePositions'
 import { ordersApi, positionsApi, apiClient, PlaceMarketOrderParams, PlacePendingOrderParams, ClosePositionParams, CloseAllParams, ModifyPendingOrderParams, ModifyPositionParams } from '@/lib/api'
 import { closePositionDirect, placeMarketOrderDirect, placePendingOrderDirect, cancelPendingOrderDirect } from '@/lib/metaapi'
+import { checkIsMarketClosed } from '@/lib/utils'
 
 import { ImperativePanelHandle } from 'react-resizable-panels'
 
@@ -73,26 +74,19 @@ export default function TradingTerminal() {
     }
   }, [rawPositions, rawPendingOrders, rawClosedPositions]);
 
-  // Market closed helper (weekend for non-crypto instruments)
+  // Market closed helper
   const isMarketClosed = useCallback((sym?: string) => {
     if (!sym) return false;
-    const now = new Date();
-    const day = now.getUTCDay();
-    const minutes = now.getUTCHours() * 60 + now.getUTCMinutes();
 
+    // Find instrument to get category and symbol
     const norm = normalizeWsSymbol(sym);
     const inst = instruments.find(i => normalizeWsSymbol(i.symbol) === norm || i.symbol === sym);
-    const category = (inst?.category || inst?.group || '').toLowerCase();
-    const looksCrypto = category.includes('crypto') || norm.startsWith('BTC') || norm.startsWith('ETH');
-    if (looksCrypto) return false;
 
-    // Market closed from Fri 21:00 UTC through Sun 21:05 UTC
-    const isWeekendClosed =
-      (day === 5 && minutes >= 21 * 60) ||
-      day === 6 ||
-      (day === 0 && minutes < 21 * 60 + 5);
-
-    return isWeekendClosed;
+    // For price override, we'll try to find the last quote if possible. 
+    // In TradingTerminal, lastQuotes might not be directly available here but we can pass them or just rely on time + category
+    // Actually, TradingTerminal doesn't have easy access to lastQuotes here without adding more context usage.
+    // For now, time-based check is sufficient for disabling buttons, and the override will naturally work in Watchlist indicator.
+    return checkIsMarketClosed(sym, inst?.category || inst?.group || '');
   }, [instruments]);
 
 

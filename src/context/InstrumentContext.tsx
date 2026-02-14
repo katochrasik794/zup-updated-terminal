@@ -123,11 +123,23 @@ export function InstrumentProvider({ children }: { children: React.ReactNode }) 
     }, [accountGroup, currentAccountId, fetchInstruments])
 
     const categories = useMemo(() => {
-        const cats = new Set(['Favorites', 'All instruments'])
+        const uniqueCats = new Set<string>()
         instruments.forEach(item => {
-            if (item.category) cats.add(item.category)
+            if (item.category) uniqueCats.add(item.category)
         })
-        return Array.from(cats)
+
+        const sorted = Array.from(uniqueCats).sort((a, b) => {
+            const priority = ['Crypto', 'Forex', 'Indices', 'Stocks', 'Metals', 'Energy', 'Commodities']
+            const idxA = priority.indexOf(a)
+            const idxB = priority.indexOf(b)
+
+            if (idxA !== -1 && idxB !== -1) return idxA - idxB
+            if (idxA !== -1) return -1
+            if (idxB !== -1) return 1
+            return a.localeCompare(b)
+        })
+
+        return ['Favorites', 'All instruments', ...sorted]
     }, [instruments])
 
     const toggleFavorite = async (instrumentId: string) => {

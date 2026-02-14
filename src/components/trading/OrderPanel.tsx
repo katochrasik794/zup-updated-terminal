@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { X, Plus, Minus, HelpCircle } from "lucide-react"
-import { cn, formatSymbolDisplay } from "@/lib/utils"
+import { cn, formatSymbolDisplay, checkIsMarketClosed } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import Tooltip from "@/components/ui/Tooltip"
@@ -65,21 +65,9 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
     return instruments.find(i => normalizeSymbol(i.symbol) === norm || i.symbol === hubSymbol || i.symbol === symbol)
   }, [hubSymbol, instruments, normalizeSymbol, symbol])
 
-  const isCrypto = React.useMemo(() => {
-    const cat = (instrument?.category || '').toLowerCase()
-    return cat.includes('crypto')
-  }, [instrument])
   const isMarketClosed = React.useMemo(() => {
-    if (isCrypto) return false
-    const now = new Date()
-    const day = now.getUTCDay()
-    const minutes = now.getUTCHours() * 60 + now.getUTCMinutes()
-    const isWeekendClosed =
-      (day === 5 && minutes >= 21 * 60) ||
-      day === 6 ||
-      (day === 0 && minutes < 21 * 60 + 5)
-    return isWeekendClosed
-  }, [isCrypto])
+    return checkIsMarketClosed(symbol || hubSymbol, instrument?.category || '', quote.bid, quote.ask)
+  }, [symbol, hubSymbol, instrument, quote.bid, quote.ask])
   const marketClosedMessage = "Market closed for this instrument. Trading resumes Sunday 21:05 UTC."
 
   // Use live prices if available, otherwise fall back to defaults

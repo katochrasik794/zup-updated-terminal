@@ -7,7 +7,7 @@ import { useAccount } from '../../context/AccountContext'
 import { useInstruments } from '../../context/InstrumentContext'
 import { useWebSocket } from '../../context/WebSocketContext'
 import { useTrading } from '../../context/TradingContext'
-import { cn } from '../../lib/utils'
+import { cn, checkIsMarketClosed } from '../../lib/utils'
 
 // Extract Row for performance/blink logic
 const InstrumentRow = ({ item, isVisible, toggleFavorite, lastQuote, handleDragStart, handleDragEnter, handleDragEnd, idx, onSelect, addNavbarTab }) => {
@@ -35,10 +35,8 @@ const InstrumentRow = ({ item, isVisible, toggleFavorite, lastQuote, handleDragS
   // Spread calculation
   const spread = quote.spread !== undefined ? quote.spread : (item.spread || 0);
 
-  // Weekend market closure (all non-crypto instruments)
-  const isWeekend = [0, 6].includes(new Date().getUTCDay());
-  const isCrypto = (item.category || '').toLowerCase().includes('crypto');
-  const isMarketClosed = isWeekend && !isCrypto;
+  // Use centralized market status check
+  const isMarketClosed = checkIsMarketClosed(item.symbol, item.category, quote.bid, quote.ask);
 
   // Calculate Day Change (as Range %)
   // "calculate how much is in +ve or -ve inpercentage based on day high/low and current"
