@@ -185,6 +185,7 @@ export default function LoginPage() {
               width={100}
               height={200}
               className="rounded-sm object-contain"
+              unoptimized
               priority
             />
           </Link>

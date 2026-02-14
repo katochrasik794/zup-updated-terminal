@@ -32,10 +32,10 @@ export default function ForgotPasswordPage() {
       // TODO: Implement password reset API endpoint
       // For now, we'll simulate the request
       await new Promise(resolve => setTimeout(resolve, 1000))
-      
+
       // If API endpoint exists, uncomment this:
       // await authApi.forgotPassword({ email })
-      
+
       setSuccess(true)
     } catch (err: any) {
       setError(err.message || "Failed to send reset email. Please try again.")
@@ -51,11 +51,12 @@ export default function ForgotPasswordPage() {
         <div className="flex justify-center mb-8">
           <Link href="/">
             <Image
-              src="/logo.png"
+              src="/logo-full.png"
               alt="Zuperior Terminal"
               width={150}
               height={50}
               className="h-12 w-auto"
+              unoptimized
               priority
             />
           </Link>
