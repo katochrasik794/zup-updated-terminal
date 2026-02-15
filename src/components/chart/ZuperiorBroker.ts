@@ -1518,19 +1518,27 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 		const symbolUpper = symbol.toUpperCase();
 		let pricescale = 100000; // Default Forex
 		let minTick = 0.00001;
+		let pipValue = 1; // Default
 
 		if (symbolUpper.includes('JPY') || symbolUpper.includes('XAU')) {
 			pricescale = 100;
 			minTick = 0.01;
+			pipValue = 1; // For Gold (100oz), 0.01 move = $1. So pipValue = 1? 
+			// If 1 lot = 100 oz. 0.01 move * 100 = $1. Correct.
 		} else if (symbolUpper.includes('BTC') || symbolUpper.includes('ETH') || symbolUpper.includes('SOL')) {
 			pricescale = 100;
 			minTick = 0.01;
+			// For Crypto with Contract Size 1:
+			// 1 lot = 1 unit.
+			// 1 pip (0.01) move * 1 unit = $0.01.
+			// So pipValue (value of 1 pip for 1 lot) must be 0.01.
+			pipValue = 0.01;
 		}
 
 		return {
 			qty: { min: 0.01, max: 100, step: 0.01 },
 			pipSize: minTick,
-			pipValue: 1,
+			pipValue: pipValue,
 			minTick: minTick,
 			description: symbol,
 			type: 'crypto',
