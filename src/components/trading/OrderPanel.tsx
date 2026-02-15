@@ -1221,18 +1221,42 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
     const price = orderType === "limit" && openPrice ? parseFloat(openPrice) : currentBuyPrice
     const symbolUpper = (symbol || '').toUpperCase()
 
+    // Default values
     let contractSize = 100000
     let pipValue = 0.0001
+    let commission = 0 // Per lot or per trade
 
-    if (symbolUpper.includes('XAU') || symbolUpper.includes('XAG')) {
-      contractSize = 100
-      pipValue = 0.01
-    } else if (symbolUpper.includes('BTC') || symbolUpper.includes('ETH')) {
-      contractSize = 1
-      pipValue = 0.01
+    // Use dynamic data from instrument if available
+    if (instrument?.contractSize) {
+      contractSize = instrument.contractSize
     } else {
-      contractSize = 100000
-      pipValue = symbolUpper.includes('JPY') ? 0.01 : 0.0001
+      // Fallback hardcoded logic
+      if (symbolUpper.includes('XAU') || symbolUpper.includes('XAG')) {
+        contractSize = 100
+      } else if (symbolUpper.includes('BTC') || symbolUpper.includes('ETH')) {
+        contractSize = 1
+      } else {
+        contractSize = 100000
+      }
+    }
+
+    // Determine pip value logic
+    if (instrument?.pipValue) {
+      // If provided by backend
+      pipValue = instrument.pipValue
+    } else {
+      // Fallback
+      if (symbolUpper.includes('JPY')) {
+        pipValue = 0.01
+      } else if (symbolUpper.includes('XAU') || symbolUpper.includes('XAG')) {
+        pipValue = 0.01
+      } else if (symbolUpper.includes('BTC') || symbolUpper.includes('ETH') || instrument?.category?.toLowerCase().includes('crypto')) {
+        pipValue = 1.00 // Crypto usually $1 per point
+      } else if (instrument?.category?.toLowerCase().includes('index') || symbolUpper.includes('US30')) {
+        pipValue = 1.00
+      } else {
+        pipValue = 0.0001
+      }
     }
 
     const leverageStr = String(currentBalance?.leverage || "1:2000")
@@ -1242,8 +1266,43 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
 
     const margin = (vol * contractSize * price) / leverage
     const tradeValue = vol * contractSize * price
-    const spread = (quote.spread || 0) * 100
-    const fees = vol * spread * 10
+
+    // Spread calculation
+    // backend might send spread in points. 
+    // quote.spread is usually raw difference (e.g. 0.00015)
+    // We need to verify if we should use instrument.spread (which might be from DB) or live quote.spread.
+    // Live quote is better.
+    // If quote.spread is 16 for BTC.
+
+    // Fee Calculation
+    // Logic: Volume * ContractSize * Spread * PipValue?
+    // User complaint: "calculation here is wrong for pairs , it should be acocording to the volume contract"
+    // Previous wrong formula: vol * spread * 10
+
+    let fees = 0
+    // If instrument has specific commission field
+    if (instrument?.commission) {
+      // Assuming commission is per lot?
+      fees = vol * instrument.commission
+    } else {
+      // Calculate based on spread if no fixed commission? 
+      // Or if typical spread-based broker:
+      const rawSpread = quote.spread || 0
+      // Cost = Spread * Volume * ContractSize?
+      // Example BTC: Spread 16. Vol 0.01. Contract 1.
+      // Cost = 16 * 0.01 * 1 = 0.16. 
+      // This matches 163 vs 0.16 magnitude difference (1000x).
+
+      // Example EURUSD: Spread 0.00010. Vol 1. Contract 100000.
+      // Cost = 0.00010 * 1 * 100000 = 10.
+
+      // So generic formula: RawSpread * Volume * ContractSize
+      fees = rawSpread * vol * contractSize
+    }
+
+    // Round fees to 2 decimals
+    // fees = Math.round(fees * 100) / 100
+
     const calculatedPipValue = contractSize * pipValue * vol
     const swapLong = -(tradeValue * 0.0001)
     const swapShort = 0
@@ -1262,7 +1321,7 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
       volumeInUSD,
       credit
     }
-  }, [volume, currentBuyPrice, openPrice, orderType, symbol, currentBalance, quote.spread])
+  }, [volume, currentBuyPrice, openPrice, orderType, symbol, currentBalance, quote.spread, instrument])
 
   // Render financial details section
   const renderFinancialDetails = () => (

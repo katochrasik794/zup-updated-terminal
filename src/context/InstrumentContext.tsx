@@ -17,6 +17,10 @@ export interface Instrument {
     ask?: string
     change?: string
     favorite?: boolean
+    contractSize?: number
+    spread?: number
+    commission?: number
+    pipValue?: number
 }
 
 interface InstrumentContextType {
