@@ -167,7 +167,7 @@ class WebSocketManager {
         this.subscribers.delete(subscription);
     }
 
-    // Helper to snap timestamp to resolution
+    // Helper to snap timestamp to resolution (in MS)
     private snapTime(time: number, resolution: string): number {
         // Default to input info if resolution weird
 
@@ -215,13 +215,28 @@ class WebSocketManager {
     }
 
     private handleMessage(data: any) {
+        const nowMs = Date.now();
+
         if (data.type === 'candle_snapshot') {
             const response = data as CandleHistoryResponse;
-            const key = `${response.symbol}-${response.tf}`;
+            // Normalize TF to match what we stored in historyCallbacks (M1, M5, etc)
+            const normalizedTf = resolutionToTimeframe(response.tf);
+            const key = `${response.symbol}-${normalizedTf}`;
             const callback = this.historyCallbacks.get(key);
             if (callback) {
+                // First pass: Detect offset if ANY bar is in the future
+                if (this.serverTimeOffset === 0) {
+                    const futureBar = response.candles.find(c => c.t > nowMs + 60000); // 1 min buffer
+                    if (futureBar) {
+                        const diff = futureBar.t - nowMs;
+                        // Snap to nearest 30 mins (1800000 ms) to avoid jitter
+                        this.serverTimeOffset = Math.round(diff / 1800000) * 1800000;
+                        console.log(`[RealtimeDataFeed] Detected time offset (Snapshot): ${this.serverTimeOffset / 3600000}h`);
+                    }
+                }
+
                 const bars = response.candles.map(c => ({
-                    time: c.t,
+                    time: c.t - this.serverTimeOffset, // Shift to UTC
                     open: c.o,
                     high: c.h,
                     low: c.l,
@@ -241,30 +256,44 @@ class WebSocketManager {
 
                     if (lastBar.time > this.lastBarTimestamp) {
                         this.lastBarTimestamp = lastBar.time;
-                        // RISING EDGE SYNC:
-                        const barTimeSec = Math.floor(lastBar.time / 1000);
-                        const nowSec = Math.floor(Date.now() / 1000);
-                        if (barTimeSec > nowSec) {
-                            this.serverTimeOffset = barTimeSec - nowSec;
-                        }
                     }
                 }
             }
         } else if (data.type === 'candle_update') {
             const update = data as CandleUpdate;
 
+            // Normalize TF
+            const updateTf = resolutionToTimeframe(update.tf);
+            console.log(`[RealtimeDataFeed] Handling update for ${update.symbol} ${update.tf} -> ${updateTf}`);
+
+            // Ensure timestamp is in MS
+            let rawTime = update.t < 1e12 ? update.t * 1000 : update.t;
+
+            // Detect offset if we haven't already (or update if significant drift?)
+            // Usually snapshot handles it, but just in case
+            if (rawTime > nowMs + 60000 && this.serverTimeOffset === 0) {
+                const diff = rawTime - nowMs;
+                this.serverTimeOffset = Math.round(diff / 1800000) * 1800000;
+                console.log(`[RealtimeDataFeed] Detected time offset (Update): ${this.serverTimeOffset / 3600000}h`);
+            }
+
+            // Apply offset
+            rawTime -= this.serverTimeOffset;
+
+            let specificUpdateFound = false;
+
             Array.from(this.subscribers).forEach(sub => {
-                // sub.tf is already mapped (e.g., 'H1'), update.tf uses mapped values too
+                // sub.tf is already mapped (e.g., 'H1')
                 const subTf = sub.tf;
                 const subNormalized = normalizeSymbol(sub.symbol);
                 const updateNormalized = normalizeSymbol(update.symbol);
 
-                if (subNormalized === updateNormalized && subTf === update.tf) {
-
-                    // SNAP TIMESTAMP
-                    // If the backend sends 'streaming' ticks with current timestamp,
-                    // we MUST snap it to the bar start, otherwise the chart thinks the bar starts NOW.
-                    const snappedTime = this.snapTime(update.t, (sub as any).resolution);
+                if (subNormalized === updateNormalized && subTf === updateTf) {
+                    specificUpdateFound = true;
+                    // SNAP TIMESTAMP (in MS)
+                    // If the backend sends 'streaming' ticks, snap to bar start
+                    const snappedTime = this.snapTime(rawTime, (sub as any).resolution);
+                    console.log(`[RealtimeDataFeed] Updating sub: ${subNormalized} ${subTf} (res: ${(sub as any).resolution}) | Raw (UTC): ${rawTime} -> Snapped: ${snappedTime}`);
 
                     const bar = {
                         time: snappedTime,
@@ -275,19 +304,18 @@ class WebSocketManager {
                         volume: update.v
                     };
 
-                    if (update.t > this.lastBarTimestamp) {
-                        this.lastBarTimestamp = update.t;
-
-                        const updateTimeSec = Math.floor(update.t / 1000);
-                        const nowSec = Math.floor(Date.now() / 1000);
-                        if (updateTimeSec > nowSec) {
-                            this.serverTimeOffset = updateTimeSec - nowSec;
-                        }
+                    if (rawTime > this.lastBarTimestamp) {
+                        this.lastBarTimestamp = rawTime;
                     }
 
                     sub.callback(bar);
                 }
             });
+
+            if (!specificUpdateFound) {
+                console.warn(`[RealtimeDataFeed] No subscriber found matching ${normalizeSymbol(update.symbol)} ${updateTf}. (Subs count: ${this.subscribers.size})`);
+                this.subscribers.forEach(s => console.log(`  - Sub: ${normalizeSymbol(s.symbol)} ${s.tf}`));
+            }
 
             // Cache last price from live update
             const normalized = normalizeSymbol(update.symbol);
@@ -326,19 +354,10 @@ export class RealtimeDataFeed {
     }
 
     public getServerTime(callback: (time: number) => void) {
-        // Use the offset calculated from WebSocket messages to ensure sync
-        const nowSec = Math.floor(Date.now() / 1000);
-        const serverTime = nowSec + this.wsManager.serverTimeOffset;
-
-        // Ensure we don't return a time that is weirdly behind if offset is negative due to lag
-        // But generally we want to trust the offset if the server is ahead.
-        // If server is behind, we might want to stick to local time or respect it.
-        // For now, simple application of offset.
-        // console.log(`[RealtimeDataFeed] getServerTime: Local ${nowSec}, Offset ${this.wsManager.serverTimeOffset} -> ${serverTime}`);
-
-        setTimeout(() => {
-            callback(serverTime);
-        }, 10);
+        // SIMPLIFIED: Just return local time in seconds as per standard practice (UTC)
+        // Data is now shifted to UTC in handleMessage
+        console.log('[RealtimeDataFeed] getServerTime called (UTC)');
+        callback(Math.floor(Date.now() / 1000));
     }
 
     public searchSymbols(
