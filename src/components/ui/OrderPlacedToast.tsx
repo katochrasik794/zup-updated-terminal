@@ -5,7 +5,7 @@ import ReactDOM from 'react-dom'
 export default function OrderPlacedToast({ order, onClose }) {
   useEffect(() => {
     if (!order) return;
-    
+
     const timer = setTimeout(() => {
       onClose()
     }, 5000)
@@ -59,7 +59,11 @@ export default function OrderPlacedToast({ order, onClose }) {
             </div>
 
             <div className="flex-1">
-              <h3 className="text-white font-medium text-[14px] leading-tight mb-1">Not enough money</h3>
+              <h3 className="text-white font-medium text-[14px] leading-tight mb-1">
+                {order.error.includes('Cooling period') || order.error.includes('restricted')
+                  ? 'Trading Restricted'
+                  : 'Not enough money'}
+              </h3>
               <p className="text-[13px] text-[#b2b5be]">
                 {order.error}
               </p>

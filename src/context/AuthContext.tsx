@@ -15,6 +15,8 @@ interface User {
   emailVerified: boolean;
   createdAt?: string;
   lastLoginAt?: string;
+  killSwitchActive?: boolean;
+  killSwitchUntil?: string | null;
 }
 
 interface AuthContextType {
@@ -25,6 +27,8 @@ interface AuthContextType {
   register: (email: string, password: string, name?: string, phone?: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
+  isKillSwitchActive: () => boolean;
+  getKillSwitchRemainingTime: () => string | null;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -125,7 +129,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // 2. Fire and forget the logout request to the server (don't block UI)
     try {
-      authApi.logout().catch(() => {});
+      authApi.logout().catch(() => { });
     } catch (error) {
       // Ignore background errors
     }
@@ -143,6 +147,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const isKillSwitchActive = (): boolean => {
+    if (!user || !user.killSwitchActive) return false;
+    if (!user.killSwitchUntil) return false;
+
+    const now = new Date();
+    const until = new Date(user.killSwitchUntil);
+    return now < until;
+  };
+
+  const getKillSwitchRemainingTime = (): string | null => {
+    if (!isKillSwitchActive() || !user?.killSwitchUntil) return null;
+
+    const now = new Date();
+    const until = new Date(user.killSwitchUntil);
+    const diffMs = until.getTime() - now.getTime();
+
+    const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+
+    if (days > 0) {
+      return `${days} day${days > 1 ? 's' : ''} ${hours} hour${hours !== 1 ? 's' : ''}`;
+    } else if (hours > 0) {
+      return `${hours} hour${hours > 1 ? 's' : ''} ${minutes} minute${minutes !== 1 ? 's' : ''}`;
+    } else {
+      return `${minutes} minute${minutes > 1 ? 's' : ''}`;
+    }
+  };
+
   const value: AuthContextType = {
     user,
     isLoading,
@@ -151,6 +184,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     register,
     logout,
     refreshUser,
+    isKillSwitchActive,
+    getKillSwitchRemainingTime,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

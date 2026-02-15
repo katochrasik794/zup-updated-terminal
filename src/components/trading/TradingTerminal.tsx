@@ -13,6 +13,7 @@ import { useSidebar } from '@/context/SidebarContext'
 import { useAccount } from '@/context/AccountContext'
 import { useTrading } from '@/context/TradingContext'
 import { useInstruments } from '@/context/InstrumentContext'
+import { useAuth } from '@/context/AuthContext'
 import { normalizeSymbol as normalizeWsSymbol } from '@/context/WebSocketContext'
 import { usePositions, Position } from '@/hooks/usePositions'
 import { ordersApi, positionsApi, apiClient, PlaceMarketOrderParams, PlacePendingOrderParams, ClosePositionParams, CloseAllParams, ModifyPendingOrderParams, ModifyPositionParams } from '@/lib/api'
@@ -31,6 +32,7 @@ export default function TradingTerminal() {
   const { currentAccountId, currentBalance, getMetaApiToken, metaApiTokens } = useAccount();
   const { symbol, lastModification, clearLastModification } = useTrading();
   const { instruments } = useInstruments();
+  const { isKillSwitchActive, getKillSwitchRemainingTime } = useAuth();
   const [marketClosedToast, setMarketClosedToast] = useState<any | null>(null);
   const leftPanelRef = useRef<ImperativePanelHandle>(null)
   const [closedToast, setClosedToast] = useState<any>(null)
@@ -552,6 +554,21 @@ export default function TradingTerminal() {
       return;
     }
 
+    // Check kill switch status
+    if (isKillSwitchActive()) {
+      const remainingTime = getKillSwitchRemainingTime();
+      setOrderToast({
+        side: 'buy',
+        symbol: symbol || 'BTCUSD',
+        volume: orderData.volume || 0,
+        price: null,
+        orderType: orderData.orderType || 'market',
+        profit: null,
+        error: `Trading is restricted. Cooling period active for ${remainingTime || 'some time'}.`,
+      });
+      return;
+    }
+
     try {
       const chosenSymbol = normalizeSymbolForOrder(symbol || 'BTCUSD');
 
@@ -732,6 +749,21 @@ export default function TradingTerminal() {
 
   const handleSellOrder = async (orderData: any) => {
     if (!currentAccountId) {
+      return;
+    }
+
+    // Check kill switch status
+    if (isKillSwitchActive()) {
+      const remainingTime = getKillSwitchRemainingTime();
+      setOrderToast({
+        side: 'sell',
+        symbol: symbol || 'BTCUSD',
+        volume: orderData.volume || 0,
+        price: null,
+        orderType: orderData.orderType || 'market',
+        profit: null,
+        error: `Trading is restricted. Cooling period active for ${remainingTime || 'some time'}.`,
+      });
       return;
     }
 
