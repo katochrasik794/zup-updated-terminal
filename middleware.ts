@@ -48,6 +48,31 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
+  // Check for token in query params (SSO/Direct login)
+  const urlToken = req.nextUrl.searchParams.get('token') || req.nextUrl.searchParams.get('access_token');
+
+  if (urlToken) {
+    const payload = await verifyJWT(urlToken);
+    if (payload) {
+      // Valid token found in URL - set cookie and redirect to clean URL
+      const url = req.nextUrl.clone();
+      url.searchParams.delete('token');
+      url.searchParams.delete('access_token');
+
+      // Redirect to the same path but without the token
+      const response = NextResponse.redirect(url);
+
+      // Set the token cookie
+      response.cookies.set('token', urlToken, {
+        path: '/',
+        // secure: process.env.NODE_ENV === 'production', // Optional: simpler to leave default for now to match dev
+        maxAge: 60 * 60 * 24 * 30 // 30 days
+      });
+
+      return response;
+    }
+  }
+
   // get token from header, cookie, or localStorage (via client-side check)
   const token =
     req.headers.get('authorization')?.replace('Bearer ', '') ||
