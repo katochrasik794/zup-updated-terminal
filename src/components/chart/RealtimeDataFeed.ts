@@ -146,7 +146,8 @@ class WebSocketManager {
     public subscribe(symbol: string, tf: string, callback: SubscribeBarsCallback) {
         // Use mapped timeframe for subscription tracking
         const mappedTf = resolutionToTimeframe(tf);
-        const subscription = { symbol, tf: mappedTf, callback, lastBarTime: 0 };
+        // STORE original resolution (tf) for snapping
+        const subscription = { symbol, tf: mappedTf, resolution: tf, callback, lastBarTime: 0 };
         this.subscribers.add(subscription);
 
         if (this.ws && this.ws.readyState === WebSocket.OPEN) {
@@ -164,6 +165,26 @@ class WebSocketManager {
 
     public unsubscribe(subscription: any) {
         this.subscribers.delete(subscription);
+    }
+
+    // Helper to snap timestamp to resolution
+    private snapTime(time: number, resolution: string): number {
+        // Default to input info if resolution weird
+
+        // Parse resolution
+        let periodMs = 60 * 1000; // 1m default
+
+        if (resolution === '1D' || resolution === 'D') periodMs = 24 * 60 * 60 * 1000;
+        else if (resolution === '1W' || resolution === 'W') periodMs = 7 * 24 * 60 * 60 * 1000;
+        else if (resolution === '1M' || resolution === 'M') return time; // Monthly hard to snap purely by ms
+        else {
+            // Minutes
+            const mins = parseInt(resolution);
+            if (!isNaN(mins)) periodMs = mins * 60 * 1000;
+        }
+
+        // Floor the time
+        return Math.floor(time / periodMs) * periodMs;
     }
 
     public getHistory(symbol: string, tf: string, count: number, onSuccess: HistoryCallback, onError: (error: string) => void) {
@@ -221,8 +242,6 @@ class WebSocketManager {
                     if (lastBar.time > this.lastBarTimestamp) {
                         this.lastBarTimestamp = lastBar.time;
                         // RISING EDGE SYNC:
-                        // Only update offset on a NEW bar to avoid pinning the time to the bar open continuously.
-                        // If local time is behind bar open time, we shift local time forward.
                         const barTimeSec = Math.floor(lastBar.time / 1000);
                         const nowSec = Math.floor(Date.now() / 1000);
                         if (barTimeSec > nowSec) {
@@ -241,8 +260,14 @@ class WebSocketManager {
                 const updateNormalized = normalizeSymbol(update.symbol);
 
                 if (subNormalized === updateNormalized && subTf === update.tf) {
+
+                    // SNAP TIMESTAMP
+                    // If the backend sends 'streaming' ticks with current timestamp,
+                    // we MUST snap it to the bar start, otherwise the chart thinks the bar starts NOW.
+                    const snappedTime = this.snapTime(update.t, (sub as any).resolution);
+
                     const bar = {
-                        time: update.t,
+                        time: snappedTime,
                         open: update.o,
                         high: update.h,
                         low: update.l,
@@ -267,7 +292,6 @@ class WebSocketManager {
             // Cache last price from live update
             const normalized = normalizeSymbol(update.symbol);
             this.lastPrices.set(normalized, update.c);
-            // console.log(`[RealtimeDataFeed] Cache updated for ${normalized}: ${update.c}`);
         }
     }
 }
@@ -302,12 +326,19 @@ export class RealtimeDataFeed {
     }
 
     public getServerTime(callback: (time: number) => void) {
-        // SIMPLIFIED: Just return local time.
-        // If the timer is not moving, it might be due to offset logic providing static values.
-        // Let's rely purely on local clock progression.
+        // Use the offset calculated from WebSocket messages to ensure sync
+        const nowSec = Math.floor(Date.now() / 1000);
+        const serverTime = nowSec + this.wsManager.serverTimeOffset;
+
+        // Ensure we don't return a time that is weirdly behind if offset is negative due to lag
+        // But generally we want to trust the offset if the server is ahead.
+        // If server is behind, we might want to stick to local time or respect it.
+        // For now, simple application of offset.
+        // console.log(`[RealtimeDataFeed] getServerTime: Local ${nowSec}, Offset ${this.wsManager.serverTimeOffset} -> ${serverTime}`);
+
         setTimeout(() => {
-            callback(Math.floor(Date.now() / 1000));
-        }, 100);
+            callback(serverTime);
+        }, 10);
     }
 
     public searchSymbols(

@@ -190,10 +190,11 @@ export default function AccountDropdown({ isOpen, onClose }) {
             <span>Manage Accounts</span>
             <FiChevronRight size={16} className="text-gray-600" />
           </button>
-          <button className="w-full px-4 py-2.5 flex items-center justify-between text-gray-300 hover:bg-gray-800/50 transition-colors text-[13px]">
+
+          {/* <button className="w-full px-4 py-2.5 flex items-center justify-between text-gray-300 hover:bg-gray-800/50 transition-colors text-[13px]">
             <span>Download Trading Log</span>
             <FiChevronRight size={16} className="text-gray-600" />
-          </button>
+          </button> */}
         </div>
       </div>
     </div >

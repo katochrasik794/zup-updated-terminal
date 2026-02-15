@@ -223,7 +223,7 @@ export const TVChartContainer = () => {
                 enabled_features: [
                     'study_templates',
                     'trading_bracket_orders',
-                    // 'countdown', // Disabled per user request
+                    'countdown',
                     'high_density_bars',
                     'seconds_resolution',
                 ],
@@ -247,7 +247,7 @@ export const TVChartContainer = () => {
                     "mainSeriesProperties.candleStyle.wickDownColor": "#EF4444",
                     "tradingProperties.showOrderPrice": true,
                     "tradingProperties.showOrderType": false,
-                    "mainSeriesProperties.showCountdown": false,
+                    "mainSeriesProperties.showCountdown": true,
                     "scalesProperties.showSeriesLastValue": true,
                     "scalesProperties.showSymbolLabels": false,
                 },
