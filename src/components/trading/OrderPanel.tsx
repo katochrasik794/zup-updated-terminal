@@ -1285,19 +1285,38 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
       // Assuming commission is per lot?
       fees = vol * instrument.commission
     } else {
-      // Calculate based on spread if no fixed commission? 
-      // Or if typical spread-based broker:
-      const rawSpread = quote.spread || 0
-      // Cost = Spread * Volume * ContractSize?
-      // Example BTC: Spread 16. Vol 0.01. Contract 1.
-      // Cost = 16 * 0.01 * 1 = 0.16. 
-      // This matches 163 vs 0.16 magnitude difference (1000x).
+      // Fee Calculation
+      // Target: 0.16 USD for 0.01 BTC (approx spread $16)
+      // If instrument.spread is from DB (e.g. 16 or 1600), use it.
+      // If quote.spread is live (e.g. 16 or 1600), use it.
 
-      // Example EURUSD: Spread 0.00010. Vol 1. Contract 100000.
-      // Cost = 0.00010 * 1 * 100000 = 10.
+      const rawSpread = quote.spread || 0; // Ensure rawSpread is defined here
+      let spreadToUse = rawSpread;
 
-      // So generic formula: RawSpread * Volume * ContractSize
-      fees = rawSpread * vol * contractSize
+      // If DB has a spread, and it looks like a "fixed" target spread (common in some brokers)
+      // or if we just want to use the DB spread for calculation:
+      if (instrument?.spread && instrument.spread > 0) {
+        // If DB spread is e.g. 20 (points? or dollars?)
+        // If BTC spread is 16 USD. DB might store "16" or "1600".
+        // If we use instrument.spread (e.g. 16)
+        spreadToUse = instrument.spread;
+      }
+
+      // Calculate Fees
+      // Formula: Spread * Volume * ContractSize
+      fees = spreadToUse * vol * contractSize;
+
+      // Debug logging
+      console.log('[FeeCalc] Dynamic:', {
+        symbol: symbolUpper,
+        vol,
+        contractSize,
+        rawSpread,
+        dbSpread: instrument?.spread,
+        spreadToUse,
+        fees,
+        quoteSpread: quote.spread,
+      });
     }
 
     // Round fees to 2 decimals
