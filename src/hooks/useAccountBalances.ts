@@ -1,7 +1,6 @@
-"use client"
-
 import * as React from "react"
 import { apiClient } from "@/lib/api"
+import { useMT5WebSocket, AccountUpdate } from "./useMT5WebSocket"
 
 export interface BalanceData {
   balance: number
@@ -65,6 +64,55 @@ export function useMultiAccountBalancePolling(accountIds: string[]) {
   const accountIdsRef = React.useRef<string[]>([])
   const requestControllers = React.useRef<Map<string, AbortController>>(new Map())
   const requestSeq = React.useRef<Map<string, number>>(new Map())
+
+  // Handle WebSocket updates
+  const handleAccountUpdate = React.useCallback((update: AccountUpdate) => {
+    // console.log('[useAccountBalances] Update received:', update)
+    setBalances(prev => {
+      const current = prev[update.accountId]
+      if (!current) return prev // Don't update if account not initialized yet (waiting for static data)
+
+      const newProfit = Number((update.equity - (update.balance + current.credit)).toFixed(2));
+      const newTotalPL = Number((update.equity - update.balance).toFixed(2));
+
+      // Debug log if values seem off
+      if (update.marginLevel > 0 && update.freeMargin === 0) {
+        console.warn('[useAccountBalances] Suspicious data:', {
+          accountId: update.accountId,
+          marginLevel: update.marginLevel,
+          freeMargin: update.freeMargin,
+          equity: update.equity,
+          balance: update.balance,
+          calcPL: newTotalPL
+        });
+      }
+
+      return {
+        ...prev,
+        [update.accountId]: {
+          ...current,
+          balance: update.balance,
+          equity: update.equity,
+          margin: update.marginUsed,
+          freeMargin: update.freeMargin,
+          marginLevel: update.marginLevel,
+          // profit is not directly in update usually, but let's check if we can calculate it
+          // Profit = Equity - Balance - Credit (roughly)
+          // precise profit calculation might depend on broker, but usually:
+          // Equity = Balance + Credit + FloatingPL
+          // So FloatingPL = Equity - (Balance + Credit)
+          profit: Number((update.equity - (update.balance + current.credit)).toFixed(2)),
+          totalPL: Number((update.equity - update.balance).toFixed(2)), // simple total PL
+        }
+      }
+    })
+  }, [])
+
+  // Enable WebSocket for these accounts
+  useMT5WebSocket({
+    accountIds,
+    onAccountUpdate: handleAccountUpdate
+  })
 
   // Initialize state for all accounts - only when accountIds change
   React.useEffect(() => {
@@ -154,7 +202,7 @@ export function useMultiAccountBalancePolling(accountIds: string[]) {
         // Don't clear balance data on 401 - keep cached data if available
         return
       }
-      
+
       // For other errors, set error message but don't clear balance (keep cached)
       setErrors(prev => ({ ...prev, [accountId]: e.message || 'Failed to fetch balance' }))
     } finally {
@@ -184,36 +232,18 @@ export function useMultiAccountBalancePolling(accountIds: string[]) {
     [fetchAccountBalance]
   )
 
-  // Initial fetch for all accounts
+  // Initial fetch for all accounts (static data + initial balance)
   React.useEffect(() => {
     if (accountIdsRef.current.length === 0) return
 
     accountIdsRef.current.forEach(accountId => {
-      const cached = loadBalanceCache(accountId)
-      if (cached) {
-        setBalances(prev => ({ ...prev, [accountId]: cached }))
-      }
+      // Always fetch initially to get static data (name, leverage, etc) which is not in WS
       throttledFetchAccountBalance(accountId, true)
     })
-  }, [throttledFetchAccountBalance])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accountIds]) // Only run when accountIds list changes
 
-  // Set up polling interval
-  React.useEffect(() => {
-    if (accountIdsRef.current.length === 0) return
-
-    intervalRef.current = setInterval(() => {
-      accountIdsRef.current.forEach(accountId => {
-        throttledFetchAccountBalance(accountId, false)
-      })
-    }, 200) // Poll every 200ms
-
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current)
-        intervalRef.current = null
-      }
-    }
-  }, [throttledFetchAccountBalance])
+  // Removed polling interval - relying on WebSocket updates now for real-time data
 
   // Cleanup on unmount
   React.useEffect(() => {

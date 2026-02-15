@@ -12,86 +12,18 @@ export default function AccountDropdown({ isOpen, onClose }) {
   const {
     mt5Accounts,
     currentAccountId,
-    setCurrentAccountId,
     isLoading: isAccountsLoading,
-    isAccountSwitching
+    isAccountSwitching,
+    currentBalance,
+    balances
   } = useAccount();
 
-  const [currentData, setCurrentData] = useState<any>(null);
-  const [listBalances, setListBalances] = useState<Record<string, any>>({});
-  const [showLoader, setShowLoader] = useState(false);
-  const hasLoadedOnce = useRef(false);
+  // const [currentData, setCurrentData] = useState<any>(null); // Removed local state
+  // const [listBalances, setListBalances] = useState<Record<string, any>>({}); // Removed local state
+  // const [showLoader, setShowLoader] = useState(false); // Removed unused local state
+  // const hasLoadedOnce = useRef(false); // Removed unused ref
 
-  // Trigger loader ONLY if we haven't loaded data yet
-  useEffect(() => {
-    if (isOpen && !hasLoadedOnce.current) {
-      // Logic for background loading if needed, but no artificial delay
-      hasLoadedOnce.current = true;
-    }
-  }, [isOpen]);
-
-  // Direct fetch for selected account
-  const fetchCurrentBalance = useCallback(async () => {
-    if (!currentAccountId) return;
-    try {
-      const token = localStorage.getItem('token');
-      const baseURL = apiClient.getBaseURL();
-      const response = await fetch(`${baseURL}/api/accounts/${currentAccountId}/profile`, {
-        cache: 'no-store',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const result = await response.json();
-      if (result.success && result.data) {
-        setCurrentData(result.data);
-      }
-    } catch (err) {
-      // Silently fail - balance fetch errors are not critical
-      // console.error('[AccountDropdown] Fetch Current Error:', err);
-    }
-  }, [currentAccountId]);
-
-  // Polling for selection list balances
-  const fetchListBalances = useCallback(async () => {
-    if (mt5Accounts.length === 0) return;
-    try {
-      const token = localStorage.getItem('token');
-      const results: Record<string, any> = {};
-
-      // Fetch all visible accounts - doing it in parallel
-      const baseURL = apiClient.getBaseURL();
-      await Promise.all(mt5Accounts.map(async (acc) => {
-        try {
-          const response = await fetch(`${baseURL}/api/accounts/${acc.accountId}/profile`, {
-            cache: 'no-store',
-            headers: { 'Authorization': `Bearer ${token}` }
-          });
-          const res = await response.json();
-          if (res.success && res.data) {
-            results[acc.accountId] = res.data;
-          }
-        } catch (e) {
-          // ignore individual errors
-        }
-      }));
-
-      setListBalances(prev => ({ ...prev, ...results }));
-    } catch (err) {
-    }
-  }, [isOpen, mt5Accounts]);
-
-  // 1. High-priority polling for the active account (200ms)
-  useEffect(() => {
-    fetchCurrentBalance();
-    const intervalId = setInterval(fetchCurrentBalance, 200);
-    return () => clearInterval(intervalId);
-  }, [fetchCurrentBalance]);
-
-  // 2. Lower-priority polling for the account selection list (2000ms)
-  useEffect(() => {
-    fetchListBalances();
-    const intervalId = setInterval(fetchListBalances, 2000); // 2s is enough for background list
-    return () => clearInterval(intervalId);
-  }, [fetchListBalances]);
+  // Removed local polling effects as data is now provided by AccountContext via WebSocket
 
   const handleAccountSelect = async (accountId: string) => {
     // 1. Persist to localStorage immediately
@@ -109,21 +41,29 @@ export default function AccountDropdown({ isOpen, onClose }) {
 
 
   // Mapping values
-  const balance = currentData?.Balance ?? 0;
-  const equity = currentData?.Equity ?? 0;
-  const margin = currentData?.Margin ?? 0;
-  const freeMargin = currentData?.MarginFree ?? 0;
-  const marginLevel = currentData?.MarginLevel ?? 0;
-  const rawLeverage = currentData?.Leverage || currentData?.MarginLeverage || '2000';
+  // Mapping values from AccountContext
+  const data = currentBalance;
+
+  const balance = data?.balance ?? 0;
+  const equity = data?.equity ?? 0;
+  const margin = data?.margin ?? 0;
+  const credit = data?.credit ?? 0;
+
+  // Calculate derived values locally for robustness
+  const freeMargin = Number((equity - margin).toFixed(2));
+  const profitLoss = Number((equity - balance - credit).toFixed(2));
+
+  const marginLevel = data?.marginLevel ?? 0;
+  const rawLeverage = data?.leverage || '2000';
   const leverage = String(rawLeverage).startsWith('1:') ? rawLeverage : `1:${rawLeverage}`;
-  const credit = currentData?.Credit ?? 0;
-  // Calculate P/L: Use Profit field from API (same as StatusBar)
-  const profitLoss = currentData?.Profit ?? 0;
 
   const renderValue = (val: number, isPercent = false) => {
     if (hideBalance) return '***';
     if (isAccountSwitching) return <span className="animate-pulse text-gray-500">...</span>;
-    if (showLoader && !currentData) return <span className="animate-wavy opacity-40">~~~</span>;
+    if (hideBalance) return '***';
+    if (isAccountSwitching) return <span className="animate-pulse text-gray-500">...</span>;
+    // Removed showLoader check as we rely on context data availability
+
     if (isPercent) return `${val.toFixed(2)} %`;
     return `${formatCurrency(val, 2)} USD`;
   }
@@ -163,8 +103,8 @@ export default function AccountDropdown({ isOpen, onClose }) {
                 displayValue = '***';
               } else if (isAccountSwitching) {
                 displayValue = <span className="animate-pulse text-gray-500">...</span>;
-              } else if (showLoader && !currentData) {
-                displayValue = <span className="animate-wavy opacity-40">~~~</span>;
+              } else if (isAccountSwitching) {
+                displayValue = <span className="animate-pulse text-gray-500">...</span>;
               } else {
                 const plValue = profitLoss ?? 0;
                 // Match StatusBar format exactly: +X.XX or -X.XX (no USD suffix, no formatCurrency)
@@ -202,8 +142,10 @@ export default function AccountDropdown({ isOpen, onClose }) {
             ) : (
               mt5Accounts.map(account => {
                 const isSelected = currentAccountId === account.accountId
-                const accData = listBalances[account.accountId]
-                const accEquity = accData?.Equity ?? 0
+                const accData = balances[account.accountId]
+                const accEquity = accData?.equity ?? 0
+                // We can also calculate PL for other accounts if we want consistency
+                // const accPL = accData ? (accData.equity - accData.balance - (accData.credit || 0)) : 0
 
                 return (
                   <div
@@ -223,7 +165,7 @@ export default function AccountDropdown({ isOpen, onClose }) {
                     <div className="text-white text-[14px] font-semibold">
                       {hideBalance
                         ? '***'
-                        : (showLoader && !accData)
+                        : (!accData)
                           ? <div className="h-4 w-20 animate-shimmer rounded bg-white/5" />
                           : `${formatCurrency(accEquity, 2)} USD`
                       }
@@ -254,6 +196,6 @@ export default function AccountDropdown({ isOpen, onClose }) {
           </button>
         </div>
       </div>
-    </div>
+    </div >
   )
 }

@@ -1,72 +1,39 @@
 "use client";
 
-import { useEffect, useState, useRef, useCallback, useMemo } from 'react'
+import { useState, useRef } from 'react'
 import CloseAllPositionsDropdown from "../modals/CloseAllPositionsDropdown";
 import { usePrivacy } from '../../context/PrivacyContext';
 import { formatCurrency } from '../../lib/utils';
 import { apiClient } from '../../lib/api';
 import { useWebSocket } from '../../context/WebSocketContext';
 
+import { useAccount } from '../../context/AccountContext';
+
 export default function StatusBar({ openPositions = [], onCloseAll }: any) {
   const { hideBalance } = usePrivacy();
   const { ping } = useWebSocket();
-  const [data, setData] = useState<any>(null);
+  const { currentBalance } = useAccount(); // Use centralized account data
   const [showDropdown, setShowDropdown] = useState(false)
   const buttonRef = useRef(null)
 
-  const fetchBalance = useCallback(async () => {
-    try {
-      // Get account ID directly from localStorage to be independent
-      const accountId = localStorage.getItem('defaultMt5Account') || localStorage.getItem('accountId');
-      const token = localStorage.getItem('token');
-      if (!accountId) return;
+  // Removed local polling and state - using currentBalance from AccountContext
 
-      const baseURL = apiClient.getBaseURL();
-      const response = await fetch(`${baseURL}/api/accounts/${accountId}/profile`, {
-        cache: 'no-store',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      const result = await response.json();
+  // Map values from context
+  // Map values from context
+  const data = currentBalance;
+  const equity = data?.equity ?? 0;
+  const balance = data?.balance ?? 0;
+  const margin = data?.margin ?? 0;
+  const marginLevel = data?.marginLevel ?? 0;
+  const credit = data?.credit ?? 0;
 
-      if (result.success && result.data) {
-        setData(result.data);
-      }
-    } catch (err) {
-      // Silently fail - balance fetch errors are not critical
-      // console.error('[StatusBar] Direct Fetch Error:', err);
-    }
-  }, []);
+  // Calculate Free Margin locally (Equity - Margin)
+  const freeMargin = Number((equity - margin).toFixed(2));
 
-  // Standalone polling loop
-  useEffect(() => {
-    fetchBalance(); // Initial fetch
-    // Poll less aggressively to prevent connection exhaustion
-    const interval = setInterval(fetchBalance, 5000);
-    return () => clearInterval(interval);
-  }, [fetchBalance]);
+  // Calculate P/L locally (Equity - Balance - Credit)
+  const accountProfit = Number((equity - balance - credit).toFixed(2));
 
-  // Map values
-  const equity = data?.Equity ?? data?.equity ?? 0;
-  const balance = data?.Balance ?? data?.balance ?? 0;
-  const margin = data?.Margin ?? data?.margin ?? data?.MarginUsed ?? data?.marginUsed ?? 0;
-
-  // Calculate Free Margin: Always calculate as Equity - Margin (standard MT5 formula)
-  const freeMargin = useMemo(() => {
-    const eq = Number(equity) || 0;
-    const mg = Number(margin) || 0;
-    return parseFloat((eq - mg).toFixed(2));
-  }, [equity, margin]);
-
-  const marginLevel = data?.MarginLevel ?? data?.marginLevel ?? 0;
-
-  // Calculate P/L from open positions (same as CloseAllPositionsDropdown)
-  // Sum up all position P/L values
-  const totalPL = openPositions.reduce((sum, pos) => {
-    const pl = parseFloat(String(pos.pl || '0').replace('+', ''));
-    return sum + (isNaN(pl) ? 0 : pl);
-  }, 0);
+  const totalPL = accountProfit;
 
   const renderValue = (value: number, suffix: string = 'USD') => {
     if (hideBalance) return '****';
