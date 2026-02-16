@@ -162,7 +162,7 @@ export default function TradingTerminal() {
       return {
         symbol,
         type: pos.type,
-        volume: (pos.volume / 100).toFixed(2),
+        volume: (Number(pos.volume) / 100).toFixed(2),
         openPrice: pos.openPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 }),
         currentPrice: pos.currentPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 }),
         tp: pos.takeProfit && pos.takeProfit !== 0 ? pos.takeProfit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 }) : 'Add',

@@ -132,6 +132,9 @@ const formatPosition = (pos: any, isClosedTrade: boolean = false): Position => {
     mappedType = isBuy ? 'Buy' : 'Sell';
   }
 
+  // Check if this is a pending order (Type 2-5: Buy Limit, Sell Limit, Buy Stop, Sell Stop)
+  const isPendingOrder = typeof orderType === 'number' && orderType >= 2 && orderType <= 5;
+
   // For closed trades, handle volume differently (VolumeLots or Volume)
   let volume = 0;
   if (isClosedTrade) {
@@ -152,12 +155,27 @@ const formatPosition = (pos: any, isClosedTrade: boolean = false): Position => {
         volume = numVolume;
       }
     }
+  } else if (isPendingOrder) {
+    // Pending Orders: Prioritize lots, then units (assume 100 units = 1 lot based on orders.ts)
+    const vLots = Number(pos.VolumeLots ?? pos.volumeLots ?? 0);
+    const vRaw = Number(pos.Volume ?? pos.volume ?? 0);
+    const vInit = Number(pos.InitialVolume ?? pos.initialVolume ?? 0);
+    const vCurrent = Number(pos.VolumeCurrent ?? pos.volumeCurrent ?? 0);
+
+    if (vLots > 0) {
+      volume = vLots;
+    } else if (vRaw > 0) {
+      // Return raw volume specific to pending orders (likely units/centilots)
+      // Do NOT normalize here, as Chart expects units and TradingTerminal handles display
+      volume = vRaw;
+    } else if (vInit > 0) {
+      volume = vInit;
+    } else if (vCurrent > 0) {
+      volume = vCurrent;
+    }
   } else {
     volume = Number(pos.Volume || pos.volume || 0);
   }
-
-  // Check if this is a pending order (Type 2-5: Buy Limit, Sell Limit, Buy Stop, Sell Stop)
-  const isPendingOrder = typeof orderType === 'number' && orderType >= 2 && orderType <= 5;
 
   // For closed trades, Price is the close price, OpenPrice is the entry price
   // For pending orders, use PriceOrder instead of PriceOpen
