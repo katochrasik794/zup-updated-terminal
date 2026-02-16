@@ -44,26 +44,59 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const checkAuth = async () => {
     try {
+      // Check for auto-login in URL parameters
+      if (typeof window !== 'undefined') {
+        const params = new URLSearchParams(window.location.search);
+        const autoLogin = params.get('autoLogin');
+        const token = params.get('token');
+        const clientId = params.get('clientId');
+        const accountId = params.get('accountId');
+
+        if (autoLogin === 'true' && token && clientId) {
+          try {
+            const response = await authApi.ssoLogin(token, clientId) as any;
+            if (response.success) {
+              if (response.token) {
+                apiClient.setToken(response.token);
+                document.cookie = `token=${response.token}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax`;
+              }
+
+              if (response.user) {
+                setUser(response.user);
+                if (response.user.name) localStorage.setItem('userName', response.user.name);
+                if (response.user.email) localStorage.setItem('userEmail', response.user.email);
+              }
+
+              if (accountId) {
+                sessionStorage.setItem('defaultMt5Account', accountId);
+                localStorage.setItem('defaultMt5Account', accountId);
+                localStorage.setItem('accountId', accountId);
+              }
+
+              setIsLoading(false);
+              return;
+            }
+          } catch (error) {
+            console.error('SSO login failed in AuthProvider:', error);
+          }
+        }
+      }
+
       const token = apiClient.getToken();
       if (!token) {
-
         setIsLoading(false);
         return;
       }
-
 
       const response = await authApi.getCurrentUser() as any;
       if (response.success && response.user) {
         setUser(response.user);
       } else {
-
         apiClient.clearToken();
       }
     } catch (error: any) {
-
       // Don't clear token on network errors - might just be backend not running
       if (error.message && error.message.includes('Backend server is not reachable')) {
-
       } else {
         apiClient.clearToken();
       }
