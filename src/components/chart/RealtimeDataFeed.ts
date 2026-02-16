@@ -236,7 +236,7 @@ class WebSocketManager {
                 }
 
                 const bars = response.candles.map(c => ({
-                    time: c.t - this.serverTimeOffset, // Shift to UTC
+                    time: c.t - this.serverTimeOffset, // Shift to UTC so chart can convert to 'Europe/Athens'
                     open: c.o,
                     high: c.h,
                     low: c.l,
@@ -264,10 +264,10 @@ class WebSocketManager {
 
             // Normalize TF
             const updateTf = resolutionToTimeframe(update.tf);
-            console.log(`[RealtimeDataFeed] Handling update for ${update.symbol} ${update.tf} -> ${updateTf}`);
+            // console.log(`[RealtimeDataFeed] Handling update for ${update.symbol} ${update.tf} -> ${updateTf}`);
 
             // Ensure timestamp is in MS
-            let rawTime = update.t < 1e12 ? update.t * 1000 : update.t;
+            const rawTime = update.t < 1e12 ? update.t * 1000 : update.t;
 
             // Detect offset if we haven't already (or update if significant drift?)
             // Usually snapshot handles it, but just in case
@@ -277,8 +277,10 @@ class WebSocketManager {
                 console.log(`[RealtimeDataFeed] Detected time offset (Update): ${this.serverTimeOffset / 3600000}h`);
             }
 
-            // Apply offset
-            rawTime -= this.serverTimeOffset;
+            // RE-ENABLING OFFSET SUBTRACTION (Shift to UTC)
+            // Now that we set timezone to 'Europe/Athens', we MUST provide UTC timestamps.
+            // The chart will convert UTC -> Athens for grid alignment.
+            const adjustedTime = rawTime - (this.serverTimeOffset || 0);
 
             let specificUpdateFound = false;
 
@@ -290,13 +292,12 @@ class WebSocketManager {
 
                 if (subNormalized === updateNormalized && subTf === updateTf) {
                     specificUpdateFound = true;
-                    // SNAP TIMESTAMP (in MS)
-                    // If the backend sends 'streaming' ticks, snap to bar start
-                    const snappedTime = this.snapTime(rawTime, (sub as any).resolution);
-                    console.log(`[RealtimeDataFeed] Updating sub: ${subNormalized} ${subTf} (res: ${(sub as any).resolution}) | Raw (UTC): ${rawTime} -> Snapped: ${snappedTime}`);
+
+                    // Trust the shifted UTC time
+                    const finalTime = adjustedTime;
 
                     const bar = {
-                        time: snappedTime,
+                        time: finalTime,
                         open: update.o,
                         high: update.h,
                         low: update.l,
@@ -304,8 +305,8 @@ class WebSocketManager {
                         volume: update.v
                     };
 
-                    if (rawTime > this.lastBarTimestamp) {
-                        this.lastBarTimestamp = rawTime;
+                    if (finalTime > this.lastBarTimestamp) {
+                        this.lastBarTimestamp = finalTime;
                     }
 
                     sub.callback(bar);
@@ -355,7 +356,7 @@ export class RealtimeDataFeed {
 
     public getServerTime(callback: (time: number) => void) {
         // SIMPLIFIED: Just return local time in seconds as per standard practice (UTC)
-        // Data is now shifted to UTC in handleMessage
+        // Data is now shifted to UTC in handleMessage, and Chart converts to 'Europe/Athens'
         console.log('[RealtimeDataFeed] getServerTime called (UTC)');
         callback(Math.floor(Date.now() / 1000));
     }
@@ -380,7 +381,7 @@ export class RealtimeDataFeed {
             description: symbolName,
             type: 'forex',
             session: '24x7',
-            timezone: 'Etc/UTC',
+            timezone: 'Europe/Athens', // Set to MT5 Server Timezone (EET) to align H4/D1 grids correctly
             exchange: '',
             listed_exchange: '',
             minmov: 1,
