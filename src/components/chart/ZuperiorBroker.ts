@@ -1155,7 +1155,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 
 			// OPTIMISTIC UI: Show success toast immediately
 			this._showOrderToast({
-				side: originalOrder.type?.includes('Buy') || originalOrder.type === OrderType.Buy ? 'buy' : 'sell',
+				side: originalOrder.side === Side.Buy ? 'buy' : 'sell',
 				symbol: originalOrder.symbol,
 				volume: String(originalOrder.qty),
 				price: null,
@@ -1711,7 +1711,6 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 
 		// SKIP API FOR PREVIEW
 		const isGhost = orderId.startsWith(PREVIEW_ORDER_ID);
-		console.log("[ZuperiorBroker] editOrder: Checking if preview order:", orderId, "isGhost?", isGhost);
 		if (isGhost) {
 			console.log('[ZuperiorBroker] editOrder: Handling ghost order modification');
 
@@ -1755,7 +1754,6 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 
 		this._lastActionTime = Date.now();
 
-		const originalState = { ...originalOrder };
 		const tpId = `${orderId}_TP`;
 		const slId = `${orderId}_SL`;
 
@@ -1842,8 +1840,6 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 		// Update array reference for the parent order (trigger React/TV updates)
 		const index = this._orders.findIndex(o => o.id === orderId);
 		if (index !== -1) {
-			// We mutated originalOrder in place, which is inside _orders[index] if it was by reference.
-			// But to be safe and trigger change detection, we shallow copy it back.
 			this._orders[index] = { ...originalOrder };
 			this._orderById[orderId] = this._orders[index];
 		}
@@ -1854,7 +1850,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 		try {
 			// OPTIMISTIC UI: Show success toast immediately
 			this._showOrderToast({
-				side: originalOrder.type?.includes('Buy') || originalOrder.type === OrderType.Buy ? 'buy' : 'sell',
+				side: originalOrder.side === Side.Buy ? 'buy' : 'sell',
 				symbol: originalOrder.symbol,
 				volume: String(originalOrder.qty),
 				price: null,
