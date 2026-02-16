@@ -25,70 +25,15 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = React.useState(false)
   const [error, setError] = React.useState("")
 
-  // Check if this is an auto-login request
-  const isAutoLogin = React.useMemo(() => {
-    if (typeof window === 'undefined') return false;
-    const params = new URLSearchParams(window.location.search);
-    return params.get('autoLogin') === 'true';
-  }, []);
-
   // Check for auto-login on mount
   React.useEffect(() => {
-    const handleAutoLogin = async () => {
-      const params = new URLSearchParams(window.location.search)
-      const token = params.get('token')
-      const clientId = params.get('clientId')
-      const autoLogin = params.get('autoLogin')
+    const params = new URLSearchParams(window.location.search)
+    const autoLogin = params.get('autoLogin')
 
-      if (autoLogin === 'true' && token && clientId) {
-        setIsLoading(true)
-
-        // Get accountId from URL params if present
-        const accountId = params.get('accountId')
-
-        try {
-          const data = await authApi.ssoLogin(token, clientId)
-
-          if (data.success) {
-            // Store token if provided
-            if (data.token) {
-              localStorage.setItem('token', data.token)
-              document.cookie = `token=${data.token}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax`
-            }
-
-            // Store user data in localStorage
-            if (data.user) {
-              if (data.user.name) {
-                localStorage.setItem('userName', data.user.name)
-              }
-              if (data.user.email) {
-                localStorage.setItem('userEmail', data.user.email)
-              }
-            }
-
-            // Store accountId if provided (highest priority)
-            if (accountId) {
-              sessionStorage.setItem('defaultMt5Account', accountId)
-              localStorage.setItem('defaultMt5Account', accountId)
-            }
-
-            // Redirect to terminal on successful login (preserve accountId in URL)
-            const terminalUrl = accountId
-              ? `/terminal?accountId=${encodeURIComponent(accountId)}`
-              : "/terminal"
-            window.location.href = terminalUrl
-          } else {
-            setError(data.message || "Auto-login failed. Please login manually.")
-          }
-        } catch (err: any) {
-          setError(err.message || "Auto-login error. Please login manually.")
-        } finally {
-          setIsLoading(false)
-        }
-      }
+    if (autoLogin === 'true') {
+      // Redirect to terminal (which will now handle the SSO logic via AuthProvider)
+      window.location.href = `/terminal${window.location.search}`
     }
-
-    handleAutoLogin()
   }, [])
 
   // Password validation
@@ -195,12 +140,10 @@ export default function LoginPage() {
       {/* Main Content */}
       <main className="flex-1 flex items-center justify-center px-4 py-12">
         <div className="w-full max-w-md mx-auto">
-          {/* Show loading state during auto-login */}
-          {isAutoLogin && isLoading ? (
+          {/* Normal loading state */}
+          {isLoading ? (
             <div className="flex flex-col items-center justify-center space-y-4 w-full">
               <LoadingWave />
-              <h2 className="text-2xl font-bold text-white text-center">Logging you in...</h2>
-              <p className="text-white/60 text-center">Please wait while we authenticate your session</p>
             </div>
           ) : (
             <>
