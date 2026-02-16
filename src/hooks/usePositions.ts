@@ -40,7 +40,7 @@ interface UsePositionsReturn {
 }
 
 // Polling interval tuned to balance freshness and backend load
-const POLL_INTERVAL = 300; // 300ms for high responsiveness
+const POLL_INTERVAL = 200; // 200ms for high responsiveness (User request)
 
 // Format single position from API response
 const formatPosition = (pos: any, isClosedTrade: boolean = false): Position => {

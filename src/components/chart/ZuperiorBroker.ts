@@ -125,6 +125,12 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 	private _positionsSubscription = new SimpleSubscription<(data: {}) => void>();
 	private _ordersSubscription = new SimpleSubscription<(data: {}) => void>();
 
+	// Validation Callbacks
+	private _isKillSwitchActive: () => boolean = () => false;
+	private _getKillSwitchRemainingTime: () => string = () => '';
+	private _getFreeMargin: () => number = () => 0;
+	private _isMarketClosedFunc: (symbol: string) => boolean = () => false;
+
 	public constructor(
 		host: IBrokerConnectionAdapterHost,
 		quotesProvider: IDatafeedQuotesApi,
@@ -146,6 +152,76 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 
 		// Start fetching immediately so positions()/orders() have data when TradingView queries
 		this._startPolling();
+	}
+
+	// Setters for validation functions
+	public setValidationFunctions(funcs: {
+		isKillSwitchActive: () => boolean;
+		getKillSwitchRemainingTime: () => string;
+		getFreeMargin: () => number;
+		isMarketClosed: (symbol: string) => boolean;
+	}) {
+		this._isKillSwitchActive = funcs.isKillSwitchActive;
+		this._getKillSwitchRemainingTime = funcs.getKillSwitchRemainingTime;
+		this._getFreeMargin = funcs.getFreeMargin;
+		this._isMarketClosedFunc = funcs.isMarketClosed;
+	}
+
+	private _checkPreConditions(action: 'buy' | 'sell' | 'modify' | 'close', symbol: string, volume: number = 0): boolean {
+		// 1. Kill Switch Check
+		if (this._isKillSwitchActive()) {
+			const remainingTime = this._getKillSwitchRemainingTime();
+			this._showOrderToast({
+				side: action === 'sell' ? 'sell' : 'buy',
+				symbol: symbol,
+				volume: volume,
+				price: null,
+				orderType: 'market',
+				profit: null,
+				error: `${action.charAt(0).toUpperCase() + action.slice(1)} restricted. Cooling period active for ${remainingTime || 'some time'}.`,
+			});
+			return false;
+		}
+
+		// 2. Market Closed Check
+		if (this._isMarketClosedFunc(symbol)) {
+			this._showOrderToast({
+				side: action === 'sell' ? 'sell' : 'buy',
+				symbol: symbol,
+				volume: volume,
+				price: null,
+				orderType: 'market',
+				profit: null,
+				error: `Market closed for ${symbol}. Action not possible.`,
+			});
+			return false;
+		}
+
+		// 3. Free Margin Check (only for open/modify)
+		if (action !== 'close') {
+			const freeMargin = this._getFreeMargin();
+			if (freeMargin <= 1) {
+				this._showOrderToast({
+					side: action === 'sell' ? 'sell' : 'buy',
+					symbol: symbol,
+					volume: volume,
+					price: null,
+					orderType: 'market',
+					profit: null,
+					error: `Insufficient Funds ${action.charAt(0).toUpperCase() + action.slice(1)} not allowed`,
+				});
+				return false;
+			}
+		}
+
+		return true;
+	}
+
+	private _showOrderToast(detail: any) {
+		if (typeof window !== 'undefined') {
+			const targetWin = window.top || window;
+			targetWin.dispatchEvent(new CustomEvent('zuperior-show-toast', { detail }));
+		}
 	}
 
 	private _handleLiveUpdate: () => void = () => { };
@@ -1077,6 +1153,17 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 				return Promise.resolve();
 			}
 
+			// OPTIMISTIC UI: Show success toast immediately
+			this._showOrderToast({
+				side: originalOrder.type?.includes('Buy') || originalOrder.type === OrderType.Buy ? 'buy' : 'sell',
+				symbol: originalOrder.symbol,
+				volume: String(originalOrder.qty),
+				price: null,
+				orderType: originalOrder.type === OrderType.Limit ? 'limit' : (originalOrder.type === OrderType.Stop ? 'stop' : 'market'),
+				profit: null,
+				isModified: true
+			});
+
 			await modifyPendingOrderDirect({
 				accountId: this._accountId,
 				accessToken: this._accessToken,
@@ -1249,6 +1336,11 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			return;
 		}
 
+		// Pre-conditions Check (Kill Switch, Market Closed, Free Margin)
+		if (!this._checkPreConditions('modify', originalPosition.symbol, originalPosition.qty)) {
+			return Promise.reject("Pre-conditions failed");
+		}
+
 		const newTPRaw = modification.takeProfit ?? modification.tp;
 		const newSLRaw = modification.stopLoss ?? modification.sl;
 
@@ -1292,12 +1384,18 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 	public async closePosition(positionId: string): Promise<void> {
 		if (!this._accessToken || !this._accountId) return Promise.reject("Auth failed");
 
+		const position = this._positionById[positionId];
+
+		// Pre-conditions Check (Kill Switch, Market Closed) - Margin not strictly checked for Close
+		if (position && !this._checkPreConditions('close', position.symbol, position.qty)) {
+			return Promise.reject("Pre-conditions failed");
+		}
+
 		console.log('[ZuperiorBroker] closePosition called for:', positionId);
 
 		// Ghost Position Cleanup (Market Preview Cancellation)
 		if (positionId === PREVIEW_POSITION_ID) {
 			console.log('[ZuperiorBroker] Closing preview position (ghost):', positionId);
-			const position = this._positionById[positionId];
 			if (position) {
 				// 1. Notify Chart of Closure
 				if (this._host && typeof this._host.positionUpdate === 'function') {
@@ -1330,8 +1428,13 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			return Promise.resolve();
 		}
 
-		// NO OPTIMISTIC UPDATE HERE. Wait for API and then fetch.
-		const position = this._positionById[positionId];
+		// OPTIMISTIC UI: Show toast immediately
+		if (position) {
+			this._showOrderToast({
+				type: 'position-closed',
+				position: position
+			});
+		}
 
 		try {
 			await closePositionDirect({
@@ -1599,6 +1702,11 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			return Promise.reject('Order not found');
 		}
 
+		// Pre-conditions Check (Kill Switch, Market Closed, Free Margin)
+		if (!this._checkPreConditions('modify', originalOrder.symbol, originalOrder.qty)) {
+			return Promise.reject("Pre-conditions failed");
+		}
+
 		console.log('[ZuperiorBroker] editOrder called:', orderId, modification);
 
 		// SKIP API FOR PREVIEW
@@ -1744,6 +1852,17 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 		this._notifyAllPositionsAndOrders();
 
 		try {
+			// OPTIMISTIC UI: Show success toast immediately
+			this._showOrderToast({
+				side: originalOrder.type?.includes('Buy') || originalOrder.type === OrderType.Buy ? 'buy' : 'sell',
+				symbol: originalOrder.symbol,
+				volume: String(originalOrder.qty),
+				price: null,
+				orderType: originalOrder.type === OrderType.Limit ? 'limit' : (originalOrder.type === OrderType.Stop ? 'stop' : 'market'),
+				profit: null,
+				isModified: true
+			});
+
 			// Use values from originalOrder which now contains the merged state
 			await modifyPendingOrderDirect({
 				accountId: this._accountId!,
@@ -1822,10 +1941,8 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			if (modification.stopLoss) orderMod.stopLoss = modification.stopLoss;
 
 			// Update parent order properties to match bracket changes
-			// Update parent order properties to match bracket changes
 			const entity = this._orderById[id];
 			// If this entity is a bracket (has parentId), update the parent.
-			// If it's the main order, it's already being updated via editOrder logic, but detailed props need syncing.
 			if (entity && entity.parentId) {
 				const actualParent = this._orderById[entity.parentId];
 				if (actualParent) {
@@ -1836,19 +1953,15 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 
 					// Notify parent update immediately
 					if (this._host && typeof this._host.orderUpdate === 'function') {
-
 						this._host.orderUpdate(actualParent);
 					}
 				}
 			} else if (entity) {
 				// It is the parent order itself.
-				// We still want to ensure prop consistency if we are setting new params
 				if (modification.limitPrice !== undefined) entity.takeProfit = modification.limitPrice;
-				if (modification.stopPrice !== undefined) entity.stopLoss = modification.stopLoss;
+				if (modification.stopPrice !== undefined) entity.stopLoss = modification.stopPrice;
 				if (modification.takeProfit !== undefined) entity.takeProfit = modification.takeProfit;
 				if (modification.stopLoss !== undefined) entity.stopLoss = modification.stopLoss;
-				// Notification happens in editOrder flow usually, but safe to do here if needed. 
-				// editOrder will usually handle the main notification.
 			}
 
 			return this.editOrder(id, orderMod);

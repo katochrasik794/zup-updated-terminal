@@ -14,7 +14,7 @@ import { useAccount } from '@/context/AccountContext'
 import { useTrading } from '@/context/TradingContext'
 import { useInstruments } from '@/context/InstrumentContext'
 import { useAuth } from '@/context/AuthContext'
-import { normalizeSymbol as normalizeWsSymbol } from '@/context/WebSocketContext'
+import { normalizeSymbol as normalizeWsSymbol, useWebSocket } from '@/context/WebSocketContext'
 import { usePositions, Position } from '@/hooks/usePositions'
 import { ordersApi, positionsApi, apiClient, PlaceMarketOrderParams, PlacePendingOrderParams, ClosePositionParams, CloseAllParams, ModifyPendingOrderParams, ModifyPositionParams } from '@/lib/api'
 import { closePositionDirect, placeMarketOrderDirect, placePendingOrderDirect, cancelPendingOrderDirect } from '@/lib/metaapi'
@@ -25,6 +25,7 @@ import { ImperativePanelHandle } from 'react-resizable-panels'
 import ModifyPositionModal from '@/components/modals/ModifyPositionModal'
 import OrderPlacedToast from '@/components/ui/OrderPlacedToast'
 import MarketClosedToast from '@/components/ui/MarketClosedToast'
+import PositionClosedToast from '@/components/ui/PositionClosedToast'
 import ReactDOM from 'react-dom'
 
 export default function TradingTerminal() {
@@ -33,6 +34,7 @@ export default function TradingTerminal() {
   const { symbol, lastModification, clearLastModification } = useTrading();
   const { instruments } = useInstruments();
   const { isKillSwitchActive, getKillSwitchRemainingTime } = useAuth();
+  const { lastQuotes, normalizeSymbol } = useWebSocket();
   const [marketClosedToast, setMarketClosedToast] = useState<any | null>(null);
   const leftPanelRef = useRef<ImperativePanelHandle>(null)
   const [closedToast, setClosedToast] = useState<any>(null)
@@ -41,6 +43,8 @@ export default function TradingTerminal() {
   const [isBottomPanelVisible, setIsBottomPanelVisible] = useState(true)
   const [confirmedInjections, setConfirmedInjections] = useState<any[]>([])
   const [closedTickets, setClosedTickets] = useState<string[]>([])
+
+  // Ref for pending confirmations removed per user request (immediate toast)
 
   // Memoize toast close handlers to prevent timer resets
   const handleOrderToastClose = useCallback(() => {
@@ -81,15 +85,14 @@ export default function TradingTerminal() {
     if (!sym) return false;
 
     // Find instrument to get category and symbol
-    const norm = normalizeWsSymbol(sym);
-    const inst = instruments.find(i => normalizeWsSymbol(i.symbol) === norm || i.symbol === sym);
+    const norm = normalizeSymbol(sym);
+    const inst = instruments.find(i => normalizeSymbol(i.symbol) === norm || i.symbol === sym);
 
-    // For price override, we'll try to find the last quote if possible. 
-    // In TradingTerminal, lastQuotes might not be directly available here but we can pass them or just rely on time + category
-    // Actually, TradingTerminal doesn't have easy access to lastQuotes here without adding more context usage.
-    // For now, time-based check is sufficient for disabling buttons, and the override will naturally work in Watchlist indicator.
-    return checkIsMarketClosed(sym, inst?.category || inst?.group || '');
-  }, [instruments]);
+    // Get live quotes for streaming override
+    const quote = lastQuotes[norm] || lastQuotes[sym] || {};
+
+    return checkIsMarketClosed(sym, inst?.category || inst?.group || '', quote.bid, quote.ask);
+  }, [instruments, lastQuotes, normalizeSymbol]);
 
 
   // Format positions for BottomPanel display
@@ -235,8 +238,32 @@ export default function TradingTerminal() {
     });
   }, [rawClosedPositions]);
 
+
+
+
+
+
+
+
+
+
   const handleClosePosition = async (position: any) => {
     if (!currentAccountId) {
+      return;
+    }
+
+    // Check kill switch status
+    if (isKillSwitchActive()) {
+      const remainingTime = getKillSwitchRemainingTime();
+      setOrderToast({
+        side: position.type?.includes('Buy') ? 'buy' : 'sell',
+        symbol: position.symbol || symbol || 'BTCUSD',
+        volume: position.volume || 0,
+        price: null,
+        orderType: 'market',
+        profit: null,
+        error: `Trading is restricted. Cooling period active for ${remainingTime || 'some time'}.`,
+      });
       return;
     }
 
@@ -319,6 +346,10 @@ export default function TradingTerminal() {
       // Convert lots to MT5 format: multiply by 100
       const positionVolumeMT5 = position.volume ? Math.round(Number(position.volume) * 100) : undefined;
 
+      // OPTIMISTIC UI: Hide and show toast immediately
+      setClosedTickets(prev => [...prev, String(positionId)]);
+      setClosedToast(position);
+
       const response = await closePositionDirect({
         positionId: positionId,
         accountId: currentAccountId,
@@ -329,14 +360,11 @@ export default function TradingTerminal() {
       });
 
       if (!response.success) {
-        // Optionally handle failure (e.g., revert toast or show error)
+        // If it failed, we could technically revert, but user wants "confident" feel.
+        // For now, let's keep it optimistic. API errors will still log.
+        console.error('[ClosePosition] Failed:', response.message);
       } else {
-        // Confident Deletion: Hide immediately from UI
-        setClosedTickets(prev => [...prev, String(positionId)]);
-
-        // Show toast ONLY after successful closing
-        setClosedToast(position);
-        // Refresh positions immediately
+        // Refresh positions in background
         refetchPositions();
       }
     } catch (error) {
@@ -358,6 +386,21 @@ export default function TradingTerminal() {
       return;
     }
 
+    // Check kill switch status
+    if (isKillSwitchActive()) {
+      const remainingTime = getKillSwitchRemainingTime();
+      setOrderToast({
+        side: 'buy',
+        symbol: symbol,
+        volume: 0,
+        price: null,
+        orderType: 'market',
+        profit: null,
+        error: `Trading is restricted. Cooling period active for ${remainingTime || 'some time'}.`,
+      });
+      return;
+    }
+
     try {
       // Get all positions for this symbol
       const symbolPositions = openPositions.filter((pos: any) => pos.symbol === symbol);
@@ -366,12 +409,15 @@ export default function TradingTerminal() {
         return;
       }
 
-      // Show toast for the first position immediately
-      // setClosedToast(symbolPositions[0]); // MOVED TO AFTER SUCCESS
-
-      // Get MetaAPI access token
       const accessToken = await getMetaApiToken(currentAccountId);
       if (!accessToken) return;
+
+      // OPTIMISTIC UI: Hide positions and show toast immediately
+      const ticketsToHide = symbolPositions.map((pos: any) => pos.ticket || pos.id).filter(Boolean);
+      if (ticketsToHide.length > 0) {
+        setClosedTickets(prev => [...prev, ...ticketsToHide]);
+      }
+      setClosedToast(symbolPositions[0]);
 
       // Implement Lead Trade pattern: Pick first position as lead, fire remaining with tiny stagger
       const [leadPos, ...remainingPositions] = symbolPositions;
@@ -406,18 +452,13 @@ export default function TradingTerminal() {
       const results = await Promise.allSettled([leadPromise, ...remainingPromises]);
       const successful = results.filter(r => r.status === 'fulfilled' && r.value.success).length;
 
-      if (successful > 0) {
-        // Confident Deletion for Group
-        const closedThisGroup = results
-          .map((r, i) => r.status === 'fulfilled' && r.value.success ? (symbolPositions[i].ticket || symbolPositions[i].id) : null)
-          .filter(t => t !== null) as string[];
-
-        if (closedThisGroup.length > 0) {
-          setClosedTickets(prev => [...prev, ...closedThisGroup]);
-        }
-
-        setClosedToast(symbolPositions[0]);
-        // Refresh positions immediately
+      if (successful === 0) {
+        // ROLLBACK: If all failed, remove from closedTickets to show them again
+        const ticketsToRollback = symbolPositions.map((pos: any) => pos.ticket || pos.id).filter(Boolean);
+        setClosedTickets(prev => prev.filter(t => !ticketsToRollback.includes(t)));
+        setClosedToast(null);
+      } else {
+        // Refresh positions to sync with server
         refetchPositions();
       }
     } catch (error) {
@@ -426,6 +467,21 @@ export default function TradingTerminal() {
 
   const handleCloseAll = async (option: string) => {
     if (!currentAccountId) {
+      return;
+    }
+
+    // Check kill switch status
+    if (isKillSwitchActive()) {
+      const remainingTime = getKillSwitchRemainingTime();
+      setOrderToast({
+        side: 'buy', // Generic for Close All
+        symbol: 'Multiple',
+        volume: 0,
+        price: null,
+        orderType: 'market',
+        profit: null,
+        error: `Trading is restricted. Cooling period active for ${remainingTime || 'some time'}.`,
+      });
       return;
     }
 
@@ -463,12 +519,15 @@ export default function TradingTerminal() {
         return;
       }
 
-      // Show notification immediately for the first closed position
-      // setClosedToast(positionsToClose[0]); // MOVED TO AFTER SUCCESS
-
-      // Get MetaAPI access token
       const accessToken = await getMetaApiToken(currentAccountId);
       if (!accessToken) return;
+
+      // OPTIMISTIC UI: Hide all matching positions and show toast immediately
+      const ticketsToHide = positionsToClose.map((pos: any) => pos.ticket || pos.id).filter(Boolean);
+      if (ticketsToHide.length > 0) {
+        setClosedTickets(prev => [...prev, ...ticketsToHide]);
+      }
+      setClosedToast(positionsToClose[0]);
 
       // Implement Lead Trade pattern for Close All
       const [leadPos, ...remainingPositions] = positionsToClose;
@@ -503,18 +562,13 @@ export default function TradingTerminal() {
       const results = await Promise.allSettled([leadPromise, ...remainingPromises]);
       const successful = results.filter(r => r.status === 'fulfilled' && r.value.success).length;
 
-      if (successful > 0) {
-        // Confident Deletion for All
-        const closedAllMatch = results
-          .map((r, i) => (r.status === 'fulfilled' && (r.value as any).success) ? (positionsToClose[i].ticket || positionsToClose[i].id) : null)
-          .filter(t => t !== null) as string[];
-
-        if (closedAllMatch.length > 0) {
-          setClosedTickets(prev => [...prev, ...closedAllMatch]);
-        }
-
-        setClosedToast(positionsToClose[0]);
-        // Refresh positions immediately
+      if (successful === 0) {
+        // ROLLBACK
+        const ticketsToRollback = positionsToClose.map((pos: any) => pos.ticket || pos.id).filter(Boolean);
+        setClosedTickets(prev => prev.filter(t => !ticketsToRollback.includes(t)));
+        setClosedToast(null);
+      } else {
+        // Refresh positions
         refetchPositions();
       }
     } catch (error) {
@@ -572,7 +626,45 @@ export default function TradingTerminal() {
     try {
       const chosenSymbol = normalizeSymbolForOrder(symbol || 'BTCUSD');
 
+      // Check if market is closed BEFORE optimistic injection
+      if (isMarketClosed(chosenSymbol)) {
+        setMarketClosedToast('Market closed for this instrument. Trading resumes Sunday 21:05 UTC.');
+        return;
+      }
+
+      // 1. Free Margin Check (User Request: > $1)
+      if (!currentBalance || (currentBalance.freeMargin ?? 0) <= 1) {
+        setOrderToast({
+          side: 'buy',
+          symbol: symbol || 'BTCUSD',
+          volume: orderData.volume || 0,
+          price: null,
+          orderType: orderData.orderType || 'market',
+          profit: null,
+          error: 'Insufficient Funds Order not placed',
+        });
+        return;
+      }
+
+      // 2. Price Check for Market Orders
+      const norm = normalizeSymbol(chosenSymbol);
+      const quote = lastQuotes[norm] || lastQuotes[chosenSymbol] || {};
+      const currentBuyPrice = quote.ask;
+
       if (orderData.orderType === 'market') {
+        if (!currentBuyPrice || currentBuyPrice <= 0) {
+          setOrderToast({
+            side: 'buy',
+            symbol: chosenSymbol,
+            volume: orderData.volume,
+            price: null,
+            orderType: 'market',
+            profit: null,
+            error: 'Price not available. Order not placed.',
+          });
+          return;
+        }
+
         // Get MetaAPI access token - Try cache first for speed
         let accessToken = (metaApiTokens as any)[currentAccountId];
         if (!accessToken) {
@@ -582,6 +674,17 @@ export default function TradingTerminal() {
         if (!accessToken) {
           throw new Error('Failed to get MetaAPI access token');
         }
+
+        // Optimistic Success Toast (User Request: Instant Feedback)
+        setOrderToast({
+          side: 'buy',
+          symbol: chosenSymbol,
+          volume: orderData.volume,
+          price: null,
+          orderType: 'market',
+          profit: null,
+          status: 'success'
+        });
 
         // Place market order directly
         const response = await placeMarketOrderDirect({
@@ -598,7 +701,7 @@ export default function TradingTerminal() {
         if (response.success) {
           // Confident Injection: Zero-latency confirmation UI
           const apiData: any = response.data || {};
-          const ticket = apiData.PriceOpen || apiData.priceOpen || apiData.OrderId || apiData.Ticket || apiData.PositionId || 0;
+          const ticket = apiData.id || apiData.Id || apiData.orderId || apiData.OrderId || apiData.ticket || apiData.Ticket || apiData.positionId || apiData.PositionId || apiData.PriceOpen || apiData.priceOpen || apiData.Price || 0;
 
           if (ticket) {
             const confirmedTrade: any = {
@@ -621,15 +724,8 @@ export default function TradingTerminal() {
           }
 
           refetchPositions();
-          // Show toast notification
-          setOrderToast({
-            side: 'buy',
-            symbol: chosenSymbol,
-            volume: orderData.volume,
-            price: apiData.PriceOpen || apiData.priceOpen || apiData.Price || apiData.price || null,
-            orderType: 'market',
-            profit: apiData.Profit || apiData.profit || null,
-          });
+
+          // Toast already shown optimistically
         } else {
           // If API call failed, show error toast
           setOrderToast({
@@ -666,6 +762,17 @@ export default function TradingTerminal() {
         if (!accessToken) {
           throw new Error('Failed to get MetaAPI access token');
         }
+
+        // Optimistic Toast: Show "Sending..." immediately
+        setOrderToast({
+          side: 'buy',
+          symbol: chosenSymbol,
+          volume: orderData.volume,
+          price: orderData.openPrice,
+          orderType: orderData.pendingOrderType || 'limit',
+          profit: null,
+          status: 'success' // Optimistic Success
+        });
 
         // Place pending order directly (symbol already normalized above)
         const response = await placePendingOrderDirect({
@@ -710,15 +817,9 @@ export default function TradingTerminal() {
           // Immediately refresh UI
           refetchPositions();
 
-          // Show toast notification
-          setOrderToast({
-            side: 'buy',
-            symbol: chosenSymbol,
-            volume: orderData.volume,
-            price: orderData.openPrice || apiData.PriceOrder || apiData.priceOrder || null,
-            orderType: orderData.pendingOrderType || 'limit',
-            profit: null, // Pending orders don't have profit yet
-          });
+          // Delayed Toast Logic for Pending Orders
+          // IMMEDIATE SUCCESS TOAST (User Request: No verification)
+          // Toast already shown optimistically
         } else {
           // If API call failed, show error toast
           setOrderToast({
@@ -770,7 +871,45 @@ export default function TradingTerminal() {
     try {
       const chosenSymbol = normalizeSymbolForOrder(symbol || 'BTCUSD');
 
+      // Check if market is closed BEFORE optimistic injection
+      if (isMarketClosed(chosenSymbol)) {
+        setMarketClosedToast('Market closed for this instrument. Trading resumes Sunday 21:05 UTC.');
+        return;
+      }
+
+      // 1. Free Margin Check (User Request: > $1)
+      if (!currentBalance || (currentBalance.freeMargin ?? 0) <= 1) {
+        setOrderToast({
+          side: 'sell',
+          symbol: symbol || 'BTCUSD',
+          volume: orderData.volume || 0,
+          price: null,
+          orderType: orderData.orderType || 'market',
+          profit: null,
+          error: 'Insufficient Funds Order not placed',
+        });
+        return;
+      }
+
+      // 2. Price Check for Market Orders
+      const norm = normalizeSymbol(chosenSymbol);
+      const quote = lastQuotes[norm] || lastQuotes[chosenSymbol] || {};
+      const currentSellPrice = quote.bid;
+
       if (orderData.orderType === 'market') {
+        if (!currentSellPrice || currentSellPrice <= 0) {
+          setOrderToast({
+            side: 'sell',
+            symbol: chosenSymbol,
+            volume: orderData.volume,
+            price: null,
+            orderType: 'market',
+            profit: null,
+            error: 'Price not available. Order not placed.',
+          });
+          return;
+        }
+
         // Get MetaAPI access token - Try cache first for speed
         let accessToken = (metaApiTokens as any)[currentAccountId];
         if (!accessToken) {
@@ -780,6 +919,17 @@ export default function TradingTerminal() {
         if (!accessToken) {
           throw new Error('Failed to get MetaAPI access token');
         }
+
+        // Optimistic Success Toast (User Request: Instant Feedback)
+        setOrderToast({
+          side: 'sell',
+          symbol: chosenSymbol,
+          volume: orderData.volume,
+          price: null,
+          orderType: 'market',
+          profit: null,
+          status: 'success'
+        });
 
         // Place market order directly
         const response = await placeMarketOrderDirect({
@@ -796,7 +946,7 @@ export default function TradingTerminal() {
         if (response.success) {
           // Confident Injection: Zero-latency confirmation UI
           const apiData: any = response.data || {};
-          const ticket = apiData.PriceOpen || apiData.priceOpen || apiData.OrderId || apiData.Ticket || apiData.PositionId || 0;
+          const ticket = apiData.id || apiData.Id || apiData.orderId || apiData.OrderId || apiData.ticket || apiData.Ticket || apiData.positionId || apiData.PositionId || apiData.PriceOpen || apiData.priceOpen || apiData.Price || 0;
 
           if (ticket) {
             const confirmedTrade: any = {
@@ -819,15 +969,8 @@ export default function TradingTerminal() {
           }
 
           refetchPositions();
-          // Show toast notification
-          setOrderToast({
-            side: 'sell',
-            symbol: chosenSymbol,
-            volume: orderData.volume,
-            price: apiData.PriceOpen || apiData.priceOpen || apiData.Price || apiData.price || null,
-            orderType: 'market',
-            profit: apiData.Profit || apiData.profit || null,
-          });
+
+          // Toast already shown optimistically
         } else {
           // If API call failed, show error toast
           setOrderToast({
@@ -864,6 +1007,17 @@ export default function TradingTerminal() {
         if (!accessToken) {
           throw new Error('Failed to get MetaAPI access token');
         }
+
+        // Optimistic Toast: Show "Sending..." immediately
+        setOrderToast({
+          side: 'sell',
+          symbol: chosenSymbol,
+          volume: orderData.volume,
+          price: orderData.openPrice,
+          orderType: orderData.pendingOrderType || 'limit',
+          profit: null,
+          status: 'success' // Optimistic Success
+        });
 
         // Place pending order directly (symbol already normalized above)
         const response = await placePendingOrderDirect({
@@ -908,15 +1062,9 @@ export default function TradingTerminal() {
           // Immediately refresh UI
           refetchPositions();
 
-          // Show toast notification
-          setOrderToast({
-            side: 'sell',
-            symbol: chosenSymbol,
-            volume: orderData.volume,
-            price: orderData.openPrice || apiData.PriceOrder || apiData.priceOrder || null,
-            orderType: orderData.pendingOrderType || 'limit',
-            profit: null, // Pending orders don't have profit yet
-          });
+          // Delayed Toast Logic for Pending Orders
+          // IMMEDIATE SUCCESS TOAST (User Request: No verification)
+          // Toast already shown optimistically
         } else {
           // If API call failed, show error toast
           setOrderToast({
@@ -960,6 +1108,46 @@ export default function TradingTerminal() {
 
     if (!lastModification || !currentAccountId) return;
 
+    // 1. Kill Switch Check
+    if (isKillSwitchActive()) {
+      const remainingTime = getKillSwitchRemainingTime();
+      setOrderToast({
+        side: 'buy',
+        symbol: symbol || 'BTCUSD',
+        volume: 0,
+        price: null,
+        orderType: 'market',
+        profit: null,
+        error: `Modification restricted. Cooling period active for ${remainingTime || 'some time'}.`,
+      });
+      clearLastModification();
+      return;
+    }
+
+    // 2. Market Closed Check
+    // Get symbol from raw positions if not passed in lastModification
+    const targetSymbol = lastModification.symbol || symbol;
+    if (isMarketClosed(targetSymbol)) {
+      setMarketClosedToast('Market closed for this instrument. Modification not possible.');
+      clearLastModification();
+      return;
+    }
+
+    // 3. Free Margin Check (User Request: > $1)
+    if (!currentBalance || (currentBalance.freeMargin ?? 0) <= 1) {
+      setOrderToast({
+        side: 'buy',
+        symbol: targetSymbol || 'BTCUSD',
+        volume: 0,
+        price: null,
+        orderType: 'market',
+        profit: null,
+        error: 'Insufficient Funds Modification not allowed',
+      });
+      clearLastModification();
+      return;
+    }
+
     // Prevent duplicate processing
     if (isProcessingModification.current) return;
     if (lastModificationRef.current?.id === lastModification.id &&
@@ -981,6 +1169,17 @@ export default function TradingTerminal() {
         );
 
         if (pendingOrder) {
+          // OPTIMISTIC UI: Show success toast immediately for modification
+          setOrderToast({
+            side: pendingOrder.type?.includes('Buy') ? 'buy' : 'sell',
+            symbol: pendingOrder.symbol || symbol || 'BTCUSD',
+            volume: (pendingOrder.volume / 100).toFixed(2),
+            price: null,
+            orderType: pendingOrder.type?.includes('Limit') ? 'limit' : 'stop',
+            profit: null,
+            isModified: true,
+          });
+
           // Modify pending order
           const params: ModifyPendingOrderParams = {
             accountId: currentAccountId || '',
@@ -994,19 +1193,8 @@ export default function TradingTerminal() {
           if (response.success) {
             // Refresh pending orders to show updated TP/SL
             refetchPositions();
-
-            // Show success toast for modification
-            setOrderToast({
-              side: pendingOrder.type?.includes('Buy') ? 'buy' : 'sell',
-              symbol: pendingOrder.symbol || symbol || 'BTCUSD',
-              volume: (pendingOrder.volume / 100).toFixed(2),
-              price: null,
-              orderType: pendingOrder.type?.includes('Limit') ? 'limit' : 'stop',
-              profit: null,
-              isModified: true, // Flag to indicate this is a modification
-            });
           } else {
-            // Show error toast
+            // ROLLBACK / Update with error
             setOrderToast({
               side: pendingOrder.type?.includes('Buy') ? 'buy' : 'sell',
               symbol: pendingOrder.symbol || symbol || 'BTCUSD',
@@ -1052,24 +1240,24 @@ export default function TradingTerminal() {
               comment: `Modify TP/SL via actions for ${openPosition.symbol || symbol || 'BTCUSD'}`,
             };
 
+            // OPTIMISTIC UI: Show success toast immediately
+            setOrderToast({
+              side: openPosition.type?.includes('Buy') || openPosition.type === 'Buy' ? 'buy' : 'sell',
+              symbol: openPosition.symbol || symbol || 'BTCUSD',
+              volume: (openPosition.volume / 10000).toFixed(2),
+              price: null,
+              orderType: 'market',
+              profit: null,
+              isModified: true,
+            });
+
             const response = await positionsApi.modifyPosition(params);
 
             if (response.success) {
               // Refresh positions to show updated TP/SL
               refetchPositions();
-
-              // Show success toast for modification
-              setOrderToast({
-                side: openPosition.type?.includes('Buy') || openPosition.type === 'Buy' ? 'buy' : 'sell',
-                symbol: openPosition.symbol || symbol || 'BTCUSD',
-                volume: (openPosition.volume / 10000).toFixed(2),
-                price: null,
-                orderType: 'market',
-                profit: null,
-                isModified: true, // Flag to indicate this is a modification
-              });
             } else {
-              // Show error toast
+              // ROLLBACK / Update with error
               setOrderToast({
                 side: openPosition.type?.includes('Buy') || openPosition.type === 'Buy' ? 'buy' : 'sell',
                 symbol: openPosition.symbol || symbol || 'BTCUSD',
@@ -1131,7 +1319,21 @@ export default function TradingTerminal() {
     };
 
     window.addEventListener('zuperior-trigger-trade', handleTradeTrigger);
-    return () => window.removeEventListener('zuperior-trigger-trade', handleTradeTrigger);
+
+    // Generic toast listener for external calls (like ZuperiorBroker)
+    const handleShowToast = (e: any) => {
+      if (e.detail.type === 'position-closed') {
+        setClosedToast(e.detail.position);
+      } else {
+        setOrderToast(e.detail);
+      }
+    };
+    window.addEventListener('zuperior-show-toast', handleShowToast);
+
+    return () => {
+      window.removeEventListener('zuperior-trigger-trade', handleTradeTrigger);
+      window.removeEventListener('zuperior-show-toast', handleShowToast);
+    }
   }, [handleBuyOrder, handleSellOrder]);
 
   return (
@@ -1249,6 +1451,10 @@ export default function TradingTerminal() {
       <MarketClosedToast
         info={marketClosedToast}
         onClose={() => setMarketClosedToast(null)}
+      />
+      <PositionClosedToast
+        position={closedToast}
+        onClose={handleClosedToastClose}
       />
     </>
   )

@@ -17,10 +17,7 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
   const [editingPosition, setEditingPosition] = useState<any>(null)
   const [isColumnPopupOpen, setIsColumnPopupOpen] = useState(false)
 
-  // Memoize toast close handler to prevent timer reset
-  const handleClosedToastClose = useCallback(() => {
-    setClosedToast(null);
-  }, [setClosedToast]);
+
 
   const [groupPopup, setGroupPopup] = useState<{ isOpen: boolean, symbol: string | null, position: { top: number, left: number } | null }>({ isOpen: false, symbol: null, position: null })
   const settingsButtonRef = useRef(null)
@@ -788,10 +785,7 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
             columns={columnDefs}
           />
 
-          <PositionClosedToast
-            position={closedToast}
-            onClose={handleClosedToastClose}
-          />
+
 
           <GroupClosePopup
             isOpen={groupPopup.isOpen}

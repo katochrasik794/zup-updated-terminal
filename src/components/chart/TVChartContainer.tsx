@@ -21,14 +21,43 @@ declare global {
 
 import { useTrading } from '../../context/TradingContext';
 import { useAccount } from '../../context/AccountContext';
+import { useAuth } from '@/context/AuthContext';
+import { useWebSocket } from '@/context/WebSocketContext';
+import { useInstruments } from '@/context/InstrumentContext';
+import { checkIsMarketClosed } from '@/lib/utils';
+import { useCallback } from 'react';
 
 export const TVChartContainer = () => {
     const containerRef = useRef<HTMLDivElement>(null);
     const brokerRef = useRef<any>(null);
     const widgetRef = useRef<any>(null);
     const { setModifyModalState, lastModification, modifyModalState } = useTrading();
-    const { currentAccountId, getMetaApiToken } = useAccount();
+    const { currentAccountId, getMetaApiToken, currentBalance } = useAccount();
+    const { isKillSwitchActive, getKillSwitchRemainingTime } = useAuth();
+    const { lastQuotes, normalizeSymbol } = useWebSocket();
+    const { instruments } = useInstruments();
     const modifyModalPromiseResolve = useRef<((value: boolean) => void) | null>(null);
+
+    // Market closed helper (Sync with ZuperiorBroker)
+    const isMarketClosed = useCallback((sym: string) => {
+        if (!sym) return false;
+        const norm = normalizeSymbol(sym);
+        const inst = instruments.find(i => normalizeSymbol(i.symbol) === norm || i.symbol === sym);
+        const quote = lastQuotes[norm] || lastQuotes[sym] || {};
+        return checkIsMarketClosed(sym, inst?.category || inst?.group || '', quote.bid, quote.ask);
+    }, [instruments, lastQuotes, normalizeSymbol]);
+
+    // Keep Broker instance sync with validation state
+    useEffect(() => {
+        if (brokerRef.current) {
+            brokerRef.current.setValidationFunctions({
+                isKillSwitchActive,
+                getKillSwitchRemainingTime,
+                getFreeMargin: () => currentBalance?.freeMargin ?? 0,
+                isMarketClosed
+            });
+        }
+    }, [isKillSwitchActive, getKillSwitchRemainingTime, currentBalance, isMarketClosed]);
 
     // Standalone state (Keeping symbol state from standalone for now, or should we use TradingContext symbol?)
     // Let's use TradingContext symbol if available, otherwise fallback

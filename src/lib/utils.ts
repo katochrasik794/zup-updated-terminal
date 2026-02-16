@@ -84,11 +84,24 @@ export function checkIsMarketClosed(symbol: string, category: string, bid?: numb
     return minutes >= 22 * 60 && minutes < 23 * 60;
   }
 
-  // Non-crypto: Market closed from Fri 21:00 UTC through Sun 21:05 UTC
-  const isWeekendClosed =
+  // Non-crypto: General Weekend Break (Fri 21:00 UTC - Sun 21:05 UTC)
+  const isWeekend =
     (day === 5 && minutes >= 21 * 60) ||
     day === 6 ||
     (day === 0 && minutes < 21 * 60 + 5);
 
-  return isWeekendClosed;
+  if (isWeekend) return true;
+
+  // DAILY BREAK for Indices and Forex (21:00 - 22:05 UTC)
+  // Most indices and many forex pairs have a 1-hour maintenance break
+  const isIndices = lowerCat.includes('index') || lowerCat.includes('indice') ||
+    s.includes('us30') || s.includes('nas') || s.includes('spx') || s.includes('dax');
+
+  if (isIndices || lowerCat.includes('forex') || lowerCat.includes('metal')) {
+    // Daily maintenance window: 21:00 to 22:05 UTC (covers US close to next day open)
+    const isDailyBreak = minutes >= 21 * 60 && minutes < 22 * 60 + 5;
+    if (isDailyBreak) return true;
+  }
+
+  return false;
 }
