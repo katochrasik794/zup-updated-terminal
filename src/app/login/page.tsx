@@ -29,9 +29,23 @@ export default function LoginPage() {
   React.useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const autoLogin = params.get('autoLogin')
+    const token = params.get('token')
+    const clientId = params.get('clientId')
+    const accountId = params.get('accountId') || params.get('mtLogin')
 
-    if (autoLogin === 'true') {
+    if (autoLogin === 'true' && token && clientId) {
+      // Store SSO params in sessionStorage so AuthProvider can pick them up
+      // without showing them in the URL on the next page
+      sessionStorage.setItem('sso_token', token)
+      sessionStorage.setItem('sso_clientId', clientId)
+      if (accountId) sessionStorage.setItem('sso_accountId', accountId)
+      sessionStorage.setItem('sso_autoLogin', 'true')
+
       // Redirect to terminal (which will now handle the SSO logic via AuthProvider)
+      // We purposefully do NOT include query parameters here to hide the token
+      window.location.href = '/terminal'
+    } else if (autoLogin === 'true') {
+      // Fallback if params are missing but autoLogin is present
       window.location.href = `/terminal${window.location.search}`
     }
   }, [])

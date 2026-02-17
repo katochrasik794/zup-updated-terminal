@@ -53,18 +53,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       if (typeof window !== 'undefined') {
         const params = new URLSearchParams(window.location.search);
-        const autoLogin = params.get('autoLogin');
-        const token = params.get('token');
-        const clientId = params.get('clientId');
-        const accountId = params.get('accountId') || params.get('mtLogin');
 
+        // 1. Get SSO params from URL or sessionStorage
+        const autoLogin = params.get('autoLogin') || sessionStorage.getItem('sso_autoLogin');
+        const token = params.get('token') || sessionStorage.getItem('sso_token');
+        const clientId = params.get('clientId') || sessionStorage.getItem('sso_clientId');
+        const accountId = params.get('accountId') || params.get('mtLogin') || sessionStorage.getItem('sso_accountId');
+
+        // 2. Clear SSO params immediately from everywhere for security
+        if (autoLogin === 'true') {
+          // Clear URL without refreshing
+          if (window.location.search) {
+            window.history.replaceState({}, '', window.location.pathname);
+          }
+          // Clear sessionStorage handoff
+          sessionStorage.removeItem('sso_autoLogin');
+          sessionStorage.removeItem('sso_token');
+          sessionStorage.removeItem('sso_clientId');
+          sessionStorage.removeItem('sso_accountId');
+        }
+
+        // 3. Process SSO if we have the minimum required params
         if (autoLogin === 'true' && token && clientId) {
           try {
-            console.log('Attempting SSO login with accountId:', accountId);
+            console.log('Attempting SSO login with hidden credentials');
             const response = await authApi.ssoLogin(token, clientId, accountId || undefined) as any;
 
             if (response.success) {
-              // Store token and user data
               if (response.token) {
                 apiClient.setToken(response.token);
                 document.cookie = `token=${response.token}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax`;
@@ -74,7 +89,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 setUser(response.user);
               }
 
-              // Store selected account
               const targetAccountId = response.mt5Account?.accountId || accountId;
               if (targetAccountId) {
                 localStorage.setItem('accountId', targetAccountId.toString());
@@ -83,8 +97,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               }
 
               setIsLoading(false);
-              // Clean up URL and redirect to terminal
-              window.history.replaceState({}, '', '/terminal');
               return;
             }
           } catch (error) {
