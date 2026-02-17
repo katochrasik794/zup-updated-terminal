@@ -626,6 +626,55 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
     }
   }, [symbol])
 
+  // Helper to format price for panel with superscript
+  const formatPriceForPanel = (price: number) => {
+    if (price === undefined || price === null || isNaN(price)) {
+      return (
+        <>
+          0<span className="text-lg">.00</span><sup className="text-sm">0</sup>
+        </>
+      )
+    }
+
+    // Determine precision
+    let digits = 5; // Default for most Forex
+    if (instrument?.digits !== undefined) {
+      digits = instrument.digits;
+    } else {
+      // Heuristic fallback if digits not available
+      const symbolUpper = (symbol || '').toUpperCase();
+      if (symbolUpper.includes('JPY')) {
+        digits = 3;
+      } else if (symbolUpper.includes('XAU') || symbolUpper.includes('XAG')) {
+        digits = 3; // Gold/Silver often 2 or 3
+      } else if (symbolUpper.includes('BTC') || symbolUpper.includes('ETH')) {
+        digits = 2; // Crypto often 2
+      }
+    }
+
+    // User override request: "upto 6 digit for all"
+    // We should respect feed digits if possible, but ensure we show enough.
+    // If we don't have instrument.digits, defaulting to 5 or 6 is safe.
+    // Let's cap at 6 max, ensure at least 2.
+    digits = Math.min(Math.max(digits, 2), 6);
+
+    const priceStr = price.toFixed(digits);
+    const [intPart, decPart] = priceStr.split('.');
+
+    if (!decPart) return <>{intPart}</>;
+
+    const mainDecimals = decPart.slice(0, -1);
+    const lastDigit = decPart.slice(-1);
+
+    return (
+      <>
+        {parseInt(intPart).toLocaleString()}
+        <span className="text-lg">.{mainDecimals}</span>
+        <sup className="text-sm">{lastDigit}</sup>
+      </>
+    )
+  }
+
   // Render buy/sell price buttons with spread overlay - solid backgrounds for one-click
   const renderPriceButtonsSolid = () => (
     <div className="relative grid grid-cols-2 gap-3">
@@ -673,9 +722,7 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
       >
         <div className="text-xs text-white/80 mb-1">Sell</div>
         <div className="price-font text-white font-bold text-sm leading-tight">
-          {Math.floor(currentSellPrice).toLocaleString()}
-          <span className="text-lg">.{String(Math.floor((currentSellPrice % 1) * 100)).padStart(2, '0')}</span>
-          <sup className="text-sm">{String(Math.floor((currentSellPrice % 1) * 1000) % 10)}</sup>
+          {formatPriceForPanel(currentSellPrice)}
         </div>
       </button>
 
@@ -724,9 +771,7 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
       >
         <div className="text-xs text-white/80 mb-1">Buy</div>
         <div className="price-font text-white font-bold text-sm leading-tight">
-          {Math.floor(currentBuyPrice).toLocaleString()}
-          <span className="text-lg">.{String(Math.floor((currentBuyPrice % 1) * 100)).padStart(2, '0')}</span>
-          <sup className="text-sm">{String(Math.floor((currentBuyPrice % 1) * 1000) % 10)}</sup>
+          {formatPriceForPanel(currentBuyPrice)}
         </div>
       </button>
 
@@ -874,9 +919,7 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
         >
           <div className="text-xs text-white/60 mb-1">Sell</div>
           <div className={`price-font ${sellButtonTextColor} font-bold text-sm leading-tight`}>
-            {Math.floor(currentSellPrice).toLocaleString()}
-            <span className="text-lg">.{String(Math.floor((currentSellPrice % 1) * 100)).padStart(2, '0')}</span>
-            <sup className="text-sm">{String(Math.floor((currentSellPrice % 1) * 1000) % 10)}</sup>
+            {formatPriceForPanel(currentSellPrice)}
           </div>
         </button>
 
@@ -946,9 +989,7 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
         >
           <div className="text-xs text-white/60 mb-1">Buy</div>
           <div className={`price-font ${buyButtonTextColor} font-bold text-sm leading-tight`}>
-            {Math.floor(currentBuyPrice).toLocaleString()}
-            <span className="text-lg">.{String(Math.floor((currentBuyPrice % 1) * 100)).padStart(2, '0')}</span>
-            <sup className="text-sm">{String(Math.floor((currentBuyPrice % 1) * 1000) % 10)}</sup>
+            {formatPriceForPanel(currentBuyPrice)}
           </div>
         </button>
 
@@ -1372,25 +1413,7 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
 
       {showMoreDetails && (
         <>
-          <div className="flex items-center justify-between text-xs">
-            <span className="text-white/60">Swap Long:</span>
-            <div className="flex items-center gap-1">
-              <span className="text-white price-font">{calculateFinancialMetrics.swapLong.toFixed(2)} USD</span>
-              <Tooltip text="Overnight swap for long positions">
-                <HelpCircle className="h-3 w-3 text-white/40" />
-              </Tooltip>
-            </div>
-          </div>
 
-          <div className="flex items-center justify-between text-xs">
-            <span className="text-white/60">Swap Short:</span>
-            <div className="flex items-center gap-1">
-              <span className="text-white price-font">{calculateFinancialMetrics.swapShort.toFixed(2)} USD</span>
-              <Tooltip text="Overnight swap for short positions">
-                <HelpCircle className="h-3 w-3 text-white/40" />
-              </Tooltip>
-            </div>
-          </div>
 
           <div className="flex items-center justify-between text-xs">
             <span className="text-white/60">Pip Value:</span>
@@ -1407,10 +1430,7 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
             <span className="text-white price-font">{calculateFinancialMetrics.volumeInUSD.toFixed(2)} USD</span>
           </div>
 
-          <div className="flex items-center justify-between text-xs">
-            <span className="text-white/60">Credit:</span>
-            <span className="text-white price-font">{calculateFinancialMetrics.credit.toFixed(2)} USD</span>
-          </div>
+
         </>
       )}
 

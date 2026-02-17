@@ -47,6 +47,7 @@ export default function StatusBar({ openPositions = [], onCloseAll }: any) {
         <span>Equity: <span className="text-gray-200 font-mono">{renderValue(equity)}</span></span>
         <span>Free Margin: <span className="text-gray-200 font-mono">{renderValue(freeMargin)}</span></span>
         <span>Balance: <span className="text-gray-200 font-mono">{renderValue(balance)}</span></span>
+        <span>Credit: <span className="text-gray-200 font-mono">{renderValue(credit)}</span></span>
         <span>Margin: <span className="text-gray-200 font-mono">{renderValue(margin)}</span></span>
         <span>Margin level: <span className="text-gray-200 font-mono">
           {hideBalance ? '****' : `${marginLevel.toFixed(2)}%`}
