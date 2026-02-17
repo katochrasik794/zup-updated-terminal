@@ -26,7 +26,8 @@ const ModifyPositionModal = () => {
     const openPriceStr = String(position.openPrice || position.avg_price || position.price || '0').replace(/,/g, '');
     const openPrice = parseFloat(openPriceStr) || 0;
     const volume = parseFloat(position.volume || position.qty || 0);
-    const isBuy = position.type === 'Buy' || position.side === 1;
+    // Fix: Include Buy Limit and Buy Stop in isBuy check
+    const isBuy = position.type === 'Buy' || position.type === 'Buy Limit' || position.type === 'Buy Stop' || position.side === 1;
     const symbol = (position.symbol || '').toUpperCase();
     const balance = currentBalance?.balance || 1; // Avoid division by zero
 

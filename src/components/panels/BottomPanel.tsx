@@ -743,7 +743,7 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
                               className="text-[#8b9096]"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                setEditingPosition(position);
+                                setModifyModalState({ isOpen: true, position });
                               }}
                             >
                               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
