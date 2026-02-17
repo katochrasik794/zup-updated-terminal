@@ -36,6 +36,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const checkAuthRef = React.useRef(false);
 
   const refreshUser = async () => {
     try {
@@ -50,6 +51,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const checkAuth = async () => {
+    if (checkAuthRef.current) return;
+    checkAuthRef.current = true;
+
     try {
       if (typeof window !== 'undefined') {
         const params = new URLSearchParams(window.location.search);
@@ -60,26 +64,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const clientId = params.get('clientId') || sessionStorage.getItem('sso_clientId');
         const accountId = params.get('accountId') || params.get('mtLogin') || sessionStorage.getItem('sso_accountId');
 
-        // 2. Clear SSO params immediately from everywhere for security
-        if (autoLogin === 'true') {
-          // Clear URL without refreshing
-          if (window.location.search) {
-            window.history.replaceState({}, '', window.location.pathname);
-          }
-          // Clear sessionStorage handoff
-          sessionStorage.removeItem('sso_autoLogin');
-          sessionStorage.removeItem('sso_token');
-          sessionStorage.removeItem('sso_clientId');
-          sessionStorage.removeItem('sso_accountId');
-        }
-
-        // 3. Process SSO if we have the minimum required params
+        // 2. Process SSO if we have the minimum required params
         if (autoLogin === 'true' && token && clientId) {
           try {
             console.log('Attempting SSO login with hidden credentials');
             const response = await authApi.ssoLogin(token, clientId, accountId || undefined) as any;
 
             if (response.success) {
+              // 3. SUCCESS: Clear SSO params now that we have a session
+              if (window.location.search) {
+                window.history.replaceState({}, '', window.location.pathname);
+              }
+              sessionStorage.removeItem('sso_autoLogin');
+              sessionStorage.removeItem('sso_token');
+              sessionStorage.removeItem('sso_clientId');
+              sessionStorage.removeItem('sso_accountId');
+
               if (response.token) {
                 apiClient.setToken(response.token);
                 document.cookie = `token=${response.token}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax`;
@@ -98,10 +98,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
               setIsLoading(false);
               return;
+            } else {
+              console.error('SSO login response unsuccessful:', response.message);
             }
           } catch (error) {
             console.error('SSO login failed in AuthProvider:', error);
           }
+        } else if (autoLogin === 'true') {
+          // If autoLogin is true but params are missing, clear them anyway to avoid loops
+          sessionStorage.removeItem('sso_autoLogin');
+          sessionStorage.removeItem('sso_token');
+          sessionStorage.removeItem('sso_clientId');
+          sessionStorage.removeItem('sso_accountId');
         }
       }
 
@@ -116,6 +124,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (response.success && response.user) {
         setUser(response.user);
       } else {
+        console.warn('Current user fetch failed, clearing token');
         apiClient.clearToken();
       }
     } catch (error: any) {
@@ -127,6 +136,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     } finally {
       setIsLoading(false);
+      checkAuthRef.current = false;
     }
   };
 
