@@ -531,6 +531,19 @@ export async function placeMarketOrderDirect({
 
         if (!response.ok) {
             const errorText = await response.text().catch(() => '');
+
+            // Handle 10012 return code (Request Placed) - treats as success
+            try {
+                const data = JSON.parse(errorText);
+                const returnCode = data.returnCode || data.ReturnCode;
+                if (returnCode === 10012) {
+                    console.log('[placeMarketOrderDirect] Request Placed (10012) - treating as success');
+                    return { success: true, data };
+                }
+            } catch (e) {
+                // Not JSON, continue to normal error reporting
+            }
+
             return {
                 success: false,
                 message: `Failed to place market order: ${response.status} - ${errorText}`,
@@ -603,6 +616,19 @@ export async function placePendingOrderDirect({
 
         if (!response.ok) {
             const errorText = await response.text().catch(() => '');
+
+            // Handle 10012 return code (Request Placed) - treats as success
+            try {
+                const data = JSON.parse(errorText);
+                const returnCode = data.returnCode || data.ReturnCode;
+                if (returnCode === 10012) {
+                    console.log('[placePendingOrderDirect] Request Placed (10012) - treating as success');
+                    return { success: true, data };
+                }
+            } catch (e) {
+                // Not JSON, continue to normal error reporting
+            }
+
             return {
                 success: false,
                 message: `Failed to place pending order: ${response.status} - ${errorText}`,
@@ -662,6 +688,19 @@ export async function modifyPositionDirect({
 
         if (!response.ok) {
             const errorText = await response.text().catch(() => '');
+
+            // Handle 10012 return code (Request Placed) - treats as success
+            try {
+                const data = JSON.parse(errorText);
+                const returnCode = data.returnCode || data.ReturnCode;
+                if (returnCode === 10012) {
+                    console.log('[modifyPositionDirect] Request Placed (10012) - treating as success');
+                    return { success: true, data };
+                }
+            } catch (e) {
+                // Not JSON, continue to normal error reporting
+            }
+
             return {
                 success: false,
                 message: `Failed to modify position: ${response.status} - ${errorText}`,
@@ -735,6 +774,18 @@ export async function modifyPendingOrderDirect({
 
         if (!response.ok) {
             const errorText = await response.text().catch(() => '');
+
+            // Handle 10012 return code (Request Placed) - treats as success
+            try {
+                const data = JSON.parse(errorText);
+                const returnCode = data.returnCode || data.ReturnCode;
+                if (returnCode === 10012) {
+                    console.log('[modifyPendingOrderDirect] Request Placed (10012) - treating as success');
+                    return { success: true, data };
+                }
+            } catch (e) {
+                // Not JSON, continue
+            }
 
             // Treat unsupported methods as a soft success to avoid noisy errors in UI
             if (response.status === 405 || response.status === 404 || response.status === 501) {

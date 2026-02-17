@@ -1303,8 +1303,8 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
       }
 
       // Calculate Fees
-      // Formula: Spread * Volume * ContractSize
-      fees = spreadToUse * vol * contractSize;
+      // Formula: Spread (in points) * PipValue (point size) * Volume * ContractSize
+      fees = spreadToUse * pipValue * vol * contractSize;
 
       // Debug logging
       console.log('[FeeCalc] Dynamic:', {
