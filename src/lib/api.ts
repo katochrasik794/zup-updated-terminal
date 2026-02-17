@@ -57,7 +57,14 @@ class ApiClient {
    * ALWAYS use this method instead of this.baseURL to ensure correct URL in production
    */
   getBaseURL(): string {
-    // Check if we're in production (Vercel deployment or any non-localhost domain)
+    // 1. Check if environment variable is explicitly set (highest priority)
+    // In Next.js, NEXT_PUBLIC_* variables are embedded at build time
+    const envBackendUrl = process.env.NEXT_PUBLIC_BACKEND_API_URL;
+    if (envBackendUrl && typeof envBackendUrl === 'string' && envBackendUrl.trim() !== '') {
+      return envBackendUrl.trim();
+    }
+
+    // 2. Check if we're in a production-like environment (Vercel deployment or any non-localhost domain)
     const isProduction = typeof window !== 'undefined' &&
       (window.location.hostname.includes('vercel.app') ||
         window.location.hostname.includes('vercel.com') ||
@@ -65,20 +72,13 @@ class ApiClient {
           !window.location.hostname.includes('127.0.0.1') &&
           !window.location.hostname.includes('192.168')));
 
-    // CRITICAL: If we're in production, ALWAYS use production URL
-    // This ensures it works even if env var wasn't set during build
+    // 3. If we're in production but no env var was provided, use the hardcoded default
     if (isProduction) {
-      const productionBackendUrl = 'https://zup-terminal-backend.onrender.com';
-      return productionBackendUrl;
+      // DEFAULT production backend on Render
+      return 'https://zup-terminal-backend.onrender.com';
     }
 
-    // For local development, check env var first, then fallback to localhost
-    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_API_URL;
-    if (backendUrl && typeof backendUrl === 'string' && backendUrl.trim() !== '') {
-      return backendUrl.trim();
-    }
-
-    // Fallback to localhost for local development only
+    // 4. Fallback to localhost for local development only
     return this.baseURL || 'http://localhost:5000';
   }
 
