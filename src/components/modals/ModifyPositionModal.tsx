@@ -5,9 +5,11 @@ import FlagIcon from '../ui/FlagIcon';
 import Tooltip from '../ui/Tooltip';
 
 import { useTrading } from '../../context/TradingContext';
+import { useAccount } from '../../context/AccountContext';
 
 const ModifyPositionModal = () => {
   const { modifyModalState, setModifyModalState, requestModifyPosition } = useTrading();
+  const { currentBalance } = useAccount();
   const { isOpen, position } = modifyModalState;
 
   const [activeTab, setActiveTab] = useState('modify');
@@ -15,6 +17,52 @@ const ModifyPositionModal = () => {
   const [slValue, setSlValue] = useState('');
   const [partialVolume, setPartialVolume] = useState('');
   const [estimatedPL, setEstimatedPL] = useState<number | null>(null);
+
+  // Helper to calculate P/L stats (Pips, USD, %)
+  const calculateStats = (targetPrice: number) => {
+    if (!position || !targetPrice || isNaN(targetPrice) || targetPrice <= 0) return null;
+
+    // Remove commas from price strings before parsing
+    const openPriceStr = String(position.openPrice || position.avg_price || position.price || '0').replace(/,/g, '');
+    const openPrice = parseFloat(openPriceStr) || 0;
+    const volume = parseFloat(position.volume || position.qty || 0);
+    const isBuy = position.type === 'Buy' || position.side === 1;
+    const symbol = (position.symbol || '').toUpperCase();
+    const balance = currentBalance?.balance || 1; // Avoid division by zero
+
+    let contractSize: number;
+    let pointSize: number; // For pip calculation
+
+    if (symbol.includes('XAU') || symbol.includes('XAG')) {
+      contractSize = 100;
+      pointSize = 0.01; // 2 decimals
+    } else if (symbol.includes('BTC') || symbol.includes('ETH')) {
+      contractSize = 1;
+      pointSize = 0.01; // Usually 2 decimals
+    } else if (symbol.includes('JPY')) {
+      contractSize = 100000;
+      pointSize = 0.01; // 3 decimals, standard pip is 0.01
+    } else {
+      contractSize = 100000;
+      pointSize = 0.0001; // 5 decimals, standard pip is 0.0001
+    }
+
+    // Adjust pointSize based on actual price decimals if possible
+    // Default assumption above covers most standard cases
+
+    const priceDiff = isBuy ? (targetPrice - openPrice) : (openPrice - targetPrice);
+    const usd = priceDiff * volume * contractSize;
+    const pips = Math.abs(targetPrice - openPrice) / (pointSize * 10); // 1 pip = 10 points usually
+    const percent = (usd / balance) * 100;
+    const isProfit = usd >= 0;
+
+    return {
+      usd: usd.toFixed(2),
+      pips: pips.toFixed(1),
+      percent: percent.toFixed(2),
+      isProfit
+    };
+  };
 
   const onClose = () => {
     setModifyModalState({ ...modifyModalState, isOpen: false });
@@ -326,6 +374,24 @@ const ModifyPositionModal = () => {
                     </div>
                   </div>
                 </div>
+                {/* TP Stats */}
+                {(() => {
+                  const stats = calculateStats(parseFloat(String(tpValue).replace(/,/g, '')));
+                  if (!stats) return null;
+                  return (
+                    <div className="flex items-center gap-2 mt-1.5 text-[11px] text-[#8b9096]">
+                      <span>{stats.pips} pips</span>
+                      <span className="text-[#2a3038]">|</span>
+                      <span className={stats.isProfit ? 'text-[#00ffaa]' : 'text-[#ff444f]'}>
+                        {stats.isProfit ? '+' : ''}{stats.usd} USD
+                      </span>
+                      <span className="text-[#2a3038]">|</span>
+                      <span className={stats.isProfit ? 'text-[#00ffaa]' : 'text-[#ff444f]'}>
+                        {stats.isProfit ? '+' : ''}{stats.percent}%
+                      </span>
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* Stop Loss */}
@@ -376,6 +442,24 @@ const ModifyPositionModal = () => {
                     </div>
                   </div>
                 </div>
+                {/* SL Stats */}
+                {(() => {
+                  const stats = calculateStats(parseFloat(String(slValue).replace(/,/g, '')));
+                  if (!stats) return null;
+                  return (
+                    <div className="flex items-center gap-2 mt-1.5 text-[11px] text-[#8b9096]">
+                      <span>{stats.pips} pips</span>
+                      <span className="text-[#2a3038]">|</span>
+                      <span className={stats.isProfit ? 'text-[#00ffaa]' : 'text-[#ff444f]'}>
+                        {stats.isProfit ? '+' : ''}{stats.usd} USD
+                      </span>
+                      <span className="text-[#2a3038]">|</span>
+                      <span className={stats.isProfit ? 'text-[#00ffaa]' : 'text-[#ff444f]'}>
+                        {stats.isProfit ? '+' : ''}{stats.percent}%
+                      </span>
+                    </div>
+                  );
+                })()}
               </div>
             </>
           ) : activeTab === 'partialclose' ? (
@@ -421,15 +505,6 @@ const ModifyPositionModal = () => {
               </div>
             </>
           ) : null}
-
-          {/* Estimated P/L Display */}
-          {activeTab === 'modify' && estimatedPL !== null && (
-            <div className="text-center text-[13px] text-[#8b9096] mb-2">
-              Estimated P/L: <span className={estimatedPL >= 0 ? 'text-[#00ffaa]' : 'text-[#ff444f]'}>
-                {estimatedPL >= 0 ? '+' : ''}{estimatedPL.toFixed(2)} USD
-              </span>
-            </div>
-          )}
 
           {/* Action Button */}
           <button

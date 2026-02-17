@@ -33,7 +33,6 @@ export const TVChartContainer = () => {
     const widgetRef = useRef<any>(null);
     const { setModifyModalState, lastModification, modifyModalState } = useTrading();
     const { currentAccountId, getMetaApiToken, currentBalance } = useAccount();
-    const { isKillSwitchActive, getKillSwitchRemainingTime } = useAuth();
     const { lastQuotes, normalizeSymbol } = useWebSocket();
     const { instruments } = useInstruments();
     const modifyModalPromiseResolve = useRef<((value: boolean) => void) | null>(null);
@@ -51,13 +50,11 @@ export const TVChartContainer = () => {
     useEffect(() => {
         if (brokerRef.current) {
             brokerRef.current.setValidationFunctions({
-                isKillSwitchActive,
-                getKillSwitchRemainingTime,
                 getFreeMargin: () => currentBalance?.freeMargin ?? 0,
                 isMarketClosed
             });
         }
-    }, [isKillSwitchActive, getKillSwitchRemainingTime, currentBalance, isMarketClosed]);
+    }, [currentBalance, isMarketClosed]);
 
     // Standalone state (Keeping symbol state from standalone for now, or should we use TradingContext symbol?)
     // Let's use TradingContext symbol if available, otherwise fallback

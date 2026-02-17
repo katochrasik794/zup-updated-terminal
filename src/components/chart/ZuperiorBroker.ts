@@ -126,8 +126,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 	private _ordersSubscription = new SimpleSubscription<(data: {}) => void>();
 
 	// Validation Callbacks
-	private _isKillSwitchActive: () => boolean = () => false;
-	private _getKillSwitchRemainingTime: () => string = () => '';
+
 	private _getFreeMargin: () => number = () => 0;
 	private _isMarketClosedFunc: (symbol: string) => boolean = () => false;
 
@@ -156,32 +155,15 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 
 	// Setters for validation functions
 	public setValidationFunctions(funcs: {
-		isKillSwitchActive: () => boolean;
-		getKillSwitchRemainingTime: () => string;
 		getFreeMargin: () => number;
 		isMarketClosed: (symbol: string) => boolean;
 	}) {
-		this._isKillSwitchActive = funcs.isKillSwitchActive;
-		this._getKillSwitchRemainingTime = funcs.getKillSwitchRemainingTime;
 		this._getFreeMargin = funcs.getFreeMargin;
 		this._isMarketClosedFunc = funcs.isMarketClosed;
 	}
 
 	private _checkPreConditions(action: 'buy' | 'sell' | 'modify' | 'close', symbol: string, volume: number = 0): boolean {
-		// 1. Kill Switch Check
-		if (this._isKillSwitchActive()) {
-			const remainingTime = this._getKillSwitchRemainingTime();
-			this._showOrderToast({
-				side: action === 'sell' ? 'sell' : 'buy',
-				symbol: symbol,
-				volume: volume,
-				price: null,
-				orderType: 'market',
-				profit: null,
-				error: `${action.charAt(0).toUpperCase() + action.slice(1)} restricted. Cooling period active for ${remainingTime || 'some time'}.`,
-			});
-			return false;
-		}
+
 
 		// 2. Market Closed Check
 		if (this._isMarketClosedFunc(symbol)) {
@@ -197,8 +179,8 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			return false;
 		}
 
-		// 3. Free Margin Check (only for open/modify)
-		if (action !== 'close') {
+		// 3. Free Margin Check (only for open)
+		if (action !== 'close' && action !== 'modify') {
 			const freeMargin = this._getFreeMargin();
 			if (freeMargin <= 1) {
 				this._showOrderToast({

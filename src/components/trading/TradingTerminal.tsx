@@ -33,7 +33,8 @@ export default function TradingTerminal() {
   const { currentAccountId, currentBalance, getMetaApiToken, metaApiTokens } = useAccount();
   const { symbol, lastModification, clearLastModification } = useTrading();
   const { instruments } = useInstruments();
-  const { isKillSwitchActive, getKillSwitchRemainingTime } = useAuth();
+
+
   const { lastQuotes, normalizeSymbol } = useWebSocket();
   const [marketClosedToast, setMarketClosedToast] = useState<any | null>(null);
   const leftPanelRef = useRef<ImperativePanelHandle>(null)
@@ -253,19 +254,7 @@ export default function TradingTerminal() {
     }
 
     // Check kill switch status
-    if (isKillSwitchActive()) {
-      const remainingTime = getKillSwitchRemainingTime();
-      setOrderToast({
-        side: position.type?.includes('Buy') ? 'buy' : 'sell',
-        symbol: position.symbol || symbol || 'BTCUSD',
-        volume: position.volume || 0,
-        price: null,
-        orderType: 'market',
-        profit: null,
-        error: `Trading is restricted. Cooling period active for ${remainingTime || 'some time'}.`,
-      });
-      return;
-    }
+
 
     if (isMarketClosed(position?.symbol)) {
       setMarketClosedToast('Market closed for this instrument. Trading resumes Sunday 21:05 UTC.');
@@ -387,19 +376,7 @@ export default function TradingTerminal() {
     }
 
     // Check kill switch status
-    if (isKillSwitchActive()) {
-      const remainingTime = getKillSwitchRemainingTime();
-      setOrderToast({
-        side: 'buy',
-        symbol: symbol,
-        volume: 0,
-        price: null,
-        orderType: 'market',
-        profit: null,
-        error: `Trading is restricted. Cooling period active for ${remainingTime || 'some time'}.`,
-      });
-      return;
-    }
+
 
     try {
       // Get all positions for this symbol
@@ -471,19 +448,7 @@ export default function TradingTerminal() {
     }
 
     // Check kill switch status
-    if (isKillSwitchActive()) {
-      const remainingTime = getKillSwitchRemainingTime();
-      setOrderToast({
-        side: 'buy', // Generic for Close All
-        symbol: 'Multiple',
-        volume: 0,
-        price: null,
-        orderType: 'market',
-        profit: null,
-        error: `Trading is restricted. Cooling period active for ${remainingTime || 'some time'}.`,
-      });
-      return;
-    }
+
 
     try {
       // Filter positions based on the selected option
@@ -609,19 +574,7 @@ export default function TradingTerminal() {
     }
 
     // Check kill switch status
-    if (isKillSwitchActive()) {
-      const remainingTime = getKillSwitchRemainingTime();
-      setOrderToast({
-        side: 'buy',
-        symbol: symbol || 'BTCUSD',
-        volume: orderData.volume || 0,
-        price: null,
-        orderType: orderData.orderType || 'market',
-        profit: null,
-        error: `Trading is restricted. Cooling period active for ${remainingTime || 'some time'}.`,
-      });
-      return;
-    }
+
 
     try {
       const chosenSymbol = normalizeSymbolForOrder(symbol || 'BTCUSD');
@@ -856,20 +809,6 @@ export default function TradingTerminal() {
       return;
     }
 
-    // Check kill switch status
-    if (isKillSwitchActive()) {
-      const remainingTime = getKillSwitchRemainingTime();
-      setOrderToast({
-        side: 'sell',
-        symbol: symbol || 'BTCUSD',
-        volume: orderData.volume || 0,
-        price: null,
-        orderType: orderData.orderType || 'market',
-        profit: null,
-        error: `Trading is restricted. Cooling period active for ${remainingTime || 'some time'}.`,
-      });
-      return;
-    }
 
     try {
       const chosenSymbol = normalizeSymbolForOrder(symbol || 'BTCUSD');
@@ -1114,21 +1053,7 @@ export default function TradingTerminal() {
 
     if (!lastModification || !currentAccountId) return;
 
-    // 1. Kill Switch Check
-    if (isKillSwitchActive()) {
-      const remainingTime = getKillSwitchRemainingTime();
-      setOrderToast({
-        side: 'buy',
-        symbol: symbol || 'BTCUSD',
-        volume: 0,
-        price: null,
-        orderType: 'market',
-        profit: null,
-        error: `Modification restricted. Cooling period active for ${remainingTime || 'some time'}.`,
-      });
-      clearLastModification();
-      return;
-    }
+
 
     // 2. Market Closed Check
     // Get symbol from raw positions if not passed in lastModification

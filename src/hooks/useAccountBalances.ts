@@ -179,7 +179,7 @@ export function useMultiAccountBalancePolling(accountIds: string[]) {
           freeMargin: Number(d.MarginFree ?? 0),
           marginLevel: Number(d.MarginLevel ?? 0),
           profit: Number(d.Profit ?? 0),
-          leverage: (d.Leverage || d.MarginLeverage) ? `1:${d.Leverage || d.MarginLeverage}` : '1:200',
+          leverage: (d.Leverage || d.MarginLeverage) ? (String(d.Leverage || d.MarginLeverage).startsWith('1:') ? (d.Leverage || d.MarginLeverage) : `1:${d.Leverage || d.MarginLeverage}`) : '1:200',
           totalPL: Number(((d.Equity ?? 0) - (d.Balance ?? 0)).toFixed(2)),
           credit: Number(d.Credit ?? 0),
           accountType: 'Live',

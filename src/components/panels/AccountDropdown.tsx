@@ -55,7 +55,8 @@ export default function AccountDropdown({ isOpen, onClose }) {
 
   const marginLevel = data?.marginLevel ?? 0;
   const rawLeverage = data?.leverage || '2000';
-  const leverage = String(rawLeverage).startsWith('1:') ? rawLeverage : `1:${rawLeverage}`;
+  const cleanLeverage = (String(rawLeverage).split(':').pop() || '2000').trim();
+  const leverage = `1:${cleanLeverage}`;
 
   const renderValue = (val: number, isPercent = false) => {
     if (hideBalance) return '***';
