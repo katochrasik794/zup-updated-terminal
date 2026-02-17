@@ -58,13 +58,13 @@ class ApiClient {
    */
   getBaseURL(): string {
     // Check if we're in production (Vercel deployment or any non-localhost domain)
-    const isProduction = typeof window !== 'undefined' && 
-      (window.location.hostname.includes('vercel.app') || 
-       window.location.hostname.includes('vercel.com') ||
-       (!window.location.hostname.includes('localhost') && 
-        !window.location.hostname.includes('127.0.0.1') &&
-        !window.location.hostname.includes('192.168')));
-    
+    const isProduction = typeof window !== 'undefined' &&
+      (window.location.hostname.includes('vercel.app') ||
+        window.location.hostname.includes('vercel.com') ||
+        (!window.location.hostname.includes('localhost') &&
+          !window.location.hostname.includes('127.0.0.1') &&
+          !window.location.hostname.includes('192.168')));
+
     // CRITICAL: If we're in production, ALWAYS use production URL
     // This ensures it works even if env var wasn't set during build
     if (isProduction) {
@@ -217,8 +217,8 @@ export const authApi = {
 
   getCurrentUser: () => apiClient.get('/api/auth/me'),
 
-  ssoLogin: (token: string, clientId: string) =>
-    apiClient.post('/api/auth/sso-login', { token, clientId }),
+  ssoLogin: (token: string, clientId: string, accountId?: string) =>
+    apiClient.post('/api/auth/sso-login', { token, clientId, accountId }),
 };
 
 // Orders API methods
