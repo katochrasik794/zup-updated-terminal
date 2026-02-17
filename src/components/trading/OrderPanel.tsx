@@ -74,7 +74,14 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
   const currentSellPrice = quote.bid ?? 0
   const currentBuyPrice = quote.ask ?? 0
   const spreadVal = (quote.spread || 0) * 100
-  const currentSpread = `${spreadVal.toFixed(2)} pips`
+  const currentSpread = React.useMemo(() => {
+    // Priority: DB spread > Live Quote Spread
+    if (instrument?.spread && instrument.spread > 0) {
+      // Return spread from DB as points.
+      return `${instrument.spread} pts`
+    }
+    return `${spreadVal.toFixed(2)} pips`
+  }, [instrument, spreadVal])
 
   const [formType, setFormType] = React.useState<FormType>("regular")
   const [orderType, setOrderType] = React.useState<"market" | "limit" | "pending">("market")
@@ -1316,9 +1323,8 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
     // If quote.spread is 16 for BTC.
 
     // Fee Calculation
-    // Logic: Volume * ContractSize * Spread * PipValue?
+    // Logic: Volume * ContractSize * Spread * PipValue
     // User complaint: "calculation here is wrong for pairs , it should be acocording to the volume contract"
-    // Previous wrong formula: vol * spread * 10
 
     let fees = 0
     // If instrument has specific commission field
@@ -1327,36 +1333,32 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
       fees = vol * instrument.commission
     } else {
       // Fee Calculation
-      // Target: 0.16 USD for 0.01 BTC (approx spread $16)
-      // If instrument.spread is from DB (e.g. 16 or 1600), use it.
-      // If quote.spread is live (e.g. 16 or 1600), use it.
+      // Use spread from DB (instrument.spread) if available, as requested by user.
+      // If not, fall back to live quote spread.
 
-      const rawSpread = quote.spread || 0; // Ensure rawSpread is defined here
-      let spreadToUse = rawSpread;
+      let spreadToUse = 0;
 
-      // If DB has a spread, and it looks like a "fixed" target spread (common in some brokers)
-      // or if we just want to use the DB spread for calculation:
       if (instrument?.spread && instrument.spread > 0) {
-        // If DB spread is e.g. 20 (points? or dollars?)
-        // If BTC spread is 16 USD. DB might store "16" or "1600".
-        // If we use instrument.spread (e.g. 16)
+        // Backend now maps this from ib_symbol_spreads (startup/pro spread)
         spreadToUse = instrument.spread;
+      } else {
+        spreadToUse = quote.spread || 0;
       }
 
       // Calculate Fees
-      // Formula: Spread (in points) * PipValue (point size) * Volume * ContractSize
-      fees = spreadToUse * pipValue * vol * contractSize;
+      // Formula: Spread (in points or raw) * Volume * ContractSize
+      // User requested: "spread * Lot size * volume_contract"
+      fees = spreadToUse * vol * contractSize;
 
       // Debug logging
       console.log('[FeeCalc] Dynamic:', {
         symbol: symbolUpper,
         vol,
         contractSize,
-        rawSpread,
-        dbSpread: instrument?.spread,
+        pipValue,
+        sourceSpread: instrument?.spread ? 'DB' : 'Live',
         spreadToUse,
-        fees,
-        quoteSpread: quote.spread,
+        fees
       });
     }
 
@@ -1366,7 +1368,9 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
     const calculatedPipValue = contractSize * pipValue * vol
     const swapLong = -(tradeValue * 0.0001)
     const swapShort = 0
-    const volumeInUnits = vol * contractSize
+    // User requested "Volume in units will have Volume Contract"
+    // We will use contractSize here to display it later
+    const volumeInUnits = contractSize // vol * contractSize
     const volumeInUSD = tradeValue
     const credit = currentBalance?.credit || 0
 
@@ -1421,8 +1425,8 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
           </div>
 
           <div className="flex items-center justify-between text-xs">
-            <span className="text-white/60">Volume in units:</span>
-            <span className="text-white price-font">{calculateFinancialMetrics.volumeInUnits.toFixed(2)} {symbol?.toUpperCase().includes('BTC') ? 'BTC' : symbol?.toUpperCase().includes('ETH') ? 'ETH' : symbol?.toUpperCase().includes('XAU') ? 'oz' : ''}</span>
+            <span className="text-white/60">Volume Contract:</span>
+            <span className="text-white price-font">{calculateFinancialMetrics.volumeInUnits}</span>
           </div>
 
           <div className="flex items-center justify-between text-xs">
