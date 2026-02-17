@@ -633,7 +633,10 @@ export default function TradingTerminal() {
       }
 
       // 1. Free Margin Check (User Request: > $1)
-      if (!currentBalance || (currentBalance.freeMargin ?? 0) <= 1) {
+      // Use computed free margin if the reported value is missing or zero
+      const freeMargin = currentBalance ? (currentBalance.freeMargin || (currentBalance.equity - (currentBalance.margin || 0))) : 0;
+
+      if (freeMargin <= 1) {
         setOrderToast({
           side: 'buy',
           symbol: symbol || 'BTCUSD',
@@ -878,7 +881,10 @@ export default function TradingTerminal() {
       }
 
       // 1. Free Margin Check (User Request: > $1)
-      if (!currentBalance || (currentBalance.freeMargin ?? 0) <= 1) {
+      // Use computed free margin if the reported value is missing or zero
+      const freeMargin = currentBalance ? (currentBalance.freeMargin || (currentBalance.equity - (currentBalance.margin || 0))) : 0;
+
+      if (freeMargin <= 1) {
         setOrderToast({
           side: 'sell',
           symbol: symbol || 'BTCUSD',
