@@ -1,6 +1,7 @@
 "use client";
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useAccount } from './AccountContext';
+import { useInstruments } from './InstrumentContext';
 
 interface Order {
     symbol: string;
@@ -62,6 +63,44 @@ export function TradingProvider({ children }) {
             }
         }
     }, [currentAccountId]);
+
+    // Validate symbol against available instruments
+    const { instruments, isLoading: isInstrumentsLoading } = useInstruments();
+
+    useEffect(() => {
+        if (isInstrumentsLoading || instruments.length === 0 || !symbol) return;
+
+        // Check if current symbol exists in instruments
+        const isValid = instruments.some(i => i.symbol === symbol);
+
+        if (!isValid) {
+            // Try to find a match with suffix handling (e.g. EURUSD -> EURUSDm or vice versa)
+            // This handles the case where user switches from Live (EURUSD) to Demo (EURUSDm)
+            const cleanSymbol = symbol.endsWith('m') ? symbol.slice(0, -1) : symbol;
+
+            // 1. Try adding 'm'
+            let match = instruments.find(i => i.symbol === `${cleanSymbol}m`);
+
+            // 2. Try raw symbol
+            if (!match) {
+                match = instruments.find(i => i.symbol === cleanSymbol);
+            }
+
+            // 3. Try removing 'm' if it was there
+            if (!match && symbol.endsWith('m')) {
+                match = instruments.find(i => i.symbol === cleanSymbol);
+            }
+
+            if (match) {
+                setSymbol(match.symbol);
+            } else {
+                // Fallback to first available instrument if absolutely no match found
+                if (instruments.length > 0) {
+                    setSymbol(instruments[0].symbol);
+                }
+            }
+        }
+    }, [instruments, isInstrumentsLoading, symbol, currentAccountId]);
 
     // Wrapper to persist symbol to localStorage per account
     const setSymbol = (newSymbol: string) => {
