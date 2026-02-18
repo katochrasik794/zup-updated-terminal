@@ -65,42 +65,60 @@ export function TradingProvider({ children }) {
     }, [currentAccountId]);
 
     // Validate symbol against available instruments
-    const { instruments, isLoading: isInstrumentsLoading } = useInstruments();
+    const { instruments, isLoading: isInstrumentsLoading, accountId: instrumentsAccountId } = useInstruments();
 
     useEffect(() => {
-        if (isInstrumentsLoading || instruments.length === 0 || !symbol) return;
+        // Only validate if we have instruments AND they belong to the current account
+        if (isInstrumentsLoading || instruments.length === 0 || !symbol || !currentAccountId || (instrumentsAccountId && instrumentsAccountId !== currentAccountId)) {
+            return;
+        }
 
         // Check if current symbol exists in instruments
         const isValid = instruments.some(i => i.symbol === symbol);
 
         if (!isValid) {
-            // Try to find a match with suffix handling (e.g. EURUSD -> EURUSDm or vice versa)
-            // This handles the case where user switches from Live (EURUSD) to Demo (EURUSDm)
-            const cleanSymbol = symbol.endsWith('m') ? symbol.slice(0, -1) : symbol;
+            // Try to find a match with suffix handling
+            const commonSuffixes = ['m', '.', '#', '!', '_m'];
 
-            // 1. Try adding 'm'
-            let match = instruments.find(i => i.symbol === `${cleanSymbol}m`);
-
-            // 2. Try raw symbol
-            if (!match) {
-                match = instruments.find(i => i.symbol === cleanSymbol);
+            // 1. Try stripping suffixes from current symbol
+            let baseSymbol = symbol;
+            for (const suffix of commonSuffixes) {
+                if (symbol.endsWith(suffix)) {
+                    baseSymbol = symbol.slice(0, -suffix.length);
+                    break;
+                }
             }
 
-            // 3. Try removing 'm' if it was there
-            if (!match && symbol.endsWith('m')) {
-                match = instruments.find(i => i.symbol === cleanSymbol);
+            // 2. Try to find a match for the base symbol or base symbol + any common suffix
+            let match = instruments.find(i => i.symbol === baseSymbol);
+
+            if (!match) {
+                // Try adding suffixes to the base symbol
+                for (const suffix of commonSuffixes) {
+                    const candidate = `${baseSymbol}${suffix}`;
+                    match = instruments.find(i => i.symbol === candidate);
+                    if (match) break;
+                }
+            }
+
+            // 3. If still no match, try case-insensitive search on base symbol
+            if (!match) {
+                match = instruments.find(i => i.symbol.toUpperCase().startsWith(baseSymbol.toUpperCase()));
             }
 
             if (match) {
                 setSymbol(match.symbol);
             } else {
-                // Fallback to first available instrument if absolutely no match found
-                if (instruments.length > 0) {
+                // Fallback to EURUSD if it exists, otherwise first available
+                const eurusdMatch = instruments.find(i => i.symbol.startsWith('EURUSD'));
+                if (eurusdMatch) {
+                    setSymbol(eurusdMatch.symbol);
+                } else if (instruments.length > 0) {
                     setSymbol(instruments[0].symbol);
                 }
             }
         }
-    }, [instruments, isInstrumentsLoading, symbol, currentAccountId]);
+    }, [instruments, isInstrumentsLoading, symbol, currentAccountId, instrumentsAccountId]);
 
     // Wrapper to persist symbol to localStorage per account
     const setSymbol = (newSymbol: string) => {
