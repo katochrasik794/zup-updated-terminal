@@ -15,6 +15,7 @@ const ModifyPositionModal = () => {
   const [activeTab, setActiveTab] = useState('modify');
   const [tpValue, setTpValue] = useState('');
   const [slValue, setSlValue] = useState('');
+  const [priceValue, setPriceValue] = useState('');
   const [partialVolume, setPartialVolume] = useState('');
   const [estimatedPL, setEstimatedPL] = useState<number | null>(null);
 
@@ -88,8 +89,15 @@ const ModifyPositionModal = () => {
         slValueStr = String(position.sl).replace(/,/g, '');
       }
 
+      // Parse current price for orders
+      let priceValueStr = '';
+      if (position.isOrder) {
+        priceValueStr = String(position.openPrice || position.price || '').replace(/,/g, '');
+      }
+
       setTpValue(tpValueStr);
       setSlValue(slValueStr);
+      setPriceValue(priceValueStr);
       setPartialVolume(position?.volume || '');
     }
   }, [isOpen, position]);
@@ -99,7 +107,7 @@ const ModifyPositionModal = () => {
     if (!position) return;
 
     // Check if this is a pending order
-    const isPendingOrder = position.type === 'Buy Limit' || position.type === 'Sell Limit' ||
+    const isPendingOrder = position.isOrder || position.type === 'Buy Limit' || position.type === 'Sell Limit' ||
       position.type === 'Buy Stop' || position.type === 'Sell Stop';
 
     // Don't calculate P/L for pending orders
@@ -205,7 +213,7 @@ const ModifyPositionModal = () => {
         // Use ticket for pending orders, id for open positions
         const orderId = position.ticket || position.id;
 
-        console.log('[ModifyPositionModal] handleAction', { position, orderId, tpValue, slValue });
+        console.log('[ModifyPositionModal] handleAction', { position, orderId, tpValue, slValue, priceValue });
 
         if (!orderId) {
           console.error('[ModifyPositionModal] No orderId found');
@@ -215,6 +223,7 @@ const ModifyPositionModal = () => {
         // Clean and parse TP/SL values, removing commas
         let tp: number | undefined = undefined;
         let sl: number | undefined = undefined;
+        let price: number | undefined = undefined;
 
         if (tpValue && tpValue !== '' && tpValue !== 'Not set' && tpValue !== 'Add') {
           const tpClean = String(tpValue).replace(/,/g, '').trim();
@@ -232,18 +241,27 @@ const ModifyPositionModal = () => {
           }
         }
 
+        if (priceValue && priceValue !== '' && position.isOrder) {
+          const priceClean = String(priceValue).replace(/,/g, '').trim();
+          const priceParsed = parseFloat(priceClean);
+          if (!isNaN(priceParsed) && priceParsed > 0 && isFinite(priceParsed)) {
+            price = priceParsed;
+          }
+        }
+
         // Only proceed if at least one value is being modified
-        if (tp === undefined && sl === undefined) {
+        if (tp === undefined && sl === undefined && price === undefined) {
           console.log('[ModifyPositionModal] No changes detected');
           onClose();
           return;
         }
 
-        console.log('[ModifyPositionModal] Requesting modify:', { id: orderId, tp, sl });
+        console.log('[ModifyPositionModal] Requesting modify:', { id: orderId, tp, sl, price });
         requestModifyPosition({
           id: orderId,
           tp: tp,
-          sl: sl
+          sl: sl,
+          price: price
         });
       } catch (error) {
       }
@@ -304,22 +322,24 @@ const ModifyPositionModal = () => {
         {/* Tabs */}
         <div className="px-4 py-3">
           <div className="flex bg-[#02040d] p-[3px] rounded border border-[#2a3038]">
-            {['Modify', 'Partial close'].map((tab) => {
-              const id = tab.toLowerCase().replace(' ', '');
-              const isActive = activeTab === id;
-              return (
-                <button
-                  key={id}
-                  onClick={() => setActiveTab(id)}
-                  className={`flex-1 py-1.5 text-[13px] font-medium rounded-[4px] transition-all ${isActive
-                    ? 'bg-[#8b5cf6] text-black shadow-sm'
-                    : 'text-[#8b9096] hover:text-white'
-                    }`}
-                >
-                  {tab}
-                </button>
-              );
-            })}
+            {['Modify', 'Partial close']
+              .filter(tab => !position.isOrder || tab === 'Modify')
+              .map((tab) => {
+                const id = tab.toLowerCase().replace(' ', '');
+                const isActive = activeTab === id;
+                return (
+                  <button
+                    key={id}
+                    onClick={() => setActiveTab(id)}
+                    className={`flex-1 py-1.5 text-[13px] font-medium rounded-[4px] transition-all ${isActive
+                      ? 'bg-[#8b5cf6] text-black shadow-sm'
+                      : 'text-[#8b9096] hover:text-white'
+                      }`}
+                  >
+                    {tab}
+                  </button>
+                );
+              })}
           </div>
         </div>
 
@@ -327,6 +347,45 @@ const ModifyPositionModal = () => {
         <div className="px-4 pb-4 space-y-4">
           {activeTab === 'modify' ? (
             <>
+              {/* Entry Price (for Orders) */}
+              {position.isOrder && (
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-[12px] text-[#8b9096] font-medium">Entry Price</label>
+                  </div>
+                  <div className="flex h-[38px] border border-[#2a3038] rounded hover:border-[#8b9096] transition-colors group focus-within:border-[#0099ff] bg-[#1e222d]">
+                    <input
+                      type="text"
+                      placeholder="Price"
+                      value={priceValue}
+                      onChange={(e) => setPriceValue(e.target.value)}
+                      className="flex-1 bg-transparent px-3 text-[14px] text-white placeholder-[#585c63] outline-none"
+                    />
+                    <div className="flex items-center border-l border-[#2a3038]">
+                      <div className="flex h-full">
+                        <button
+                          onClick={() => adjustValue(setPriceValue, priceValue, -0.1)}
+                          className="w-[32px] h-full flex items-center justify-center text-[#8b9096] hover:bg-[#2a3038] hover:text-white transition-colors"
+                        >
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                          </svg>
+                        </button>
+                        <div className="w-[1px] h-full bg-[#2a3038]"></div>
+                        <button
+                          onClick={() => adjustValue(setPriceValue, priceValue, 0.1)}
+                          className="w-[32px] h-full flex items-center justify-center text-[#8b9096] hover:bg-[#2a3038] hover:text-white transition-colors"
+                        >
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Take Profit */}
               <div>
                 <div className="flex items-center justify-between mb-1.5">
@@ -512,7 +571,7 @@ const ModifyPositionModal = () => {
             onClick={handleAction}
             className="w-full h-[40px] bg-[#8b5cf6] hover:bg-[#8b5cf6] text-black text-[14px] font-medium rounded transition-colors mt-2"
           >
-            {activeTab === 'modify' ? 'Modify position' : 'Close position'}
+            {activeTab === 'modify' ? (position.isOrder ? 'Modify order' : 'Modify position') : 'Close position'}
           </button>
 
           {activeTab === 'partialclose' && (
