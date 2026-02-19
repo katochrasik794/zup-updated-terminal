@@ -422,7 +422,8 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 		let pendingArray: any[] = [];
 
 		// Prefer live data already on the page (same source as Position table) to keep UI in lockstep
-		const liveData = (typeof window !== 'undefined' ? (window as any).__LIVE_POSITIONS_DATA__ : null);
+		// BUT: Bypass this cache if it's a forced update (e.g. after a modification) to avoid stale "snap-back"
+		const liveData = (typeof window !== 'undefined' && !force ? (window as any).__LIVE_POSITIONS_DATA__ : null);
 		if (liveData) {
 			positionsArray = Array.isArray(liveData.openPositions) ? liveData.openPositions : [];
 			pendingArray = Array.isArray(liveData.pendingOrders) ? liveData.pendingOrders : [];
@@ -645,7 +646,10 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 							if (prevBracket) {
 								const newPrice = (bracket as any).limitPrice || (bracket as any).stopPrice;
 								const oldPrice = (prevBracket as any).limitPrice || (prevBracket as any).stopPrice;
-								if (newPrice !== oldPrice || bracket.qty !== prevBracket.qty || bracket.status !== prevBracket.status) {
+								const newPL = (bracket as any).pl;
+								const oldPL = (prevBracket as any).pl;
+
+								if (newPrice !== oldPrice || bracket.qty !== prevBracket.qty || bracket.status !== prevBracket.status || newPL !== oldPL) {
 									shouldNotify = true;
 								}
 							}
@@ -664,12 +668,19 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 									if (parentPosition && parentPosition.avgPrice) {
 										const bracketPrice = (bracket as any).limitPrice || (bracket as any).stopPrice;
 										if (bracketPrice && parentPosition.avgPrice) {
-											const fullVolume = parentPosition.qty * 10000;
+											// Dynamic contract size for accurate projected P/L
+											const sym = (parentPosition.symbol || '').toUpperCase();
+											let contractSize = 100000; // Forex
+											if (sym.includes('XAU') || sym.includes('XAG')) contractSize = 100;
+											else if (sym.includes('BTC') || sym.includes('ETH') || sym.includes('SOL')) contractSize = 1;
+											else if (sym.includes('IND') || sym.includes('US30') || sym.includes('NAS')) contractSize = 10;
+
+											const fullVolume = parentPosition.qty * contractSize;
 											const priceDiff = bracketPrice - parentPosition.avgPrice;
 											const plAtBracket = priceDiff * fullVolume * (parentPosition.side === Side.Sell ? -1 : 1);
-											(bracket as any).pl = plAtBracket * 100;
+											(bracket as any).pl = plAtBracket;
 										} else if ((parentPosition as any).pl !== undefined && (parentPosition as any).pl !== null) {
-											(bracket as any).pl = (parentPosition as any).pl * 100;
+											(bracket as any).pl = (parentPosition as any).pl;
 										}
 									} else if (parentOrder) {
 										// For order brackets, no P/L calc needed; ensure parentType is Order
@@ -802,6 +813,30 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 		const rawSymbol = apiPos.symbol || apiPos.Symbol || '';
 		const symbol = this._getCompatibleSymbol(rawSymbol);
 
+		// REAL-TIME P/L CALCULATION
+		let currentPrice = Number(apiPos.currentPrice || apiPos.CurrentPrice || apiPos.PriceCurrent || apiPos.priceCurrent || 0);
+		let realTimeProfit = profit;
+
+		if (typeof window !== 'undefined' && (window as any).__LAST_QUOTES__) {
+			const quotes = (window as any).__LAST_QUOTES__;
+			const quote = quotes[symbol] || quotes[rawSymbol] || quotes[rawSymbol.split('.')[0]];
+			if (quote) {
+				// Exit price: Bid for Buy, Ask for Sell
+				currentPrice = side === Side.Buy ? quote.bid : quote.ask;
+
+				// Re-calculate P/L based on real-time price
+				const symUpper = symbol.toUpperCase();
+				let contractSize = 100000;
+				if (symUpper.includes('XAU') || symUpper.includes('XAG')) contractSize = 100;
+				else if (symUpper.includes('BTC') || symUpper.includes('ETH') || symUpper.includes('SOL')) contractSize = 1;
+				else if (symUpper.includes('IND') || symUpper.includes('US30') || symUpper.includes('NAS')) contractSize = 10;
+
+				const fullVolume = volume * contractSize;
+				const priceDiff = currentPrice - openPrice;
+				realTimeProfit = priceDiff * fullVolume * (side === Side.Sell ? -1 : 1);
+			}
+		}
+
 		return {
 			id: id,
 			symbol: symbol,
@@ -811,8 +846,8 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			avgPrice: openPrice,
 			takeProfit: Number(apiPos.takeProfit || apiPos.TakeProfit || apiPos.PriceTP || apiPos.TP || apiPos.tp || 0) || undefined,
 			stopLoss: Number(apiPos.stopLoss || apiPos.StopLoss || apiPos.PriceSL || apiPos.SL || apiPos.sl || 0) || undefined,
-			profit: profit, // For Account Manager display
-			pl: profit, // For chart trade line P/L display
+			profit: realTimeProfit, // For Account Manager display
+			pl: realTimeProfit, // For chart trade line P/L display
 			text: " ",
 		} as any;
 	}
