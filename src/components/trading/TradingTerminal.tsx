@@ -30,7 +30,7 @@ import ReactDOM from 'react-dom'
 
 export default function TradingTerminal() {
   const { isSidebarExpanded, setIsSidebarExpanded } = useSidebar();
-  const { currentAccountId, currentBalance, getMetaApiToken, metaApiTokens } = useAccount();
+  const { currentAccountId, currentBalance, getMetaApiToken, metaApiTokens, currentAccount } = useAccount();
   const { symbol, lastModification, clearLastModification } = useTrading();
   const { instruments } = useInstruments();
 
@@ -254,6 +254,7 @@ export default function TradingTerminal() {
     }
 
     // Check kill switch status
+    if (checkKillSwitch('close')) return;
 
 
     if (isMarketClosed(position?.symbol)) {
@@ -376,6 +377,7 @@ export default function TradingTerminal() {
     }
 
     // Check kill switch status
+    if (checkKillSwitch('close')) return;
 
 
     try {
@@ -448,6 +450,7 @@ export default function TradingTerminal() {
     }
 
     // Check kill switch status
+    if (checkKillSwitch('close')) return;
 
 
     try {
@@ -568,12 +571,52 @@ export default function TradingTerminal() {
   }, []);
 
   // Order placement handlers
+  const checkKillSwitch = useCallback((side: 'buy' | 'sell' | 'close') => {
+    if (currentAccount?.killSwitchActive && currentAccount?.killSwitchUntil) {
+      const until = new Date(currentAccount.killSwitchUntil);
+      const now = new Date();
+      if (until > now) {
+        const diff = until.getTime() - now.getTime();
+        const hours = Math.floor(diff / (1000 * 60 * 60));
+        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+
+        let timeString = '';
+        if (hours > 0) {
+          timeString = `${hours}h ${minutes}m ${seconds}s`;
+        } else {
+          timeString = `${minutes}m ${seconds}s`;
+        }
+
+        const msg = `Cooling period left for this account is ${timeString}`;
+
+        if (side === 'buy' || side === 'sell') {
+          setOrderToast({
+            side: side,
+            symbol: symbol || 'BTCUSD',
+            volume: 0,
+            price: null,
+            orderType: 'market',
+            profit: null,
+            error: msg,
+          });
+        } else {
+          // For close operations, reuse market closed toast or just alert if no other toast available for close
+          setMarketClosedToast(msg);
+        }
+        return true;
+      }
+    }
+    return false;
+  }, [currentAccount, symbol]);
+
   const handleBuyOrder = async (orderData: any) => {
     if (!currentAccountId) {
       return;
     }
 
     // Check kill switch status
+    if (checkKillSwitch('buy')) return;
 
 
     try {
@@ -809,6 +852,7 @@ export default function TradingTerminal() {
       return;
     }
 
+    if (checkKillSwitch('sell')) return;
 
     try {
       const chosenSymbol = normalizeSymbolForOrder(symbol || 'BTCUSD');

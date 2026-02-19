@@ -1,6 +1,7 @@
 "use client";
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useAccount } from './AccountContext';
+import { useInstruments } from './InstrumentContext';
 
 interface Order {
     symbol: string;
@@ -62,6 +63,62 @@ export function TradingProvider({ children }) {
             }
         }
     }, [currentAccountId]);
+
+    // Validate symbol against available instruments
+    const { instruments, isLoading: isInstrumentsLoading, accountId: instrumentsAccountId } = useInstruments();
+
+    useEffect(() => {
+        // Only validate if we have instruments AND they belong to the current account
+        if (isInstrumentsLoading || instruments.length === 0 || !symbol || !currentAccountId || (instrumentsAccountId && instrumentsAccountId !== currentAccountId)) {
+            return;
+        }
+
+        // Check if current symbol exists in instruments
+        const isValid = instruments.some(i => i.symbol === symbol);
+
+        if (!isValid) {
+            // Try to find a match with suffix handling
+            const commonSuffixes = ['m', '.', '#', '!', '_m'];
+
+            // 1. Try stripping suffixes from current symbol
+            let baseSymbol = symbol;
+            for (const suffix of commonSuffixes) {
+                if (symbol.endsWith(suffix)) {
+                    baseSymbol = symbol.slice(0, -suffix.length);
+                    break;
+                }
+            }
+
+            // 2. Try to find a match for the base symbol or base symbol + any common suffix
+            let match = instruments.find(i => i.symbol === baseSymbol);
+
+            if (!match) {
+                // Try adding suffixes to the base symbol
+                for (const suffix of commonSuffixes) {
+                    const candidate = `${baseSymbol}${suffix}`;
+                    match = instruments.find(i => i.symbol === candidate);
+                    if (match) break;
+                }
+            }
+
+            // 3. If still no match, try case-insensitive search on base symbol
+            if (!match) {
+                match = instruments.find(i => i.symbol.toUpperCase().startsWith(baseSymbol.toUpperCase()));
+            }
+
+            if (match) {
+                setSymbol(match.symbol);
+            } else {
+                // Fallback to EURUSD if it exists, otherwise first available
+                const eurusdMatch = instruments.find(i => i.symbol.startsWith('EURUSD'));
+                if (eurusdMatch) {
+                    setSymbol(eurusdMatch.symbol);
+                } else if (instruments.length > 0) {
+                    setSymbol(instruments[0].symbol);
+                }
+            }
+        }
+    }, [instruments, isInstrumentsLoading, symbol, currentAccountId, instrumentsAccountId]);
 
     // Wrapper to persist symbol to localStorage per account
     const setSymbol = (newSymbol: string) => {

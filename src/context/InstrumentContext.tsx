@@ -32,6 +32,7 @@ interface InstrumentContextType {
     getInstrumentsByCategory: (category: string) => Instrument[]
     toggleFavorite: (instrumentId: string) => Promise<void>
     reorderInstruments: (newOrder: Instrument[]) => Promise<void>
+    accountId: string | null
 }
 
 const InstrumentContext = createContext<InstrumentContextType | undefined>(undefined)
@@ -197,7 +198,8 @@ export function InstrumentProvider({ children }: { children: React.ReactNode }) 
                 refreshInstruments,
                 getInstrumentsByCategory,
                 toggleFavorite,
-                reorderInstruments
+                reorderInstruments,
+                accountId: currentAccountId
             }}
         >
             {children}

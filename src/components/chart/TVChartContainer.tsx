@@ -68,14 +68,16 @@ export const TVChartContainer = () => {
     const openModifyPositionModal = (position: any, brackets?: any) => {
         const mappedPosition = {
             ...position,
-            openPrice: position.avg_price || position.avgPrice || position.price || position.limitPrice || position.stopPrice,
-            currentPrice: position.currentPrice || position.price,
+            openPrice: position.avg_price || position.avgPrice || position.price || position.limitPrice || position.stopPrice || position.openPrice,
+            currentPrice: position.currentPrice || position.price || position.limitPrice || position.stopPrice,
             tp: brackets?.takeProfit || position.takeProfit || position.tp,
             sl: brackets?.stopLoss || position.stopLoss || position.sl,
             pl: position.profit || position.pl || '0.00',
             volume: position.qty || position.volume,
             flag: (position.symbol || '').toLowerCase().replace(/[^a-z0-9]/g, ''),
             ticket: position.id, // Ensure ticket is set for orders
+            type: position.typeText || position.type,
+            isOrder: !!(position.limitPrice !== undefined || position.stopPrice !== undefined || position.parentId)
         };
         setModifyModalState({ isOpen: true, position: mappedPosition });
         return new Promise<boolean>((resolve) => {
@@ -418,8 +420,7 @@ export const TVChartContainer = () => {
                             }
 
                             // 3. Fallback: Show the dialog (for manual clicks or if no changes detected)
-                            if (window.CustomDialogs) return window.CustomDialogs.showOrderDialog(customOrderDialog, order);
-                            return Promise.resolve(true);
+                            return openModifyPositionModal(order);
                         },
                         showOrderBracketsDialog: (order: any, brackets: any) => {
                             console.log('[TVChartContainer] Instant order bracket update:', order.id, brackets);

@@ -12,6 +12,8 @@ export interface MT5Account {
   accountType: 'Live' | 'Demo'
   group: string
   linkedAt: string
+  killSwitchActive?: boolean
+  killSwitchUntil?: string | null
 }
 
 interface AccountContextType {
