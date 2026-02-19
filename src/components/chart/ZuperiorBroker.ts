@@ -723,6 +723,41 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 		}
 	}
 
+	private _getCompatibleSymbol(rawSymbol: string): string {
+		if (!rawSymbol) return '';
+
+		// Utility to normalize symbols (strip suffixes, uppercase)
+		const normalize = (s: string) => {
+			if (!s) return '';
+			return s.split('.')[0].trim().replace(/[macfhrMACFHR]+$/, '').toUpperCase();
+		};
+
+		const normalizedRaw = normalize(rawSymbol);
+
+		try {
+			// In browser environment, check what symbol TradingView chart is currently displaying.
+			// TradingView strictly filters positions/orders based on the chart's symbol string.
+			if (typeof window !== 'undefined' && (window as any).tvWidget) {
+				const widget = (window as any).tvWidget;
+				if (widget && typeof widget.activeChart === 'function') {
+					const chart = widget.activeChart();
+					if (chart && typeof chart.symbol === 'function') {
+						const chartSymbol = chart.symbol();
+						if (chartSymbol && normalize(chartSymbol) === normalizedRaw) {
+							// Return exactly what TradingView is looking for so the line is visible.
+							return chartSymbol;
+						}
+					}
+				}
+			}
+		} catch (e) {
+			// Silently fallback if anything fails during DOM/Widget access
+		}
+
+		// Fallback to the original normalization if chart access fails
+		return normalizedRaw;
+	}
+
 	private _mapApiPositionToTVPosition(apiPos: any): Position {
 		const ticket = apiPos.ticket || apiPos.Ticket || apiPos.PositionId || apiPos.id;
 		const id = String(ticket);
@@ -765,8 +800,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 		const profit = Number(apiPos.profit || apiPos.Profit || apiPos.pl || apiPos.PL || 0);
 
 		const rawSymbol = apiPos.symbol || apiPos.Symbol || '';
-		// Normalize symbol to match chart (strip suffixes like .s, .p, m, etc)
-		const symbol = rawSymbol.split('.')[0].trim().replace(/[macfhrMACFHR]+$/, '').toUpperCase();
+		const symbol = this._getCompatibleSymbol(rawSymbol);
 
 		return {
 			id: id,
@@ -791,8 +825,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 
 		const rawSymbol = apiOrder.symbol || apiOrder.Symbol;
 		if (!rawSymbol) return null;
-		// Normalize symbol to match chart
-		const symbol = rawSymbol.split('.')[0].trim().replace(/[macfhrMACFHR]+$/, '').toUpperCase();
+		const symbol = this._getCompatibleSymbol(rawSymbol);
 
 		// Orders API returns numeric Type field:
 		// 0 = Buy, 1 = Sell, 2 = Buy Limit, 3 = Sell Limit, 4 = Buy Stop, 5 = Sell Stop
