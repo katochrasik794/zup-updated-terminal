@@ -71,8 +71,8 @@ const resolutionToTimeframe = (resolution: string): string => {
 const normalizeSymbol = (symbol: string): string => {
     if (!symbol) return '';
     const s = symbol.split('.')[0].trim();
-    // Strip trailing suffixes like m, a, c, f, h, r (case-insensitive)
-    return s.replace(/[macfhrMACFHR]+$/, '').toUpperCase();
+    // Strip trailing suffixes like m, a, c, f, h, r, s, p (case-insensitive)
+    return s.replace(/[macfhrspMACFHRSP]+$/, '').toUpperCase();
 };
 
 class WebSocketManager {
@@ -219,9 +219,11 @@ class WebSocketManager {
 
         if (data.type === 'candle_snapshot') {
             const response = data as CandleHistoryResponse;
+            // Normalize symbol from response to match our request key
+            const normalizedSymbol = normalizeSymbol(response.symbol);
             // Normalize TF to match what we stored in historyCallbacks (M1, M5, etc)
             const normalizedTf = resolutionToTimeframe(response.tf);
-            const key = `${response.symbol}-${normalizedTf}`;
+            const key = `${normalizedSymbol}-${normalizedTf}`;
             const callback = this.historyCallbacks.get(key);
             if (callback) {
                 // First pass: Detect offset if ANY bar is in the future
