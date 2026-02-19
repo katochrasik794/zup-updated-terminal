@@ -71,8 +71,8 @@ const resolutionToTimeframe = (resolution: string): string => {
 const normalizeSymbol = (symbol: string): string => {
     if (!symbol) return '';
     const s = symbol.split('.')[0].trim();
-    // Strip trailing suffixes like m, a, c, f, h, r, s, p (case-insensitive)
-    return s.replace(/[macfhrspMACFHRSP]+$/, '').toUpperCase();
+    // Strip trailing suffixes like m, a, c, f, h, r (case-insensitive) - Removed s, p to avoid breaking EURGBP, etc.
+    return s.replace(/[macfhrMACFHR]+$/, '').toUpperCase();
 };
 
 class WebSocketManager {

@@ -764,7 +764,9 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 
 		const profit = Number(apiPos.profit || apiPos.Profit || apiPos.pl || apiPos.PL || 0);
 
-		const symbol = apiPos.symbol || apiPos.Symbol || '';
+		const rawSymbol = apiPos.symbol || apiPos.Symbol || '';
+		// Normalize symbol to match chart (strip suffixes like .s, .p, m, etc)
+		const symbol = rawSymbol.split('.')[0].trim().replace(/[macfhrMACFHR]+$/, '').toUpperCase();
 
 		return {
 			id: id,
@@ -786,8 +788,11 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 		const id = String(ticket);
 		if (!id) return null;
 
-		const symbol = apiOrder.symbol || apiOrder.Symbol;
-		if (!symbol) return null;
+
+		const rawSymbol = apiOrder.symbol || apiOrder.Symbol;
+		if (!rawSymbol) return null;
+		// Normalize symbol to match chart
+		const symbol = rawSymbol.split('.')[0].trim().replace(/[macfhrMACFHR]+$/, '').toUpperCase();
 
 		// Orders API returns numeric Type field:
 		// 0 = Buy, 1 = Sell, 2 = Buy Limit, 3 = Sell Limit, 4 = Buy Stop, 5 = Sell Stop
