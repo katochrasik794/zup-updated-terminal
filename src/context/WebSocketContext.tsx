@@ -37,7 +37,7 @@ const WebSocketContext = createContext<WebSocketContextType | undefined>(undefin
 export const normalizeSymbol = (symbol: string): string => {
     if (!symbol) return '';
     const s = symbol.split('.')[0].trim();
-    // Strip trailing suffixes like m, a, c, f, h, r (case-insensitive) - Removed s, p
+    // Strip trailing suffixes like m, a, c, f, h, r (case-insensitive)
     // Matches BTCUSDm, BTCUSDM, BTCUSD.i, etc.
     return s.replace(/[macfhrMACFHR]+$/, '').toUpperCase();
 };
@@ -122,18 +122,11 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
                     // Update quote cache
                     // Store by NORMALIZED symbol AND RAW symbol to be safe
                     const norm = normalizeSymbol(data.symbol);
-                    const quote = data as QuoteData;
-                    setLastQuotes(prev => {
-                        const next = {
-                            ...prev,
-                            [norm]: quote,
-                            [data.symbol]: quote
-                        };
-                        if (typeof window !== 'undefined') {
-                            (window as any).__LAST_QUOTES__ = next;
-                        }
-                        return next;
-                    });
+                    setLastQuotes(prev => ({
+                        ...prev,
+                        [norm]: data as QuoteData,
+                        [data.symbol]: data as QuoteData
+                    }));
 
                     // Calculate latency (ping)
                     const timestamp = data.ts || data.t || data.time;

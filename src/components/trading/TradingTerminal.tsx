@@ -544,17 +544,11 @@ export default function TradingTerminal() {
   }
 
   // Helper function to normalize symbol suffixes (convert uppercase M or R to lowercase)
-  const normalizeSymbolForOrder = useCallback((sym: string): string => {
-    if (!sym) return '';
-    const rawSymbol = sym;
-    const norm = normalizeSymbol(rawSymbol);
-    // Try to find exact match or normalized match in instruments
-    const instrument = instruments.find(i => normalizeSymbol(i.symbol) === norm || i.symbol === rawSymbol);
-    if (instrument) return instrument.symbol;
-
-    // Fallback: Convert trailing uppercase M or R to lowercase
-    return rawSymbol.replace(/M$/, 'm').replace(/R$/, 'r');
-  }, [instruments, normalizeSymbol]);
+  const normalizeSymbolForOrder = useCallback((symbol: string): string => {
+    if (!symbol) return symbol;
+    // Convert trailing uppercase M or R to lowercase to match instrument feed
+    return symbol.replace(/M$/, 'm').replace(/R$/, 'r');
+  }, []);
 
   // Helper function to calculate required margin (matching zuperior-terminal)
   const calculateRequiredMargin = useCallback((volume: number, price: number, symbol: string, leverage: number): number => {

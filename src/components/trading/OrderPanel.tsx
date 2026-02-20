@@ -1185,33 +1185,10 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
                 return
               }
 
-              // Check if it's a forex symbol
-              const symbolUpper = (symbol || '').toUpperCase();
-              const cat = (instrument?.category || '').toLowerCase();
-              const isForex = !symbolUpper.includes('JPY') &&
-                !cat.includes('crypto') &&
-                !symbolUpper.includes('BTC') &&
-                !symbolUpper.includes('ETH') &&
-                !cat.includes('index') &&
-                !cat.includes('indice') &&
-                !symbolUpper.includes('US30') &&
-                !symbolUpper.includes('SPX') &&
-                !symbolUpper.includes('NAS') &&
-                !cat.includes('metal') &&
-                !symbolUpper.includes('XAU') &&
-                !symbolUpper.includes('XAG');
-
-              // FIX: For Forex Pending Orders, divide volume by 1000
-              let volumeToSend = finalVolume;
-              if (orderType === 'pending' && isForex) {
-                volumeToSend = finalVolume / 1000;
-                console.log(`[OrderPanel] Correction: Dividing volume by 1000 for Forex Pending Order. Original: ${finalVolume}, New: ${volumeToSend}`);
-              }
-
               const orderData: OrderData = {
                 orderType,
                 pendingOrderType: orderType === "pending" ? pendingOrderType : undefined,
-                volume: volumeToSend,
+                volume: finalVolume,
                 openPrice: orderType === 'market'
                   ? (pendingOrderSide === 'buy' ? currentBuyPrice : currentSellPrice)
                   : (openPrice ? parseFloat(openPrice) : undefined),
