@@ -455,7 +455,7 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
     } else if (symbolUpper.includes('BTC') || symbolUpper.includes('BTCUSD')) {
       return getPipSize
     } else if (symbolUpper.includes('ETH') || symbolUpper.includes('ETHUSD')) {
-      return getPipSize
+      return 10 
     } else {
       return 10
     }

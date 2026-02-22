@@ -440,9 +440,8 @@ export class RealtimeDataFeed {
             symbolInfo.pricescale = 100;
             // @ts-ignore
             symbolInfo.pip_size = 0.01;
-            // @ts-ignore - ETH contract values scale 100x higher per pip than BTC config
-            // The user noted 0.01 BTC = $0.08, but for ETH, same movement needs 10x
-            symbolInfo.pipValue = 1.0;
+            // @ts-ignore
+            symbolInfo.pipValue = 0.10;
         } else {
             symbolInfo.pricescale = 100000;
             // @ts-ignore
