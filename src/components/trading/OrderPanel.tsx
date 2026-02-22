@@ -455,7 +455,7 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
     } else if (symbolUpper.includes('BTC') || symbolUpper.includes('BTCUSD')) {
       return getPipSize
     } else if (symbolUpper.includes('ETH') || symbolUpper.includes('ETHUSD')) {
-      return 10 
+      return 10
     } else {
       return 10
     }
@@ -500,8 +500,18 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
       if (orderType === "pending" || orderType === "limit") {
         entryPrice = openPrice ? parseFloat(openPrice) : 0
       } else {
-        // For market orders, use mid price as estimation
-        entryPrice = (currentBuyPrice + currentSellPrice) / 2
+        // For market orders, determine if it's a Buy or Sell based on SL position
+        // If SL is below the current prices, it's a Buy (Entry at Ask/BuyPrice)
+        // If SL is above the current prices, it's a Sell (Entry at Bid/SellPrice)
+        const midPrice = (currentBuyPrice + currentSellPrice) / 2
+
+        if (slPrice < midPrice) {
+          // It's a Buy order, entering at Ask
+          entryPrice = currentBuyPrice
+        } else {
+          // It's a Sell order, entering at Bid
+          entryPrice = currentSellPrice
+        }
       }
 
       if (entryPrice <= 0) return null
