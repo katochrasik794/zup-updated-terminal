@@ -1689,12 +1689,12 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			return Promise.reject("Pre-conditions failed");
 		}
 
-		console.log('[ZuperiorBroker] editOrder called:', orderId, modification);
+		// console.log('[ZuperiorBroker] editOrder called:', orderId, modification);
 
 		// SKIP API FOR PREVIEW
 		const isGhost = orderId.startsWith(PREVIEW_ORDER_ID);
 		if (isGhost) {
-			console.log('[ZuperiorBroker] editOrder: Handling ghost order modification');
+			// console.log('[ZuperiorBroker] editOrder: Handling ghost order modification');
 
 			const idStr = orderId.toString();
 			const isTP = idStr.includes('_TP');
@@ -2301,7 +2301,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			price = (order as Position).avgPrice;
 		}
 
-		console.log(`[ZuperiorBroker] Syncing to panel: id=${order.id} side=${sideStr} type=${typeStr} price=${price}`);
+		// console.log(`[ZuperiorBroker] Syncing to panel: id=${order.id} side=${sideStr} type=${typeStr} price=${price}`);
 
 		const targetWin = window.top || window;
 		targetWin.dispatchEvent(new CustomEvent('__ON_ORDER_PREVIEW_CHANGE__', {

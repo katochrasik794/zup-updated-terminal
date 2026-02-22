@@ -73,7 +73,10 @@ export default function FlagIcon({ symbol, type, className = "" }: FlagIconProps
   const finalSymbol = rawSymbol;
 
   const baseClass = `relative w-full h-full flex items-center justify-center ${className}`
-  const flagUrl = (code: string) => `https://flagsapi.com/${code}/flat/64.png`
+  const flagUrl = (code: string) => `https://flagcdn.com/w80/${code.toLowerCase()}.png`
+  const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
+    e.currentTarget.classList.add('opacity-0');
+  };
 
   // ---------------------------------------------------------
   // 1. Identify Components (Base & Quote)
@@ -89,7 +92,12 @@ export default function FlagIcon({ symbol, type, className = "" }: FlagIconProps
   if (indexMatch) {
     return (
       <div className={`${baseClass} rounded-full overflow-hidden border-[1px] border-[#0b0e14]`}>
-        <img src={flagUrl(INDICES_MAP[indexMatch])} alt={indexMatch} className="w-full h-full object-cover scale-150" />
+        <img
+          src={flagUrl(INDICES_MAP[indexMatch])}
+          alt={indexMatch}
+          className="w-full h-full object-cover scale-150 transition-opacity duration-200"
+          onError={handleImageError}
+        />
       </div>
     )
   }
@@ -141,7 +149,14 @@ export default function FlagIcon({ symbol, type, className = "" }: FlagIconProps
   else if (baseSymbol === 'XPD' || baseSymbol.startsWith('XPD')) baseElement = <GenericMetalIcon color="#E5E4E2" className={className} />;
   else if (baseSymbol === 'XPT' || baseSymbol.startsWith('XPT')) baseElement = <GenericMetalIcon color="#E5E4E2" className={className} />;
   else if (COUNTRY_MAP[baseSymbol]) {
-    baseElement = <img src={flagUrl(COUNTRY_MAP[baseSymbol])} alt={baseSymbol} className="w-full h-full object-cover scale-150" />;
+    baseElement = (
+      <img
+        src={flagUrl(COUNTRY_MAP[baseSymbol])}
+        alt={baseSymbol}
+        className="w-full h-full object-cover scale-150 transition-opacity duration-200"
+        onError={handleImageError}
+      />
+    );
   }
 
   // ---------------------------------------------------------
@@ -162,7 +177,12 @@ export default function FlagIcon({ symbol, type, className = "" }: FlagIconProps
           {TopLeft}
         </div>
         <div className="absolute bottom-0 right-0 w-[70%] h-[70%] rounded-full z-20 overflow-hidden bg-[#141d22] border-[1px] border-[#0b0e14]">
-          <img src={flagUrl(quoteCode)} alt={quoteCode} className="w-full h-full object-cover scale-150" />
+          <img
+            src={flagUrl(quoteCode)}
+            alt={quoteCode}
+            className="w-full h-full object-cover scale-150 transition-opacity duration-200"
+            onError={handleImageError}
+          />
         </div>
       </div>
     );

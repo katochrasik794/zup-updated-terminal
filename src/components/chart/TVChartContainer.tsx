@@ -381,13 +381,13 @@ export const TVChartContainer = () => {
                     durations: [{ name: 'DAY', value: 'DAY' }, { name: 'GTT', value: 'GTT' }],
                     customUI: {
                         showOrderDialog: (order: any) => {
-                            console.log('[TVChartContainer] showOrderDialog called:', order.id, order.type);
+                            // console.log('[TVChartContainer] showOrderDialog called:', order.id, order.type);
 
                             // 1. ALWAYS bypass modal for preview order (GHOST line)
                             // There is no need for a modification dialog for a preview line,
                             // and this avoids the "race condition" where dragging triggers the modal.
                             if (order.id === PREVIEW_ORDER_ID || (order.id && order.id.toString().includes('GHOST'))) {
-                                console.log('[TVChartContainer] Suppressing dialog for preview order move/click.');
+                                // console.log('[TVChartContainer] Suppressing dialog for preview order move/click.');
                                 if (brokerRef.current) {
                                     brokerRef.current.editOrder(order.id, order)
                                         .catch((e: any) => console.error('Instant preview edit failed:', e));

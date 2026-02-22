@@ -170,17 +170,17 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
   React.useEffect(() => {
     const handlePreviewChange = (e: any) => {
       const { takeProfit: tp, stopLoss: sl, price, source, type: orderTypeFromChart, side: sideFromChart } = e.detail || {}
-      console.log("[OrderPanel] Received __ON_ORDER_PREVIEW_CHANGE__ event:", { tp, sl, price, source, type: orderTypeFromChart, side: sideFromChart });
+      // console.log("[OrderPanel] Received __ON_ORDER_PREVIEW_CHANGE__ event:", { tp, sl, price, source, type: orderTypeFromChart, side: sideFromChart });
 
       // Prevent loops - only if we initiated the change
       if (source === 'panel') {
-        console.log("[OrderPanel] Ignoring event from 'panel' source to avoid loops");
+        // console.log("[OrderPanel] Ignoring event from 'panel' source to avoid loops");
         return;
       }
 
       // Handle explicit cancellation from chart (e.g. clicking 'X')
       if (source === 'chart_cancel') {
-        console.log("[OrderPanel] Received cancellation from chart. resetting state.");
+        // console.log("[OrderPanel] Received cancellation from chart. resetting state.");
         setPendingOrderSide(null);
         setTakeProfit("");
         setStopLoss("");
@@ -220,18 +220,18 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
         if (price !== undefined && price !== null) {
           const priceNum = parseFloat(price);
           if (!isNaN(priceNum)) {
-            console.log("[OrderPanel] Updating OpenPrice to:", priceNum);
+            // console.log("[OrderPanel] Updating OpenPrice to:", priceNum);
             setOpenPrice(priceNum.toString());
           }
         }
 
         if (orderTypeFromChart === 'limit' || orderTypeFromChart === 'stop') {
-          console.log(`[OrderPanel] >>> SYNCING TAB: Switching to ${orderTypeFromChart.toUpperCase()} <<<`);
+          // console.log(`[OrderPanel] >>> SYNCING TAB: Switching to ${orderTypeFromChart.toUpperCase()} <<<`);
           setPendingOrderType(orderTypeFromChart as "limit" | "stop");
         }
 
         if (sideFromChart === 'buy' || sideFromChart === 'sell') {
-          console.log(`[OrderPanel] >>> SYNCING SIDE: Switching to ${sideFromChart.toUpperCase()} <<<`);
+          // console.log(`[OrderPanel] >>> SYNCING SIDE: Switching to ${sideFromChart.toUpperCase()} <<<`);
           setPendingOrderSide(sideFromChart as 'buy' | 'sell');
           setOrderType('pending'); // Ensure we are in pending mode
         }
@@ -239,7 +239,7 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
         console.error("[OrderPanel] Error updating values from chart:", err);
       } finally {
         syncTimeoutRef.current = setTimeout(() => {
-          console.log("[OrderPanel] isSyncingFromChart cleared to false");
+          // console.log("[OrderPanel] isSyncingFromChart cleared to false");
           isSyncingFromChart.current = false
           syncTimeoutRef.current = null
         }, 300)
