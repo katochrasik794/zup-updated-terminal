@@ -119,7 +119,7 @@ export default function TradingTerminal() {
       return {
         symbol,
         type: pos.type,
-        volume: pos.volume.toFixed(2),
+        volume: (pos.volume / 100).toFixed(2),
         openPrice: pos.openPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 }),
         currentPrice: pos.currentPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 }),
         tp: pos.takeProfit && pos.takeProfit !== 0 ? pos.takeProfit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 }) : 'Add',
@@ -166,7 +166,7 @@ export default function TradingTerminal() {
       return {
         symbol,
         type: pos.type,
-        volume: Number(pos.volume).toFixed(2),
+        volume: (Number(pos.volume) / 100).toFixed(2),
         openPrice: pos.openPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 }),
         currentPrice: pos.currentPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 }),
         tp: pos.takeProfit && pos.takeProfit !== 0 ? pos.takeProfit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 }) : 'Add',
@@ -943,7 +943,7 @@ export default function TradingTerminal() {
               ticket: Number(ticket),
               symbol: chosenSymbol,
               type: 'Sell',
-              volume: (orderData.volume || 0) * 10000,
+              volume: (orderData.volume || 0) * 100,
               openPrice: apiData.PriceOpen || apiData.priceOpen || apiData.Price || 0,
               currentPrice: apiData.PriceOpen || apiData.priceOpen || apiData.Price || 0,
               takeProfit: orderData.takeProfit || 0,
