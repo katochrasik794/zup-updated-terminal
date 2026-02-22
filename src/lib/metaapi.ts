@@ -507,7 +507,7 @@ export async function placeMarketOrderDirect({
         const url = `${METAAPI_BASE_URL}/api/client/${tradePath}?account_id=${encodeURIComponent(accountId)}`;
 
         // Volume normalized to units
-        const volumeInUnits = Math.round(volume * 1000);
+        const volumeInUnits = Math.round(volume * 100);
 
         // Mirroring PascalCase keys from fast pending orders
         const payload = {

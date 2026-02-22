@@ -422,12 +422,26 @@ export class RealtimeDataFeed {
             supports_time: true, // Explicitly supported
         } as any;
 
+        // Note: TradingView uses `pip_size` or `pipSize` and `pipValue` for chart PNL calculations.
+        // If not set, it defaults to standard Forex contract sizes (100,000 units).
         if (symbolName.includes('JPY') || symbolName.includes('XAU')) {
             symbolInfo.pricescale = 1000;
-        } else if (symbolName.includes('BTC')) {
+            // @ts-ignore
+            symbolInfo.pip_size = 0.01;
+            // @ts-ignore
+            symbolInfo.pipValue = 10;
+        } else if (symbolName.includes('BTC') || symbolName.includes('ETH')) {
             symbolInfo.pricescale = 100;
+            // @ts-ignore
+            symbolInfo.pip_size = 0.01;
+            // @ts-ignore - Crypto lot size is usually 1, so 1 pip (0.01) = 0.01 USD
+            symbolInfo.pipValue = 0.01;
         } else {
             symbolInfo.pricescale = 100000;
+            // @ts-ignore
+            symbolInfo.pip_size = 0.0001;
+            // @ts-ignore
+            symbolInfo.pipValue = 10;
         }
 
         setTimeout(() => onSymbolResolvedCallback(symbolInfo), 0);
