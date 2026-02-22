@@ -293,16 +293,24 @@ export const TVChartContainer = () => {
                     "scalesProperties.showSymbolLabels": false,
                     "mainSeriesProperties.showBidPriceLine": true,
                     "mainSeriesProperties.showAskPriceLine": true,
-                    "mainSeriesProperties.bidLineColor": "#16A34A",
-                    "mainSeriesProperties.askLineColor": "#EF4444",
+                    "mainSeriesProperties.bidLineColor": "#EF4444", // Red for Bid
+                    "mainSeriesProperties.askLineColor": "#3B82F6", // Blue for Ask
                     "mainSeriesProperties.bidLineStyle": 1, // Dotted
                     "mainSeriesProperties.askLineStyle": 1, // Dotted
                     "mainSeriesProperties.bidLineWidth": 1,
                     "mainSeriesProperties.askLineWidth": 1,
                     "tradingProperties.showBidPriceLine": true,
                     "tradingProperties.showAskPriceLine": true,
-                    "tradingProperties.bidLineColor": "#16A34A",
-                    "tradingProperties.askLineColor": "#EF4444",
+                    "tradingProperties.bidLineColor": "#EF4444",
+                    "tradingProperties.askLineColor": "#3B82F6",
+
+                    // Comprehensive coverage for modern TV versions
+                    "mainSeriesProperties.bidAsk.lines.visible": true,
+                    "mainSeriesProperties.bidAsk.labels.visible": true,
+                    "mainSeriesProperties.bidAsk.bidLineColor": "#EF4444",
+                    "mainSeriesProperties.bidAsk.askLineColor": "#3B82F6",
+                    "mainSeriesProperties.bidAsk.bidLineStyle": 1,
+                    "mainSeriesProperties.bidAsk.askLineStyle": 1,
                 },
                 toolbar_bg: '#02040d',
 
@@ -535,16 +543,25 @@ export const TVChartContainer = () => {
                     "scalesProperties.showSymbolLabels": false,
                     "mainSeriesProperties.showBidPriceLine": true,
                     "mainSeriesProperties.showAskPriceLine": true,
-                    "mainSeriesProperties.bidLineColor": "#16A34A",
-                    "mainSeriesProperties.askLineColor": "#EF4444",
+                    "mainSeriesProperties.bidLineColor": "#EF4444",
+                    "mainSeriesProperties.askLineColor": "#3B82F6",
                     "mainSeriesProperties.bidLineStyle": 1, // Dotted
                     "mainSeriesProperties.askLineStyle": 1, // Dotted
                     "mainSeriesProperties.bidLineWidth": 1,
                     "mainSeriesProperties.askLineWidth": 1,
                     "tradingProperties.showBidPriceLine": true,
                     "tradingProperties.showAskPriceLine": true,
-                    "tradingProperties.bidLineColor": "#16A34A",
-                    "tradingProperties.askLineColor": "#EF4444",
+                    "tradingProperties.bidLineColor": "#EF4444",
+                    "tradingProperties.askLineColor": "#3B82F6",
+
+                    "mainSeriesProperties.bidAsk.visible": true,
+                    "scalesProperties.showBidAskLabels": true,
+                    "mainSeriesProperties.bidAsk.lines.visible": true,
+                    "mainSeriesProperties.bidAsk.labels.visible": true,
+                    "mainSeriesProperties.bidAsk.bidLineColor": "#EF4444",
+                    "mainSeriesProperties.bidAsk.askLineColor": "#3B82F6",
+                    "mainSeriesProperties.bidAsk.bidLineStyle": 1,
+                    "mainSeriesProperties.bidAsk.askLineStyle": 1,
                 });
 
                 console.log('[TVChartContainer] Chart ready, applied Bid/Ask properties and overrides');
