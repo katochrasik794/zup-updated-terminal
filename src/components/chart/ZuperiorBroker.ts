@@ -338,7 +338,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 								const bracketPrice = (bracket as any).limitPrice || (bracket as any).stopPrice;
 								if (bracketPrice) {
 									// Calculate using FULL volume (multiply qty by 10000)
-									const fullVolume = parentPosition.qty * 10000;
+									const fullVolume = parentPosition.qty * 100;
 									const priceDiff = bracketPrice - parentPosition.avgPrice;
 									const plAtBracket = priceDiff * fullVolume * (parentPosition.side === Side.Sell ? -1 : 1);
 									// Multiply by 100 to compensate for TradingView's recalculation
@@ -706,7 +706,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 										if (parentPosition && parentPosition.avgPrice) {
 											const bracketPrice = (bracket as any).limitPrice || (bracket as any).stopPrice;
 											if (bracketPrice && parentPosition.avgPrice) {
-												const fullVolume = parentPosition.qty * 10000;
+												const fullVolume = parentPosition.qty * 100;
 												const priceDiff = bracketPrice - parentPosition.avgPrice;
 												const plAtBracket = priceDiff * fullVolume * (parentPosition.side === Side.Sell ? -1 : 1);
 												(bracket as any).pl = plAtBracket * 100;
@@ -807,7 +807,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			volume = Number(volumeLots);
 		} else {
 			const numVolume = Math.abs(Number(rawVolume));
-			volume = numVolume / 10000;
+			volume = numVolume / 100;
 		}
 
 		const profit = Number(apiPos.profit || apiPos.Profit || apiPos.pl || apiPos.PL || 0);

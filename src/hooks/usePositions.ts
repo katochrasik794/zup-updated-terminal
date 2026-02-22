@@ -174,7 +174,10 @@ const formatPosition = (pos: any, isClosedTrade: boolean = false): Position => {
       volume = vCurrent;
     }
   } else {
-    volume = Number(pos.Volume || pos.volume || 0);
+    // Normalizing all open position volumes to lots by dividing by 100
+    // This matches the scaling used for pending orders and the *100 logic in metaapi.ts
+    const rawVolume = Number(pos.Volume || pos.volume || 0);
+    volume = rawVolume / 100;
   }
 
   // For closed trades, Price is the close price, OpenPrice is the entry price
