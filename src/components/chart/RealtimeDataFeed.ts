@@ -430,12 +430,19 @@ export class RealtimeDataFeed {
             symbolInfo.pip_size = 0.01;
             // @ts-ignore
             symbolInfo.pipValue = 10;
-        } else if (symbolName.includes('BTC') || symbolName.includes('ETH')) {
+        } else if (symbolName.includes('BTC')) {
             symbolInfo.pricescale = 100;
             // @ts-ignore
             symbolInfo.pip_size = 0.01;
-            // @ts-ignore - Crypto lot size is usually 1, so 1 pip (0.01) = 0.01 USD
+            // @ts-ignore
             symbolInfo.pipValue = 0.01;
+        } else if (symbolName.includes('ETH')) {
+            symbolInfo.pricescale = 100;
+            // @ts-ignore
+            symbolInfo.pip_size = 0.01;
+            // @ts-ignore - ETH contract values scale 100x higher per pip than BTC config
+            // The user noted 0.01 BTC = $0.08, but for ETH, same movement needs 10x
+            symbolInfo.pipValue = 1.0;
         } else {
             symbolInfo.pricescale = 100000;
             // @ts-ignore

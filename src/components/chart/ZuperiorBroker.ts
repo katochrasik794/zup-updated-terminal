@@ -263,6 +263,8 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 		}
 	}
 
+
+
 	private _notifyAllPositionsAndOrders() {
 		// Ensure arrays exist before filtering
 		if (!Array.isArray(this._orders) || !Array.isArray(this._positions)) {
@@ -1668,7 +1670,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			minTick = 0.01;
 			pipValue = 1; // For Gold (100oz), 0.01 move = $1. So pipValue = 1? 
 			// If 1 lot = 100 oz. 0.01 move * 100 = $1. Correct.
-		} else if (symbolUpper.includes('BTC') || symbolUpper.includes('ETH') || symbolUpper.includes('SOL')) {
+		} else if (symbolUpper.includes('BTC') || symbolUpper.includes('SOL')) {
 			pricescale = 100;
 			minTick = 0.01;
 			// For Crypto with Contract Size 1:
@@ -1676,6 +1678,14 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			// 1 pip (0.01) move * 1 unit = $0.01.
 			// So pipValue (value of 1 pip for 1 lot) must be 0.01.
 			pipValue = 0.01;
+		} else if (symbolUpper.includes('ETH')) {
+			pricescale = 100;
+			minTick = 0.01;
+			// For ETH: 1 lot on this broker acts identically to a 100x multiplier compared to BTC
+			// Setting pipValue to 1.0 ensures that a $13.26 price diff on 0.01 vol = $0.13 is shifted 10x
+			// wait: 13.26 * 0.01 * 1.0 = 0.13?? No, 13.26 / 0.01 (pipSize) * 0.01 (pipValue) * 0.01 (vol) = 0.13. 
+			// So 1326 pips * 1.0 pipValue * 0.01 vol = 13.26 USD.
+			pipValue = 1.0;
 		}
 
 		return {
