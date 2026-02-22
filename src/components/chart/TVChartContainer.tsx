@@ -411,7 +411,7 @@ export const TVChartContainer = () => {
                                     // If something major changed, it was likely a drag that moveOrder already handled.
                                     // We return true (handled) to prevent the dialog from popping up on mouse-up.
                                     if (priceChanged || tpChanged || slChanged || qtyChanged) {
-                                        console.log('[TVChartContainer] Detected drag finish for real order, suppressing dialog.');
+                                        // console.log('[TVChartContainer] Detected drag finish for real order, suppressing dialog.');
                                         brokerRef.current.editOrder(order.id, order)
                                             .catch((e: any) => console.error('Instant real order edit failed:', e));
                                         return Promise.resolve(true);
@@ -423,7 +423,7 @@ export const TVChartContainer = () => {
                             return openModifyPositionModal(order);
                         },
                         showOrderBracketsDialog: (order: any, brackets: any) => {
-                            console.log('[TVChartContainer] Instant order bracket update:', order.id, brackets);
+                            // console.log('[TVChartContainer] Instant order bracket update:', order.id, brackets);
                             if (brokerRef.current) {
                                 brokerRef.current.editOrder(order.id, { ...order, ...brackets })
                                     .catch((e: any) => console.error('Order bracket update failed:', e));
@@ -431,10 +431,10 @@ export const TVChartContainer = () => {
                             return Promise.resolve(true);
                         },
                         showPositionDialog: (position: any, brackets: any) => {
-                            console.log('[TVChartContainer] showPositionDialog called for:', position.id, 'with brackets:', brackets);
+                            // console.log('[TVChartContainer] showPositionDialog called for:', position.id, 'with brackets:', brackets);
                             // Bypass modal for preview position or if ANY brackets are provided (usually indicates a drag)
                             if (position.id === PREVIEW_POSITION_ID || brackets) {
-                                console.log('[TVChartContainer] Instant position modification (likely drag):', position.id);
+                                // console.log('[TVChartContainer] Instant position modification (likely drag):', position.id);
                                 if (brokerRef.current) {
                                     brokerRef.current.editPositionBrackets(position.id, brackets)
                                         .catch((e: any) => console.error('Position dialog bracket update failed:', e));
@@ -444,7 +444,7 @@ export const TVChartContainer = () => {
                             return openModifyPositionModal(position, brackets);
                         },
                         showPositionBracketsDialog: (position: any, brackets: any) => {
-                            console.log('[TVChartContainer] Instant bracket update for position:', position.id, brackets);
+                            // console.log('[TVChartContainer] Instant bracket update for position:', position.id, brackets);
                             if (brokerRef.current) {
                                 brokerRef.current.editPositionBrackets(position.id, brackets)
                                     .catch((e: any) => console.error('Instant bracket update failed:', e));

@@ -328,7 +328,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 						}
 					}
 
-					console.log('[ZuperiorBroker] Notifying bracket order update:', bracket);
+					// console.log('[ZuperiorBroker] Notifying bracket order update:', bracket);
 					this._host.orderUpdate({ ...bracket });
 				}
 			} catch (error) {
@@ -1767,7 +1767,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 				if (tpIndex !== -1) {
 					this._orders[tpIndex] = updatedTP;
 				}
-				console.log('[ZuperiorBroker] Updated existing TP bracket (immutable):', updatedTP.id, updatedTP.limitPrice);
+				// console.log('[ZuperiorBroker] Updated existing TP bracket (immutable):', updatedTP.id, updatedTP.limitPrice);
 			} else {
 				// Create new
 				const tpBracket = this._createOrderTakeProfitBracket(originalOrder);
@@ -1801,7 +1801,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 				if (slIndex !== -1) {
 					this._orders[slIndex] = updatedSL;
 				}
-				console.log('[ZuperiorBroker] Updated existing SL bracket (immutable):', updatedSL.id, updatedSL.stopPrice);
+				// console.log('[ZuperiorBroker] Updated existing SL bracket (immutable):', updatedSL.id, updatedSL.stopPrice);
 			} else {
 				// Create new
 				const slBracket = this._createOrderStopLossBracket(originalOrder);

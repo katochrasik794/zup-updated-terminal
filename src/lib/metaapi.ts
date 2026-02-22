@@ -760,7 +760,7 @@ export async function modifyPendingOrderDirect({
             payload.TakeProfit = Number(takeProfit) > 0 ? Number(takeProfit) : 0;
         }
 
-        console.log('[modifyPendingOrderDirect] Payload:', payload);
+        // console.log('[modifyPendingOrderDirect] Payload:', payload);
 
         const response = await fetch(url, {
             method: 'PUT',
