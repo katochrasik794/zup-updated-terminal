@@ -276,38 +276,11 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
     }
 
     if (newType !== pendingOrderType) {
-      console.log(`[OrderPanel] Local Auto-Switch detected: price=${priceNum} market=${marketPrice} side=${pendingOrderSide} -> switching to ${newType.toUpperCase()}`);
+      // console.log(`[OrderPanel] Local Auto-Switch detected: price=${priceNum} market=${marketPrice} side=${pendingOrderSide} -> switching to ${newType.toUpperCase()}`);
       setPendingOrderType(newType);
     }
   }, [openPrice, currentBuyPrice, currentSellPrice, pendingOrderSide, orderType]);
 
-  // TEST FUNCTION - Remove after debugging
-  React.useEffect(() => {
-    if (typeof window !== "undefined") {
-      (window as any).testOrderPanelSync = () => {
-        // Emit event for OrderPanel sync
-        console.log("[ZuperiorBroker] editOrder: Emitting __ON_ORDER_PREVIEW_CHANGE__ event", {
-          id: "PREVIEW_ORDER_ID", // Placeholder for orderId
-          takeProfit: 1.10500, // Placeholder for originalOrder.takeProfit
-          stopLoss: 1.09500, // Placeholder for originalOrder.stopLoss
-          price: 1.10000 // Placeholder for originalOrder.type === OrderType.Limit ? originalOrder.limitPrice : originalOrder.stopPrice
-        });
-        if (typeof window !== 'undefined') {
-          (window as any).dispatchEvent(new CustomEvent('__ON_ORDER_PREVIEW_CHANGE__', {
-            detail: {
-              id: "PREVIEW_ORDER_ID", // Placeholder for orderId
-              price: 1.10000, // Placeholder for originalOrder.type === OrderType.Limit ? originalOrder.limitPrice : originalOrder.stopPrice
-              takeProfit: 1.10500, // Placeholder for originalOrder.takeProfit
-              stopLoss: 1.09500, // Placeholder for originalOrder.stopLoss
-              qty: 0.01, // Placeholder for originalOrder.qty
-              source: 'chart'
-            }
-          }));
-        }
-      };
-      console.log("[OrderPanel] Test function available: window.testOrderPanelSync()");
-    }
-  }, []);
 
 
   // Handle one-click modal cancel
@@ -1351,6 +1324,7 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
       fees = spreadToUse * vol * contractSize;
 
       // Debug logging
+      /*
       console.log('[FeeCalc] Dynamic:', {
         symbol: symbolUpper,
         vol,
@@ -1360,6 +1334,7 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
         spreadToUse,
         fees
       });
+      */
     }
 
     // Round fees to 2 decimals

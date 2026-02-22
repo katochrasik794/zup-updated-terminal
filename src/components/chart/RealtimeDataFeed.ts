@@ -231,7 +231,7 @@ class WebSocketManager {
                         const diff = futureBar.t - nowMs;
                         // Snap to nearest 30 mins (1800000 ms) to avoid jitter
                         this.serverTimeOffset = Math.round(diff / 1800000) * 1800000;
-                        console.log(`[RealtimeDataFeed] Detected time offset (Snapshot): ${this.serverTimeOffset / 3600000}h`);
+                        // console.log(`[RealtimeDataFeed] Detected time offset (Snapshot): ${this.serverTimeOffset / 3600000}h`);
                     }
                 }
 
@@ -274,7 +274,7 @@ class WebSocketManager {
             if (rawTime > nowMs + 60000 && this.serverTimeOffset === 0) {
                 const diff = rawTime - nowMs;
                 this.serverTimeOffset = Math.round(diff / 1800000) * 1800000;
-                console.log(`[RealtimeDataFeed] Detected time offset (Update): ${this.serverTimeOffset / 3600000}h`);
+                // console.log(`[RealtimeDataFeed] Detected time offset (Update): ${this.serverTimeOffset / 3600000}h`);
             }
 
             // RE-ENABLING OFFSET SUBTRACTION (Shift to UTC)
@@ -314,8 +314,8 @@ class WebSocketManager {
             });
 
             if (!specificUpdateFound) {
-                console.warn(`[RealtimeDataFeed] No subscriber found matching ${normalizeSymbol(update.symbol)} ${updateTf}. (Subs count: ${this.subscribers.size})`);
-                this.subscribers.forEach(s => console.log(`  - Sub: ${normalizeSymbol(s.symbol)} ${s.tf}`));
+                // console.warn(`[RealtimeDataFeed] No subscriber found matching ${normalizeSymbol(update.symbol)} ${updateTf}. (Subs count: ${this.subscribers.size})`);
+                // this.subscribers.forEach(s => console.log(`  - Sub: ${normalizeSymbol(s.symbol)} ${s.tf}`));
             }
 
             // Cache last price from live update
@@ -346,7 +346,7 @@ export class RealtimeDataFeed {
     public getLastPrice(symbol: string): number | undefined {
         const normalized = normalizeSymbol(symbol);
         const lastPrice = this.wsManager.lastPrices.get(normalized);
-        console.log(`[RealtimeDataFeed] getLastPrice for ${symbol} (norm: ${normalized}): ${lastPrice}. Cache size: ${this.wsManager.lastPrices.size}`);
+        // console.log(`[RealtimeDataFeed] getLastPrice for ${symbol} (norm: ${normalized}): ${lastPrice}. Cache size: ${this.wsManager.lastPrices.size}`);
         return lastPrice;
     }
 
@@ -357,7 +357,7 @@ export class RealtimeDataFeed {
     public getServerTime(callback: (time: number) => void) {
         // SIMPLIFIED: Just return local time in seconds as per standard practice (UTC)
         // Data is now shifted to UTC in handleMessage, and Chart converts to 'Europe/Athens'
-        console.log('[RealtimeDataFeed] getServerTime called (UTC)');
+        // console.log('[RealtimeDataFeed] getServerTime called (UTC)');
         callback(Math.floor(Date.now() / 1000));
     }
 

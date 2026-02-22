@@ -9,7 +9,7 @@ export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
     const hub = searchParams.get('hub') || 'mobiletrading';
-    
+
     // Get all query parameters except 'hub' since we'll build the target URL
     const params = new URLSearchParams();
     searchParams.forEach((value, key) => {
@@ -22,9 +22,9 @@ export async function GET(request: NextRequest) {
     // The hub URL should point to the SignalR hub endpoint
     const RAW_BASE = (process.env.TRADING_HUB_URL || 'https://metaapi.zuperior.com').replace(/\/$/, '');
     const TRADING_HUB_BASE = RAW_BASE.includes('/hubs/') ? RAW_BASE : `${RAW_BASE}/hubs/${hub}`;
-    
+
     const negotiateUrl = `${TRADING_HUB_BASE}/negotiate${params.toString() ? '?' + params.toString() : ''}`;
-    
+
 
     // Forward the negotiate request
     // Collect optional auth headers from the incoming request or query params
@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
         const session = await getSession();
         if (session?.userId && accountId) {
           // Call backend API to get MetaAPI token
-          const backendUrl = process.env.NEXT_PUBLIC_BACKEND_API_URL || 'http://localhost:5000';
+          const backendUrl = process.env.NEXT_PUBLIC_BACKEND_API_URL || 'http://localhost:5001';
           const tokenRes = await fetch(`${backendUrl}/api/accounts/${accountId}/metaapi-login`, {
             method: 'POST',
             headers: {
@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
             },
             cache: 'no-store',
           });
-          
+
           if (tokenRes.ok) {
             const tokenData = await tokenRes.json().catch(() => ({} as any));
             clientToken = tokenData?.token || tokenData?.Token || tokenData?.accessToken || undefined;
@@ -72,7 +72,7 @@ export async function GET(request: NextRequest) {
 
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), 20000) // 20 second timeout for SignalR negotiate
-    
+
     try {
       const response = await fetch(negotiateUrl, {
         method: 'GET',
@@ -80,7 +80,7 @@ export async function GET(request: NextRequest) {
         cache: 'no-store',
         signal: controller.signal,
       });
-      
+
       clearTimeout(timeoutId)
 
       if (!response.ok) {
@@ -92,10 +92,10 @@ export async function GET(request: NextRequest) {
       }
 
       const data = await response.json();
-      
+
       // Modify the response to point WebSocket connections through our proxy
       // For now, we'll keep the original URL but this can be modified if needed
-      
+
       return NextResponse.json(data, {
         headers: {
           'Access-Control-Allow-Origin': '*',
@@ -147,9 +147,9 @@ export async function POST(request: NextRequest) {
     // Reuse GET logic - NextRequest handles query params from URL automatically
     return GET(request)
   } catch (error) {
-    return NextResponse.json({ 
-      error: 'Internal server error', 
-      details: error instanceof Error ? error.message : String(error) 
+    return NextResponse.json({
+      error: 'Internal server error',
+      details: error instanceof Error ? error.message : String(error)
     }, { status: 500 })
   }
 }

@@ -79,7 +79,7 @@ class ApiClient {
     }
 
     // 4. Fallback to localhost for local development only
-    return this.baseURL || 'http://localhost:5000';
+    return this.baseURL || 'http://localhost:5001';
   }
 
   /**

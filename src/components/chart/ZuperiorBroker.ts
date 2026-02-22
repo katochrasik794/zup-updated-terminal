@@ -1577,7 +1577,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 		]);
 	}
 	public async orders(): Promise<Order[]> {
-		console.log('[ZuperiorBroker] orders() called, returning count:', this._orders.length, { ids: this._orders.map(o => o.id) });
+		// console.log('[ZuperiorBroker] orders() called, returning count:', this._orders.length, { ids: this._orders.map(o => o.id) });
 		return Promise.resolve(this._orders);
 	}
 

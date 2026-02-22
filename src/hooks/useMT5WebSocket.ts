@@ -45,7 +45,7 @@ export const useMT5WebSocket = ({ accountIds, onAccountUpdate, enabled = true }:
     const subscribe = useCallback(() => {
         if (!socketRef.current || socketRef.current.readyState !== WebSocket.OPEN || accountIds.length === 0) return;
 
-        console.log('[MT5 WebSocket] 📤 Subscribing to accounts:', accountIds);
+        // console.log('[MT5 WebSocket] 📤 Subscribing to accounts:', accountIds);
         const idsAsNumbers = accountIds.map(id => parseInt(id)).filter(id => !isNaN(id));
         const msg = JSON.stringify({
             type: 1,
@@ -61,7 +61,7 @@ export const useMT5WebSocket = ({ accountIds, onAccountUpdate, enabled = true }:
         if (socketRef.current?.readyState === WebSocket.OPEN || socketRef.current?.readyState === WebSocket.CONNECTING || isConnectingRef.current) return;
 
         const finalUrl = getFinalUrl();
-        console.log('[MT5 WebSocket] 📡 Attempting connection to:', finalUrl);
+        // console.log('[MT5 WebSocket] 📡 Attempting connection to:', finalUrl);
 
         isConnectingRef.current = true;
 
@@ -70,12 +70,12 @@ export const useMT5WebSocket = ({ accountIds, onAccountUpdate, enabled = true }:
             socketRef.current = socket;
 
             socket.onopen = () => {
-                console.log('[MT5 WebSocket] ✅ WebSocket Connected');
+                // console.log('[MT5 WebSocket] ✅ WebSocket Connected');
                 isConnectingRef.current = false;
 
                 // SignalR Handshake
                 const handshake = JSON.stringify({ protocol: 'json', version: 1 }) + RECORD_SEPARATOR;
-                console.log('[MT5 WebSocket] 🤝 Sending Handshake...');
+                // console.log('[MT5 WebSocket] 🤝 Sending Handshake...');
                 socket.send(handshake);
             };
 
@@ -89,7 +89,7 @@ export const useMT5WebSocket = ({ accountIds, onAccountUpdate, enabled = true }:
 
                         // SignalR Handshake response
                         if (msg === '{}' || (typeof data === 'object' && Object.keys(data).length === 0)) {
-                            console.log('[MT5 WebSocket] 🤝 Handshake complete');
+                            // console.log('[MT5 WebSocket] 🤝 Handshake complete');
                             subscribe();
                             return;
                         }
@@ -98,7 +98,7 @@ export const useMT5WebSocket = ({ accountIds, onAccountUpdate, enabled = true }:
                         if (data.type === 1) {
                             if (data.target === 'AccountUpdate') {
                                 const rawUpdate = data.arguments[0] as any;
-                                console.log('[MT5 WebSocket] 📥 AccountUpdate received:', rawUpdate);
+                                // console.log('[MT5 WebSocket] 📥 AccountUpdate received:', rawUpdate);
 
                                 // Normalize fields (handle PascalCase vs camelCase and mappings)
                                 const update: AccountUpdate = {
@@ -129,12 +129,12 @@ export const useMT5WebSocket = ({ accountIds, onAccountUpdate, enabled = true }:
 
             socket.onclose = (event) => {
                 isConnectingRef.current = false;
-                console.log(`[MT5 WebSocket] 🛑 Connection closed. Code: ${event.code}`);
+                // console.log(`[MT5 WebSocket] 🛑 Connection closed. Code: ${event.code}`);
 
                 // Attempt reconnection with delay
                 if (enabled && !reconnectTimeoutRef.current) {
                     const delay = 5000;
-                    console.log(`[MT5 WebSocket] 🔄 Reconnecting in ${delay / 1000}s...`);
+                    // console.log(`[MT5 WebSocket] 🔄 Reconnecting in ${delay / 1000}s...`);
                     reconnectTimeoutRef.current = setTimeout(() => {
                         reconnectTimeoutRef.current = null;
                         connect();
