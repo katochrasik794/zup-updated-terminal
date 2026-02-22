@@ -40,7 +40,7 @@ interface CandleHistoryResponse {
 interface SubSymbolsRequest {
     type: 'sub_symbols';
     symbols: string[];
-    streams: ['candle_live'];
+    streams: string[];
 }
 
 interface CandleHistoryRequest {
@@ -83,6 +83,7 @@ class WebSocketManager {
     private historyCallbacks: Map<string, { onSuccess: HistoryCallback; onError: (error: string) => void }> = new Map();
     private requestQueue: (() => void)[] = [];
     public lastPrices: Map<string, number> = new Map();
+    public lastQuotes: Map<string, { bid: number; ask: number; ts: number }> = new Map();
     public lastBarTimestamp: number = 0;
     public serverTimeOffset: number = 0;
 
@@ -137,7 +138,7 @@ class WebSocketManager {
             const msg: SubSymbolsRequest = {
                 type: 'sub_symbols',
                 symbols: Array.from(symbolsToSubscribe),
-                streams: ['candle_live']
+                streams: ['candle_live', 'watch']
             };
             this.ws.send(JSON.stringify(msg));
         }
@@ -155,7 +156,7 @@ class WebSocketManager {
             const msg: SubSymbolsRequest = {
                 type: 'sub_symbols',
                 symbols: [normalizedSymbol],
-                streams: ['candle_live']
+                streams: ['candle_live', 'watch']
             };
             this.ws.send(JSON.stringify(msg));
         }
@@ -321,6 +322,29 @@ class WebSocketManager {
             // Cache last price from live update
             const normalized = normalizeSymbol(update.symbol);
             this.lastPrices.set(normalized, update.c);
+        } else if (data.type === 'watch') {
+            const quote = data as { symbol: string; bid: number; ask: number; ts: number };
+            const normalizedSymbolName = normalizeSymbol(quote.symbol);
+            this.lastPrices.set(normalizedSymbolName, quote.bid);
+            this.lastQuotes.set(normalizedSymbolName, { bid: quote.bid, ask: quote.ask, ts: quote.ts });
+
+            // Notify quote subscribers if any
+            if ((this as any)._quoteSubscribers) {
+                const sub = (this as any)._quoteSubscribers.get(normalizedSymbolName);
+                if (sub) {
+                    sub.callback({
+                        s: 'ok',
+                        n: quote.symbol,
+                        v: {
+                            lp: quote.bid,
+                            ask: quote.ask,
+                            bid: quote.bid,
+                            ch: 0,
+                            chp: 0
+                        }
+                    });
+                }
+            }
         }
     }
 }
@@ -340,6 +364,7 @@ export class RealtimeDataFeed {
             supports_marks: false,
             supports_timescale_marks: false,
             supports_time: true,
+            supports_quotes: true,
         };
     }
 
@@ -448,12 +473,45 @@ export class RealtimeDataFeed {
     }
 
     public getQuotes(symbols: string[], onDataCallback: (quotes: any[]) => void, onErrorCallback: (msg: string) => void): void {
-        onDataCallback([]);
+        const quotes = symbols.map(s => {
+            const normalized = normalizeSymbol(s);
+            const quote = this.wsManager.lastQuotes.get(normalized);
+            return {
+                s: 'ok',
+                n: s,
+                v: {
+                    ch: 0,
+                    chp: 0,
+                    lp: quote?.bid || this.wsManager.lastPrices.get(normalized) || 0,
+                    ask: quote?.ask || 0,
+                    bid: quote?.bid || 0,
+                }
+            };
+        });
+        onDataCallback(quotes);
     }
 
     public subscribeQuotes(symbols: string[], fastSymbols: string[], onRealtimeCallback: (quotes: any[]) => void, listenerGUID: string): void {
+        const ws = this.wsManager;
+        (ws as any)._quoteSubscribers = (ws as any)._quoteSubscribers || new Map();
+
+        symbols.forEach(s => {
+            const normalized = normalizeSymbol(s);
+            (ws as any)._quoteSubscribers.set(normalized, {
+                callback: (data: any) => onRealtimeCallback([data]),
+                guid: listenerGUID
+            });
+        });
     }
 
     public unsubscribeQuotes(listenerGUID: string): void {
+        const ws = this.wsManager;
+        if ((ws as any)._quoteSubscribers) {
+            for (const [symbol, sub] of (ws as any)._quoteSubscribers.entries()) {
+                if ((sub as any).guid === listenerGUID) {
+                    (ws as any)._quoteSubscribers.delete(symbol);
+                }
+            }
+        }
     }
 }

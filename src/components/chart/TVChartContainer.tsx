@@ -263,6 +263,10 @@ export const TVChartContainer = () => {
                     'countdown',
                     'high_density_bars',
                     'seconds_resolution',
+                    'bid_ask_labels',
+                    'bid_ask_lines',
+                    'horizontal_line_for_bid_ask',
+                    'price_line',
                 ],
                 charts_storage_url: 'https://saveload.tradingview.com',
                 charts_storage_api_version: '1.1',
@@ -287,6 +291,18 @@ export const TVChartContainer = () => {
                     "mainSeriesProperties.showCountdown": true,
                     "scalesProperties.showSeriesLastValue": true,
                     "scalesProperties.showSymbolLabels": false,
+                    "mainSeriesProperties.showBidPriceLine": true,
+                    "mainSeriesProperties.showAskPriceLine": true,
+                    "mainSeriesProperties.bidLineColor": "#16A34A",
+                    "mainSeriesProperties.askLineColor": "#EF4444",
+                    "mainSeriesProperties.bidLineStyle": 1, // Dotted
+                    "mainSeriesProperties.askLineStyle": 1, // Dotted
+                    "mainSeriesProperties.bidLineWidth": 1,
+                    "mainSeriesProperties.askLineWidth": 1,
+                    "tradingProperties.showBidPriceLine": true,
+                    "tradingProperties.showAskPriceLine": true,
+                    "tradingProperties.bidLineColor": "#16A34A",
+                    "tradingProperties.askLineColor": "#EF4444",
                 },
                 toolbar_bg: '#02040d',
 
@@ -509,6 +525,29 @@ export const TVChartContainer = () => {
 
 
             tvWidget.onChartReady(() => {
+                // setWidgetReady(true); // This function is not defined in the provided context, commenting out.
+
+                const chart = tvWidget.activeChart();
+
+                // Apply overrides as well for scale/label consistency
+                tvWidget.applyOverrides({
+                    "scalesProperties.showSeriesLastValue": true,
+                    "scalesProperties.showSymbolLabels": false,
+                    "mainSeriesProperties.showBidPriceLine": true,
+                    "mainSeriesProperties.showAskPriceLine": true,
+                    "mainSeriesProperties.bidLineColor": "#16A34A",
+                    "mainSeriesProperties.askLineColor": "#EF4444",
+                    "mainSeriesProperties.bidLineStyle": 1, // Dotted
+                    "mainSeriesProperties.askLineStyle": 1, // Dotted
+                    "mainSeriesProperties.bidLineWidth": 1,
+                    "mainSeriesProperties.askLineWidth": 1,
+                    "tradingProperties.showBidPriceLine": true,
+                    "tradingProperties.showAskPriceLine": true,
+                    "tradingProperties.bidLineColor": "#16A34A",
+                    "tradingProperties.askLineColor": "#EF4444",
+                });
+
+                console.log('[TVChartContainer] Chart ready, applied Bid/Ask properties and overrides');
                 tvWidget.activeChart().onSymbolChanged().subscribe(null, () => {
                     const newSymbol = tvWidget.activeChart().symbol();
                     if (setSymbol) setSymbol(newSymbol);
@@ -519,7 +558,7 @@ export const TVChartContainer = () => {
                 }
 
                 // Subscribe to real-time dragging for preview sync
-                const chart = tvWidget.activeChart();
+                // chart variable is already declared above
 
                 // onOrderMove fires when the user release or modifies the line
                 // We use a try-catch for robustness across different library builds
