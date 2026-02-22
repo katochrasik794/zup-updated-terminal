@@ -12,6 +12,7 @@ import { useWebSocket } from '../../context/WebSocketContext'
 import { useAccount } from '../../context/AccountContext'
 import { useInstruments } from '../../context/InstrumentContext'
 import OrderModeModal from '../modals/OrderModeModal'
+import MarketClosedToast from '@/components/ui/MarketClosedToast'
 import ReactDOM from 'react-dom'
 
 export interface OrderPanelProps extends React.HTMLAttributes<HTMLDivElement> {
@@ -68,7 +69,7 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
   const isMarketClosed = React.useMemo(() => {
     return checkIsMarketClosed(symbol || hubSymbol, instrument?.category || '', quote.bid, quote.ask)
   }, [symbol, hubSymbol, instrument, quote.bid, quote.ask])
-  const marketClosedMessage = "Market closed for this instrument. Trading resumes Sunday 21:05 UTC."
+  const marketClosedMessage = "Market closed";
 
   // Use live prices if available, otherwise fall back to defaults
   const currentSellPrice = quote.bid ?? 0
@@ -2012,25 +2013,11 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
         mode="Risk calculator form"
       />
 
-      {marketClosedToast && ReactDOM.createPortal(
-        <div className="fixed bottom-4 left-4 z-[99999] bg-[#0b0e14] text-[#d1d5db] rounded-md shadow-lg border border-amber-500/60 w-[320px] overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-300">
-          <div className="p-4 relative">
-            <button
-              onClick={() => setMarketClosedToast(null)}
-              className="absolute top-2 right-2 text-[#9ca3af] hover:text-white transition-colors"
-            >
-              ×
-            </button>
-            <div className="flex items-start gap-3">
-              <div className="mt-0.5 text-amber-400">⚠</div>
-              <div className="flex-1">
-                <h3 className="text-white font-medium text-[14px] leading-tight mb-1">Market closed</h3>
-                <p className="text-[13px] text-[#d1d5db]">{marketClosedMessage}</p>
-              </div>
-            </div>
-          </div>
-        </div>,
-        document.body
+      {marketClosedToast && (
+        <MarketClosedToast
+          info={marketClosedToast}
+          onClose={() => setMarketClosedToast(null)}
+        />
       )}
     </div>
   )

@@ -258,7 +258,7 @@ export default function TradingTerminal() {
 
 
     if (isMarketClosed(position?.symbol)) {
-      setMarketClosedToast('Market closed for this instrument. Trading resumes Sunday 21:05 UTC.');
+      setMarketClosedToast('Market closed');
       return;
     }
 
@@ -624,7 +624,7 @@ export default function TradingTerminal() {
 
       // Check if market is closed BEFORE optimistic injection
       if (isMarketClosed(chosenSymbol)) {
-        setMarketClosedToast('Market closed for this instrument. Trading resumes Sunday 21:05 UTC.');
+        setMarketClosedToast('Market closed');
         return;
       }
 
@@ -859,7 +859,7 @@ export default function TradingTerminal() {
 
       // Check if market is closed BEFORE optimistic injection
       if (isMarketClosed(chosenSymbol)) {
-        setMarketClosedToast('Market closed for this instrument. Trading resumes Sunday 21:05 UTC.');
+        setMarketClosedToast('Market closed');
         return;
       }
 
@@ -1103,7 +1103,7 @@ export default function TradingTerminal() {
     // Get symbol from raw positions if not passed in lastModification
     const targetSymbol = lastModification.symbol || symbol;
     if (isMarketClosed(targetSymbol)) {
-      setMarketClosedToast('Market closed for this instrument. Modification not possible.');
+      setMarketClosedToast('Market closed');
       clearLastModification();
       return;
     }

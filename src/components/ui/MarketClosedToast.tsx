@@ -7,7 +7,7 @@ interface MarketClosedToastProps {
         symbol?: string;
         message?: string;
         nextOpen?: string;
-    } | null;
+    } | string | null;
     onClose: () => void;
 }
 
@@ -15,12 +15,12 @@ export default function MarketClosedToast({ info, onClose }: MarketClosedToastPr
     useEffect(() => {
         if (!info) return;
 
-        // Auto-dismiss after 7 seconds for market alerts
+        // Auto-dismiss after 5 seconds for market alerts
         const timer = setTimeout(() => {
             onClose()
-        }, 7000)
+        }, 5000)
         return () => clearTimeout(timer)
-    }, [info, onClose])
+    }, [info]) // Remove onClose from dependencies to prevent timer reset
 
     if (!info) return null
 
@@ -48,12 +48,12 @@ export default function MarketClosedToast({ info, onClose }: MarketClosedToastPr
 
                     <div className="flex-1">
                         <h3 className="text-white font-medium text-[14px] leading-tight mb-1">
-                            Market Closed {info.symbol ? ` - ${info.symbol}` : ''}
+                            Market Closed {typeof info === 'object' && info?.symbol ? ` - ${info.symbol}` : ''}
                         </h3>
                         <p className="text-[13px] text-[#d1d5db]">
-                            {info.message || 'Trading is currently unavailable for this instrument.'}
+                            {typeof info === 'string' ? info : (info?.message || 'Trading is currently unavailable for this instrument.')}
                         </p>
-                        {info.nextOpen && (
+                        {typeof info === 'object' && info?.nextOpen && (
                             <p className="text-[11px] text-amber-500/80 mt-2 font-medium">
                                 Resumes: {info.nextOpen}
                             </p>
@@ -62,7 +62,7 @@ export default function MarketClosedToast({ info, onClose }: MarketClosedToastPr
                 </div>
             </div>
             <div className="h-1 bg-amber-500/30 w-full overflow-hidden">
-                <div className="h-full bg-amber-500 animate-[progress_7s_linear_forwards]" />
+                <div className="h-full bg-amber-500 animate-[progress_5s_linear_forwards]" />
             </div>
         </div>,
         document.body

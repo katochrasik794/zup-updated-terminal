@@ -507,7 +507,7 @@ export async function placeMarketOrderDirect({
         const url = `${METAAPI_BASE_URL}/api/client/${tradePath}?account_id=${encodeURIComponent(accountId)}`;
 
         // Volume normalized to units
-        const volumeInUnits = Math.round(volume * 100);
+        const volumeInUnits = Math.round(volume * 1000);
 
         // Mirroring PascalCase keys from fast pending orders
         const payload = {
@@ -592,7 +592,7 @@ export async function placePendingOrderDirect({
         }
 
         const url = `${METAAPI_BASE_URL}/api/client/${endpoint}?account_id=${encodeURIComponent(accountId)}`;
-        const volumeInUnits = Math.round(volume * 100);
+        const volumeInUnits = Math.round(volume * 1000);
 
         const payload = {
             Symbol: symbol,

@@ -334,7 +334,7 @@ class WebSocketManager {
                 if (sub) {
                     sub.callback({
                         s: 'ok',
-                        n: quote.symbol,
+                        n: sub.originalSymbol || quote.symbol,
                         v: {
                             lp: quote.bid,
                             ask: quote.ask,
@@ -499,7 +499,8 @@ export class RealtimeDataFeed {
             const normalized = normalizeSymbol(s);
             (ws as any)._quoteSubscribers.set(normalized, {
                 callback: (data: any) => onRealtimeCallback([data]),
-                guid: listenerGUID
+                guid: listenerGUID,
+                originalSymbol: s
             });
         });
     }
