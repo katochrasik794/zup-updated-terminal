@@ -18,6 +18,11 @@ interface ModifyModalState {
     position: any | null;
 }
 
+export interface ChartSettings {
+    openPositions: boolean;
+    tpsl: boolean;
+}
+
 interface TradingContextType {
     lastOrder: Order | null;
     placeOrder: (order: Order) => void;
@@ -30,6 +35,8 @@ interface TradingContextType {
     clearLastModification: () => void;
     addNavbarTab: ((symbol: string) => void) | null;
     setAddNavbarTab: (fn: (symbol: string) => void) => void;
+    chartSettings: ChartSettings;
+    setChartSettings: (settings: Partial<ChartSettings>) => void;
 }
 
 const TradingContext = createContext<TradingContextType | undefined>(undefined);
@@ -50,6 +57,19 @@ export function TradingProvider({ children }) {
     const [modifyModalState, setModifyModalState] = useState<ModifyModalState>({ isOpen: false, position: null });
     const [lastModification, setLastModification] = useState<any | null>(null);
     const [addNavbarTab, setAddNavbarTab] = useState<((symbol: string) => void) | null>(null);
+
+    // Chart visibility settings
+    const [chartSettings, setChartSettingsState] = useState<ChartSettings>(() => {
+        if (typeof window !== 'undefined') {
+            const saved = localStorage.getItem('zup-chart-settings');
+            if (saved) {
+                try {
+                    return JSON.parse(saved);
+                } catch (e) { }
+            }
+        }
+        return { openPositions: true, tpsl: true };
+    });
 
     // Update symbol when account changes
     useEffect(() => {
@@ -170,6 +190,16 @@ export function TradingProvider({ children }) {
         setLastModification(null);
     };
 
+    const setChartSettings = (newSettings: Partial<ChartSettings>) => {
+        setChartSettingsState(prev => {
+            const updated = { ...prev, ...newSettings };
+            if (typeof window !== 'undefined') {
+                localStorage.setItem('zup-chart-settings', JSON.stringify(updated));
+            }
+            return updated;
+        });
+    };
+
     return (
         <TradingContext.Provider value={{
             lastOrder,
@@ -182,7 +212,9 @@ export function TradingProvider({ children }) {
             requestModifyPosition,
             clearLastModification,
             addNavbarTab,
-            setAddNavbarTab
+            setAddNavbarTab,
+            chartSettings,
+            setChartSettings
         }}>
             {children}
         </TradingContext.Provider>

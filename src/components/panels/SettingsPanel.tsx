@@ -2,16 +2,14 @@
 import { useState } from 'react'
 import Toggle from '../ui/Toggle'
 import IconButton from '../ui/IconButton'
+import { useTrading, ChartSettings } from '../../context/TradingContext'
 
 export default function SettingsPanel({ onClose }) {
-  const [settings, setSettings] = useState({
-    openPositions: true,
-    tpsl: false,
-  })
+  const { chartSettings, setChartSettings } = useTrading();
 
-  const handleToggle = (key) => {
-    setSettings(prev => ({ ...prev, [key]: !prev[key] }))
-  }
+  const handleToggle = (key: keyof ChartSettings) => {
+    setChartSettings({ [key]: !chartSettings[key] });
+  };
 
   return (
     <div className="w-full min-w-[240px] flex flex-col h-full overflow-hidden bg-background border border-gray-800 rounded-md">
@@ -35,11 +33,11 @@ export default function SettingsPanel({ onClose }) {
           <div className="space-y-3 lg:space-y-4">
             <div className="flex items-center justify-between">
               <span className="text-gray-200 text-sm lg:text-base">Open positions</span>
-              <Toggle checked={settings.openPositions} onChange={() => handleToggle('openPositions')} />
+              <Toggle checked={chartSettings.openPositions} onChange={() => handleToggle('openPositions')} />
             </div>
             <div className="flex items-center justify-between">
               <span className="text-gray-200 text-sm lg:text-base">TP / SL / Stop / Limit</span>
-              <Toggle checked={settings.tpsl} onChange={() => handleToggle('tpsl')} />
+              <Toggle checked={chartSettings.tpsl} onChange={() => handleToggle('tpsl')} />
             </div>
           </div>
         </div>

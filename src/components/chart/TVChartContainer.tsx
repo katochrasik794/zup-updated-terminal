@@ -56,6 +56,15 @@ export const TVChartContainer = () => {
         }
     }, [currentBalance, isMarketClosed]);
 
+    const { chartSettings } = useTrading();
+
+    // Sync visibility settings to broker
+    useEffect(() => {
+        if (brokerRef.current) {
+            brokerRef.current.setChartSettings(chartSettings);
+        }
+    }, [chartSettings]);
+
     // Standalone state (Keeping symbol state from standalone for now, or should we use TradingContext symbol?)
     // Let's use TradingContext symbol if available, otherwise fallback
     const { symbol: ctxSymbol, setSymbol: ctxSetSymbol } = useTrading();

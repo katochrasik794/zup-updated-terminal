@@ -28,6 +28,8 @@ import {
 	StandardFormatterName,
 } from '../../../public/charting_library/broker-api';
 
+import { ChartSettings } from '../../context/TradingContext';
+
 import { IDatafeedQuotesApi, QuoteData } from '../../../public/charting_library/datafeed-api';
 import { AbstractBrokerMinimal } from './abstract-broker-minimal';
 import { apiClient } from '../../lib/api';
@@ -121,6 +123,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 	private _accountBalance: number = 0;
 	private _lastActionTime: number = 0; // Timestamp of last user action to pause polling
 	private _isBrokerModalOpen: boolean = false;
+	private _chartSettings: ChartSettings = { openPositions: true, tpsl: true };
 
 	private _positionsSubscription = new SimpleSubscription<(data: {}) => void>();
 	private _ordersSubscription = new SimpleSubscription<(data: {}) => void>();
@@ -223,6 +226,13 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 		this._getMetaApiToken = getMetaApiToken;
 	}
 
+	public setChartSettings(settings: ChartSettings) {
+		this._chartSettings = settings;
+		// Trigger immediate UI refresh and force a poll to be sure
+		this._notifyAllPositionsAndOrders();
+		this._fetchPositionsAndOrders(true);
+	}
+
 	public setWidgetReady(ready: boolean) {
 		this._isWidgetReady = ready;
 		if (ready) {
@@ -263,6 +273,14 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 		this._positions.forEach(p => {
 			try {
 				if (this._host) {
+					// Respect openPositions toggle
+					if (!this._chartSettings.openPositions) {
+						if (typeof this._host.positionUpdate === 'function') {
+							this._host.positionUpdate({ ...this._createCleanPosition(p), qty: 0 });
+						}
+						return;
+					}
+
 					const cleanPosition = this._createCleanPosition(p);
 					// Update _positionById with clean position before calling positionUpdate
 					this._positionById[cleanPosition.id] = cleanPosition;
@@ -292,6 +310,13 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 
 		// 2. Send bracket orders via orderUpdate() with correct status and parentId/parentType set
 		bracketOrders.forEach(bracket => {
+			// Respect tpsl toggle for bracket orders
+			if (!this._chartSettings.tpsl) {
+				if (this._host && typeof this._host.orderUpdate === 'function') {
+					this._host.orderUpdate({ ...bracket, status: OrderStatus.Canceled });
+				}
+				return;
+			}
 
 			try {
 				if (this._host && typeof this._host.orderUpdate === 'function') {
@@ -338,6 +363,14 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 
 		// 3. Update regular orders (for Account Manager)
 		regularOrders.forEach(o => {
+			// Respect tpsl toggle for regular (pending) orders
+			if (!this._chartSettings.tpsl && !o.id.startsWith(PREVIEW_ORDER_ID)) {
+				if (this._host && typeof this._host.orderUpdate === 'function') {
+					this._host.orderUpdate({ ...o, status: OrderStatus.Canceled });
+				}
+				return;
+			}
+
 			try {
 				if (this._host && typeof this._host.orderUpdate === 'function') {
 					this._host.orderUpdate({ ...o });
@@ -621,7 +654,12 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 					try {
 						// For positions, we usually notify more frequently for P/L updates
 						if (this._host && typeof this._host.positionUpdate === 'function') {
-							this._host.positionUpdate(cleanPosition);
+							// Respect openPositions toggle
+							if (!this._chartSettings.openPositions) {
+								this._host.positionUpdate({ ...cleanPosition, qty: 0 });
+							} else {
+								this._host.positionUpdate(cleanPosition);
+							}
 						}
 						if ((cleanPosition as any).pl !== undefined && typeof (cleanPosition as any).pl === 'number' && this._host && typeof this._host.plUpdate === 'function') {
 							this._host.plUpdate(cleanPosition.symbol, (cleanPosition as any).pl);
@@ -655,29 +693,34 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 									bracket.parentType = ParentType.Position;
 								}
 
-								// CRITICAL: Calculate projected P/L at bracket price
-								if (bracket.parentId) {
-									const parentPosition = this._positionById[bracket.parentId];
-									const parentOrder = this._orderById[bracket.parentId];
+								// Respect tpsl toggle for bracket orders
+								if (!this._chartSettings.tpsl) {
+									this._host.orderUpdate({ ...bracket, status: OrderStatus.Canceled });
+								} else {
+									// CRITICAL: Calculate projected P/L at bracket price
+									if (bracket.parentId) {
+										const parentPosition = this._positionById[bracket.parentId];
+										const parentOrder = this._orderById[bracket.parentId];
 
-									// Use position if parent is a position, otherwise order price as reference
-									if (parentPosition && parentPosition.avgPrice) {
-										const bracketPrice = (bracket as any).limitPrice || (bracket as any).stopPrice;
-										if (bracketPrice && parentPosition.avgPrice) {
-											const fullVolume = parentPosition.qty * 10000;
-											const priceDiff = bracketPrice - parentPosition.avgPrice;
-											const plAtBracket = priceDiff * fullVolume * (parentPosition.side === Side.Sell ? -1 : 1);
-											(bracket as any).pl = plAtBracket * 100;
-										} else if ((parentPosition as any).pl !== undefined && (parentPosition as any).pl !== null) {
-											(bracket as any).pl = (parentPosition as any).pl * 100;
+										// Use position if parent is a position, otherwise order price as reference
+										if (parentPosition && parentPosition.avgPrice) {
+											const bracketPrice = (bracket as any).limitPrice || (bracket as any).stopPrice;
+											if (bracketPrice && parentPosition.avgPrice) {
+												const fullVolume = parentPosition.qty * 10000;
+												const priceDiff = bracketPrice - parentPosition.avgPrice;
+												const plAtBracket = priceDiff * fullVolume * (parentPosition.side === Side.Sell ? -1 : 1);
+												(bracket as any).pl = plAtBracket * 100;
+											} else if ((parentPosition as any).pl !== undefined && (parentPosition as any).pl !== null) {
+												(bracket as any).pl = (parentPosition as any).pl * 100;
+											}
+										} else if (parentOrder) {
+											// For order brackets, no P/L calc needed; ensure parentType is Order
+											bracket.parentType = ParentType.Order;
 										}
-									} else if (parentOrder) {
-										// For order brackets, no P/L calc needed; ensure parentType is Order
-										bracket.parentType = ParentType.Order;
 									}
-								}
 
-								this._host.orderUpdate(bracket);
+									this._host.orderUpdate(bracket);
+								}
 							}
 						}
 					} catch (error) {
@@ -701,7 +744,12 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 							}
 
 							if (shouldNotify) {
-								this._host.orderUpdate(o);
+								// Respect tpsl toggle for regular (pending) orders
+								if (!this._chartSettings.tpsl && !o.id.startsWith(PREVIEW_ORDER_ID)) {
+									this._host.orderUpdate({ ...o, status: OrderStatus.Canceled });
+								} else {
+									this._host.orderUpdate(o);
+								}
 							}
 						}
 					} catch (error) {
@@ -1578,6 +1626,10 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 	}
 	public async orders(): Promise<Order[]> {
 		// console.log('[ZuperiorBroker] orders() called, returning count:', this._orders.length, { ids: this._orders.map(o => o.id) });
+		if (!this._chartSettings.tpsl) {
+			// Only return preview/ghost orders if TP/SL toggle is off
+			return Promise.resolve(this._orders.filter(o => o.id.toString().startsWith(PREVIEW_ORDER_ID)));
+		}
 		return Promise.resolve(this._orders);
 	}
 
@@ -1588,6 +1640,12 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 				this._positions.push(this._positionById[PREVIEW_POSITION_ID]);
 			}
 		}
+
+		if (!this._chartSettings.openPositions) {
+			// Only return preview/ghost position if Open Positions toggle is off
+			return this._positions.filter(p => p.id === PREVIEW_POSITION_ID);
+		}
+
 		return this._positions;
 	}
 
