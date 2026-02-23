@@ -37,9 +37,8 @@ const WebSocketContext = createContext<WebSocketContextType | undefined>(undefin
 export const normalizeSymbol = (symbol: string): string => {
     if (!symbol) return '';
     const s = symbol.split('.')[0].trim();
-    // Strip trailing suffixes like m, a, c, f, h, r (case-insensitive)
-    // Matches BTCUSDm, BTCUSDM, BTCUSD.i, etc.
-    return s.replace(/[macfhrMACFHR]+$/, '').toUpperCase();
+    // Strip trailing lowercase suffixes like m, a, c, f, h, r
+    return s.replace(/[macfhr]+$/, '').toUpperCase();
 };
 
 export function WebSocketProvider({ children }: { children: ReactNode }) {
