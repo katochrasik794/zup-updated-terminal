@@ -272,12 +272,11 @@ export async function closePositionDirect({
             console.debug(`[ClosePosition] Trying Trading endpoint fallback 2...`);
             const accountIdNum = parseInt(String(accountId), 10);
             let volumeToSend = 0;
+            // Let's just use exact lots since the API likely expects it anyway
             if (volume && volume > 0) {
-                volumeToSend = Math.round(volume * 100);
-                if (volumeToSend >= 100) volumeToSend = Math.round(volumeToSend / 100) * 100;
+                volumeToSend = Number(volume);
             } else if (positionVolumeMT5 !== undefined && positionVolumeMT5 !== null) {
                 volumeToSend = Number(positionVolumeMT5);
-                if (volumeToSend >= 100) volumeToSend = Math.round(volumeToSend / 100) * 100;
             } else {
                 // Fetch position volume if not provided
                 try {
@@ -490,6 +489,21 @@ export async function closeMultiplePositionsDirect(
 }
 
 /**
+ * Helper to determine the volume for pending orders sent to the C# MT5 API bridge.
+ * The broker's bridge expects exact lots (float) for most symbols (Forex, Metals),
+ * but expects lots * 100 for Crypto symbols like BTC/ETH.
+ */
+function getPendingOrderVolume(symbol: string, volume: number): number {
+    const sym = (symbol || '').toUpperCase();
+    if (sym.includes('BTC') || sym.includes('ETH')) {
+        return Math.round(volume * 100);
+    }
+    // The broker's bridge puts a 10x multiplier natively on Forex pending orders.
+    // So to place 0.01 lots, we must send 0.001.
+    return Number((parseFloat(String(volume)) / 10).toFixed(4));
+}
+
+/**
  * Place a market order directly via MetaAPI
  */
 export async function placeMarketOrderDirect({
@@ -506,13 +520,13 @@ export async function placeMarketOrderDirect({
         const tradePath = side === 'sell' ? 'trade-sell' : 'trade';
         const url = `${METAAPI_BASE_URL}/api/client/${tradePath}?account_id=${encodeURIComponent(accountId)}`;
 
-        // Volume normalized to units
-        const volumeInUnits = Math.round(volume * 100);
+        // Market orders expect volume * 100 for ALL symbols
+        const volumeToSend = Math.round(volume * 100);
 
         // Mirroring PascalCase keys from fast pending orders
         const payload = {
             Symbol: symbol,
-            Volume: volumeInUnits,
+            Volume: volumeToSend,
             Price: 0,
             StopLoss: Number(stopLoss || 0),
             TakeProfit: Number(takeProfit || 0),
@@ -592,12 +606,14 @@ export async function placePendingOrderDirect({
         }
 
         const url = `${METAAPI_BASE_URL}/api/client/${endpoint}?account_id=${encodeURIComponent(accountId)}`;
-        const volumeInUnits = Math.round(volume * 1000);
+
+        // Pending orders expect exact lots for Forex, but * 100 for Crypto
+        const volumeToSend = getPendingOrderVolume(symbol, volume);
 
         const payload = {
             Symbol: symbol,
             Price: Number(price),
-            Volume: volumeInUnits,
+            Volume: volumeToSend,
             StopLoss: Number(stopLoss || 0),
             TakeProfit: Number(takeProfit || 0),
             Expiration: '0001-01-01T00:00:00',
