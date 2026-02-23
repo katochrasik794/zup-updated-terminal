@@ -9,7 +9,7 @@ import PositionClosedToast from '../ui/PositionClosedToast'
 import GroupClosePopup from './GroupClosePopup'
 import { useTrading } from '../../context/TradingContext'
 
-export default function BottomPanel({ openPositions = [], pendingPositions = [], closedPositions = [], onClosePosition, onCloseGroup, closedToast, setClosedToast, onCloseAll, onHide, isMinimized = false }: any) {
+export default function BottomPanel({ openPositions = [], pendingPositions = [], closedPositions = [], onClosePosition, onCloseGroup, closedToast, setClosedToast, onCloseAll, onHide, isMinimized = false, onTabChange }: any) {
   const { setModifyModalState, setSymbol } = useTrading()
   const [activeTab, setActiveTab] = useState<'Open' | 'Pending' | 'Closed'>('Open')
   const [isGrouped, setIsGrouped] = useState(true)
@@ -277,7 +277,10 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
             tabs.map(tab => (
               <button
                 key={tab}
-                onClick={() => setActiveTab(tab)}
+                onClick={() => {
+                  setActiveTab(tab)
+                  if (onTabChange) onTabChange(tab)
+                }}
                 className={`relative h-full px-5 text-[14px] font-medium transition-colors flex items-center gap-1 cursor-pointer ${activeTab === tab
                   ? 'text-white after:content-[""] after:absolute after:bottom-0 after:left-0 after:w-full after:h-[2px] after:bg-white'
                   : 'text-[#8b9096] hover:text-white'

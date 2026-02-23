@@ -63,10 +63,12 @@ export default function TradingTerminal() {
     closedPositions: rawClosedPositions,
     isLoading: isPositionsLoading,
     error: positionsError,
-    refetch: refetchPositions
+    refetch: refetchPositions,
+    refetchClosed
   } = usePositions({
     accountId: currentAccountId,
     enabled: !!currentAccountId,
+    includeClosed: false,
   });
 
   useEffect(() => {
@@ -80,6 +82,13 @@ export default function TradingTerminal() {
       window.dispatchEvent(new CustomEvent('zuperior-positions-updated'));
     }
   }, [rawPositions, rawPendingOrders, rawClosedPositions]);
+
+  // Fetch closed positions on initial load and account changes
+  useEffect(() => {
+    if (currentAccountId) {
+      refetchClosed();
+    }
+  }, [currentAccountId, refetchClosed]);
 
   // Market closed helper
   const isMarketClosed = useCallback((sym?: string) => {
@@ -314,6 +323,7 @@ export default function TradingTerminal() {
 
           // Refresh positions/orders to update UI
           refetchPositions();
+          refetchClosed(); // Also refetch closed after cancellation
         }
         return;
       }
@@ -356,6 +366,7 @@ export default function TradingTerminal() {
       } else {
         // Refresh positions in background
         refetchPositions();
+        refetchClosed(); // Also refetch closed after closure
       }
     } catch (error) {
       console.error('[ClosePosition] Error:', error);
@@ -439,6 +450,7 @@ export default function TradingTerminal() {
       } else {
         // Refresh positions to sync with server
         refetchPositions();
+        refetchClosed(); // Also refetch closed after closure
       }
     } catch (error) {
     }
@@ -538,6 +550,7 @@ export default function TradingTerminal() {
       } else {
         // Refresh positions
         refetchPositions();
+        refetchClosed(); // Also refetch closed after closure
       }
     } catch (error) {
     }
@@ -1363,6 +1376,11 @@ export default function TradingTerminal() {
                         setClosedToast={setClosedToast}
                         onCloseAll={handleCloseAll}
                         onHide={() => setIsBottomPanelVisible(false)}
+                        onTabChange={(tab: string) => {
+                          if (tab === 'Closed') {
+                            refetchClosed();
+                          }
+                        }}
                       />
                     </ResizablePanel>
                   </>
@@ -1382,6 +1400,11 @@ export default function TradingTerminal() {
                       onCloseAll={handleCloseAll}
                       isMinimized={true}
                       onHide={() => setIsBottomPanelVisible(true)}
+                      onTabChange={(tab: string) => {
+                        if (tab === 'Closed') {
+                          refetchClosed();
+                        }
+                      }}
                     />
                   </div>
                 )}
