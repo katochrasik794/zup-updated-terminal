@@ -272,11 +272,12 @@ export async function closePositionDirect({
             console.debug(`[ClosePosition] Trying Trading endpoint fallback 2...`);
             const accountIdNum = parseInt(String(accountId), 10);
             let volumeToSend = 0;
-            // Let's just use exact lots since the API likely expects it anyway
             if (volume && volume > 0) {
-                volumeToSend = Number(volume);
+                volumeToSend = Math.round(volume * 100);
+                if (volumeToSend >= 100) volumeToSend = Math.round(volumeToSend / 100) * 100;
             } else if (positionVolumeMT5 !== undefined && positionVolumeMT5 !== null) {
                 volumeToSend = Number(positionVolumeMT5);
+                if (volumeToSend >= 100) volumeToSend = Math.round(volumeToSend / 100) * 100;
             } else {
                 // Fetch position volume if not provided
                 try {

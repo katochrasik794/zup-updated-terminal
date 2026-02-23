@@ -66,6 +66,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         // IF we have params in URL, save them to sessionStorage and HIDE them immediately
         if (urlAutoLogin === 'true' && urlToken && urlClientId) {
+          // *** CROSS-ACCOUNT FIX: Clear the old session from localStorage explicitly! ***
+          // Because middleware no longer strips this token, we successfully reach this block.
+          apiClient.clearToken();
+          localStorage.removeItem('accountId');
+          localStorage.removeItem('defaultMt5Account');
+          localStorage.removeItem('userName');
+          localStorage.removeItem('userEmail');
+          document.cookie = 'token=; path=/; max-age=0'; // Clear old terminal cookie just in case
+
           sessionStorage.setItem('sso_autoLogin', 'true');
           sessionStorage.setItem('sso_token', urlToken);
           sessionStorage.setItem('sso_clientId', urlClientId);
