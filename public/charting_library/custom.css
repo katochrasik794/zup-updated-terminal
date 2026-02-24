@@ -83,9 +83,9 @@ button[title*="Sell"] {
 }
 
 /* Hide specific text nodes containing "Buy", "Sell", "Limit", "Stop" */
-.tv-order-line__label > *,
-.tv-order-line-label > *,
-.order-line-label > * {
+.tv-order-line__label>*,
+.tv-order-line-label>*,
+.order-line-label>* {
     font-size: 0 !important;
     display: none !important;
 }
@@ -156,6 +156,30 @@ button[title*="Sell"] {
 /* Ensure icons/buttons remain visible if needed, or hide them too */
 .tv-order-line-label__close,
 .order-line-label__close {
+    font-size: 11px !important;
+    visibility: visible !important;
+}
+
+/* Target any label on the price axis and hide text but show numbers */
+[class*="price-axis"] [class*="label"],
+[class*="bid-ask-label"],
+[class*="price-line-label"] {
+    font-size: 0 !important;
+}
+
+[class*="price-axis"] [class*="label"] *,
+[class*="bid-ask-label"] *,
+[class*="price-line-label"] * {
+    font-size: 0 !important;
+}
+
+/* Selectively restore price visibility */
+[class*="price-axis"] [class*="label"] [class*="price"],
+[class*="bid-ask-label"] [class*="price"],
+[class*="price-line-label"] [class*="price"],
+[class*="price-axis"] [class*="label"] [class*="value"],
+[class*="bid-ask-label"] [class*="value"],
+[class*="price-line-label"] [class*="value"] {
     font-size: 11px !important;
     visibility: visible !important;
 }

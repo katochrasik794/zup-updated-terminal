@@ -255,7 +255,11 @@ export const TVChartContainer = () => {
                     'objects_tree_widget',
                     'trading_notifications',
                     'trading_account_manager',
-                    'create_volume_indicator_by_default', // Removed default volume study/legend
+                    'create_volume_indicator_by_default',
+                    'price_line', // Remove green last price line
+                    'bid_ask_labels', // Try disabling this to remove "Ask/Bid" text
+                    'bid_ask_lines',
+                    'horizontal_line_for_bid_ask',
                 ],
                 enabled_features: [
                     'study_templates',
@@ -263,10 +267,6 @@ export const TVChartContainer = () => {
                     'countdown',
                     'high_density_bars',
                     'seconds_resolution',
-                    'bid_ask_labels',
-                    'bid_ask_lines',
-                    'horizontal_line_for_bid_ask',
-                    'price_line',
                 ],
                 charts_storage_url: 'https://saveload.tradingview.com',
                 charts_storage_api_version: '1.1',
@@ -274,6 +274,12 @@ export const TVChartContainer = () => {
                 user_id: 'public_user',
                 loading_screen: {
                     backgroundColor: "#02040d",
+                },
+                custom_translate_function: (key: string) => {
+                    if (key === 'Ask' || key === 'Bid' || key === 'ask' || key === 'bid' || key === 'Ask / Bid' || key === 'Bid / Ask') {
+                        return '';
+                    }
+                    return null; // fallback to default translation
                 },
                 overrides: {
                     "paneProperties.background": "#02040d",
@@ -288,25 +294,25 @@ export const TVChartContainer = () => {
                     "mainSeriesProperties.candleStyle.wickDownColor": "#EF4444",
                     "tradingProperties.showOrderPrice": true,
                     "tradingProperties.showOrderType": false,
-                    "mainSeriesProperties.showCountdown": true,
-                    "scalesProperties.showSeriesLastValue": true,
+                    "mainSeriesProperties.showCountdown": false,
+                    "scalesProperties.showSeriesLastValue": false,
                     "scalesProperties.showSymbolLabels": false,
-                    "mainSeriesProperties.showBidPriceLine": true,
-                    "mainSeriesProperties.showAskPriceLine": true,
-                    "mainSeriesProperties.bidLineColor": "#EF4444", // Red for Bid
-                    "mainSeriesProperties.askLineColor": "#3B82F6", // Blue for Ask
-                    "mainSeriesProperties.bidLineStyle": 1, // Dotted
-                    "mainSeriesProperties.askLineStyle": 1, // Dotted
-                    "mainSeriesProperties.bidLineWidth": 1,
-                    "mainSeriesProperties.askLineWidth": 1,
-                    "tradingProperties.showBidPriceLine": true,
-                    "tradingProperties.showAskPriceLine": true,
-                    "tradingProperties.bidLineColor": "#EF4444",
-                    "tradingProperties.askLineColor": "#3B82F6",
+                    "mainSeriesProperties.showPriceLine": false,
 
                     // Comprehensive coverage for modern TV versions
+                    'mainSeriesProperties.showBidPriceLine': true,
+                    'mainSeriesProperties.showAskPriceLine': true,
                     "mainSeriesProperties.bidAsk.lines.visible": true,
                     "mainSeriesProperties.bidAsk.labels.visible": true,
+                    "mainSeriesProperties.bidAsk.labels.showText": false,
+                    "mainSeriesProperties.bidAsk.labels.showTitle": false,
+                    "mainSeriesProperties.bidAsk.labels.titleVisible": false,
+                    "mainSeriesProperties.bidLineLabelText": "",
+                    "mainSeriesProperties.askLineLabelText": "",
+                    "mainSeriesProperties.bidPriceLineLabelText": "",
+                    "mainSeriesProperties.askPriceLineLabelText": "",
+                    "mainSeriesProperties.bidLineLabelVisible": true,
+                    "mainSeriesProperties.askLineLabelVisible": true,
                     "mainSeriesProperties.bidAsk.bidLineColor": "#EF4444",
                     "mainSeriesProperties.bidAsk.askLineColor": "#3B82F6",
                     "mainSeriesProperties.bidAsk.bidLineStyle": 1,
@@ -539,25 +545,35 @@ export const TVChartContainer = () => {
 
                 // Apply overrides as well for scale/label consistency
                 tvWidget.applyOverrides({
-                    "scalesProperties.showSeriesLastValue": true,
+                    "scalesProperties.showSeriesLastValue": false,
                     "scalesProperties.showSymbolLabels": false,
+                    "mainSeriesProperties.showCountdown": false,
+                    "mainSeriesProperties.showPriceLine": false,
                     "mainSeriesProperties.showBidPriceLine": true,
                     "mainSeriesProperties.showAskPriceLine": true,
                     "mainSeriesProperties.bidLineColor": "#EF4444",
                     "mainSeriesProperties.askLineColor": "#3B82F6",
-                    "mainSeriesProperties.bidLineStyle": 1, // Dotted
-                    "mainSeriesProperties.askLineStyle": 1, // Dotted
+                    "mainSeriesProperties.bidLineStyle": 1,
+                    "mainSeriesProperties.askLineStyle": 1,
                     "mainSeriesProperties.bidLineWidth": 1,
                     "mainSeriesProperties.askLineWidth": 1,
                     "tradingProperties.showBidPriceLine": true,
                     "tradingProperties.showAskPriceLine": true,
                     "tradingProperties.bidLineColor": "#EF4444",
                     "tradingProperties.askLineColor": "#3B82F6",
-
                     "mainSeriesProperties.bidAsk.visible": true,
                     "scalesProperties.showBidAskLabels": true,
                     "mainSeriesProperties.bidAsk.lines.visible": true,
                     "mainSeriesProperties.bidAsk.labels.visible": true,
+                    "mainSeriesProperties.bidAsk.labels.showText": false,
+                    "mainSeriesProperties.bidAsk.labels.showTitle": false,
+                    "mainSeriesProperties.bidAsk.labels.titleVisible": false,
+                    "mainSeriesProperties.bidLineLabelText": "",
+                    "mainSeriesProperties.askLineLabelText": "",
+                    "mainSeriesProperties.bidPriceLineLabelText": "",
+                    "mainSeriesProperties.askPriceLineLabelText": "",
+                    "mainSeriesProperties.bidLineLabelVisible": true,
+                    "mainSeriesProperties.askLineLabelVisible": true,
                     "mainSeriesProperties.bidAsk.bidLineColor": "#EF4444",
                     "mainSeriesProperties.bidAsk.askLineColor": "#3B82F6",
                     "mainSeriesProperties.bidAsk.bidLineStyle": 1,
