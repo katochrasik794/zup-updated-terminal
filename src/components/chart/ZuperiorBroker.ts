@@ -1686,6 +1686,20 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			minTick = 0.01;
 			// Matches 1.0 config for ETH to show exact 100x projection
 			pipValue = 0.10;
+		} else if (
+			symbolUpper.includes('US30') ||
+			symbolUpper.includes('US500') ||
+			symbolUpper.includes('USTEC') ||
+			symbolUpper.includes('DE30') ||
+			symbolUpper.includes('FR40') ||
+			symbolUpper.includes('UK100') ||
+			symbolUpper.includes('AUS200') ||
+			symbolUpper.includes('HK50') ||
+			symbolUpper.includes('JP225')
+		) {
+			pricescale = 100;
+			minTick = 0.01;
+			pipValue = 0.01;
 		}
 
 		return {

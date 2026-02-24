@@ -448,6 +448,22 @@ export class RealtimeDataFeed {
             symbolInfo.pip_size = 0.01;
             // @ts-ignore
             symbolInfo.pipValue = 0.10;
+        } else if (
+            symbolName.includes('US30') ||
+            symbolName.includes('US500') ||
+            symbolName.includes('USTEC') ||
+            symbolName.includes('DE30') ||
+            symbolName.includes('FR40') ||
+            symbolName.includes('UK100') ||
+            symbolName.includes('AUS200') ||
+            symbolName.includes('HK50') ||
+            symbolName.includes('JP225')
+        ) {
+            symbolInfo.pricescale = 100;
+            // @ts-ignore
+            symbolInfo.pip_size = 0.01;
+            // @ts-ignore
+            symbolInfo.pipValue = 0.01; // 1 unit contract: $1 move = $1 profit per lot
         } else {
             symbolInfo.pricescale = 100000;
             // @ts-ignore
