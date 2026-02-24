@@ -1665,7 +1665,11 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 		let minTick = 0.00001;
 		let pipValue = 1; // Default
 
-		if (symbolUpper.includes('JPY') || symbolUpper.includes('XAU')) {
+		if (symbolUpper.includes('XAG')) {
+			pricescale = 100000;
+			minTick = 0.00001;
+			pipValue = 0.05;
+		} else if (symbolUpper.includes('JPY') || symbolUpper.includes('XAU')) {
 			pricescale = 100;
 			minTick = 0.01;
 			pipValue = 1; // For Gold (100oz), 0.01 move = $1. So pipValue = 1? 

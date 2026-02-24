@@ -424,7 +424,13 @@ export class RealtimeDataFeed {
 
         // Note: TradingView uses `pip_size` or `pipSize` and `pipValue` for chart PNL calculations.
         // If not set, it defaults to standard Forex contract sizes (100,000 units).
-        if (symbolName.includes('JPY') || symbolName.includes('XAU')) {
+        if (symbolName.includes('XAG')) {
+            symbolInfo.pricescale = 100000;
+            // @ts-ignore
+            symbolInfo.pip_size = 0.00001;
+            // @ts-ignore
+            symbolInfo.pipValue = 0.05; // 5000 units contract (0.01 lot = 50 units. 1.0 move = $50. 1.0 move * 0.01 lot * 0.05 * 100000 = 50)
+        } else if (symbolName.includes('JPY') || symbolName.includes('XAU')) {
             symbolInfo.pricescale = 1000;
             // @ts-ignore
             symbolInfo.pip_size = 0.01;
