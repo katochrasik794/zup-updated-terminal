@@ -463,7 +463,7 @@ export class RealtimeDataFeed {
             // @ts-ignore
             symbolInfo.pip_size = 0.01;
             // @ts-ignore
-            symbolInfo.pipValue = 0.01; // 1 unit contract: $1 move = $1 profit per lot
+            symbolInfo.pipValue = 0.10; // 10 unit contract: $1 move = $10 profit per lot
         } else {
             symbolInfo.pricescale = 100000;
             // @ts-ignore

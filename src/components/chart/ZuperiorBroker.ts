@@ -1699,7 +1699,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 		) {
 			pricescale = 100;
 			minTick = 0.01;
-			pipValue = 0.01;
+			pipValue = 0.10;
 		}
 
 		return {
