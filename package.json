@@ -9,11 +9,7 @@
     "start": "next start",
     "lint": "next lint",
     "build:trading-bundles": "node scripts/build-trading-bundles.cjs",
-<<<<<<< HEAD
     "postinstall": "node scripts/postinstall.cjs"
-=======
-    "postinstall": "if [ \"$SKIP_BUILD\" != \"true\" ]; then npm run build:trading-bundles; fi"
->>>>>>> bd887245050eb8e30b5768bb8e0587c40ed3fe80
   },
   "dependencies": {
     "@microsoft/signalr": "^10.0.0",
