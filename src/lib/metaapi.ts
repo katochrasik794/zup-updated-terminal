@@ -534,12 +534,6 @@ export async function placeMarketOrderDirect({
         const tradePath = side === 'sell' ? 'trade-sell' : 'trade';
         const url = `${METAAPI_BASE_URL}/api/client/${tradePath}?account_id=${encodeURIComponent(accountId)}`;
 
-<<<<<<< HEAD
-=======
-        // Market orders expect volume * 100 for ALL symbols
-        const volumeToSend = Math.round(volume * 100);
-
->>>>>>> bd887245050eb8e30b5768bb8e0587c40ed3fe80
         // Mirroring PascalCase keys from fast pending orders
         const payload = {
             Symbol: symbol,
@@ -623,12 +617,6 @@ export async function placePendingOrderDirect({
         }
 
         const url = `${METAAPI_BASE_URL}/api/client/${endpoint}?account_id=${encodeURIComponent(accountId)}`;
-<<<<<<< HEAD
-=======
-
-        // Pending orders expect exact lots for Forex, but * 100 for Crypto
-        const volumeToSend = getPendingOrderVolume(symbol, volume);
->>>>>>> bd887245050eb8e30b5768bb8e0587c40ed3fe80
 
         // Pending orders expect exact lots for Forex, but * 100 for Crypto
         const volumeToSend = getPendingOrderVolume(symbol, volume);
