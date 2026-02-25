@@ -1382,8 +1382,10 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
     const leverageMatch = leverageStr.match(/(\d+)$/)
     const accountLeverage = leverageMatch ? parseInt(leverageMatch[1], 10) : 2000
 
-    // Prioritize symbol-specific leverage if available from instrument
-    const leverage = instrument?.leverage ? Number(instrument.leverage) : accountLeverage
+    // Prioritize symbol-specific leverage if available from instrument table (ib_symbol_spreads)
+    const leverage = (instrument?.leverage && Number(instrument.leverage) > 0)
+      ? Number(instrument.leverage)
+      : accountLeverage
 
 
     const margin = (vol * contractSize * price) / leverage

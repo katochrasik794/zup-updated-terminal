@@ -491,6 +491,7 @@ export async function closeMultiplePositionsDirect(
 
 /**
  * Helper to determine the volume for pending orders sent to the C# MT5 API bridge.
+<<<<<<< HEAD
  * Scaling varies by symbol category to satisfy server-side minimums and multipliers.
  */
 function getPendingOrderVolume(symbol: string, volume: number): number {
@@ -511,6 +512,19 @@ function getPendingOrderVolume(symbol: string, volume: number): number {
     // Metals/Forex: v*10 (0.1) failed with "min=1". Sending 1 (v*100) targets 0.01 lot placement.
     // Crypto: v*10 (0.1) placed 0.001. To get 0.01, we need 10x more (v*100 = 1).
     return Math.round(volume * 100);
+=======
+ * The broker's bridge expects exact lots (float) for most symbols (Forex, Metals),
+ * but expects lots * 100 for Crypto symbols like BTC/ETH.
+ */
+function getPendingOrderVolume(symbol: string, volume: number): number {
+    const sym = (symbol || '').toUpperCase();
+    if (sym.includes('BTC') || sym.includes('ETH')) {
+        return Math.round(volume * 100);
+    }
+    // The broker's bridge puts a 10x multiplier natively on Forex pending orders.
+    // So to place 0.01 lots, we must send 0.001.
+    return Number((parseFloat(String(volume)) / 10).toFixed(4));
+>>>>>>> bd887245050eb8e30b5768bb8e0587c40ed3fe80
 }
 
 /**
@@ -534,6 +548,12 @@ export async function placeMarketOrderDirect({
         const tradePath = side === 'sell' ? 'trade-sell' : 'trade';
         const url = `${METAAPI_BASE_URL}/api/client/${tradePath}?account_id=${encodeURIComponent(accountId)}`;
 
+<<<<<<< HEAD
+=======
+        // Market orders expect volume * 100 for ALL symbols
+        const volumeToSend = Math.round(volume * 100);
+
+>>>>>>> bd887245050eb8e30b5768bb8e0587c40ed3fe80
         // Mirroring PascalCase keys from fast pending orders
         const payload = {
             Symbol: symbol,
@@ -617,6 +637,12 @@ export async function placePendingOrderDirect({
         }
 
         const url = `${METAAPI_BASE_URL}/api/client/${endpoint}?account_id=${encodeURIComponent(accountId)}`;
+<<<<<<< HEAD
+=======
+
+        // Pending orders expect exact lots for Forex, but * 100 for Crypto
+        const volumeToSend = getPendingOrderVolume(symbol, volume);
+>>>>>>> bd887245050eb8e30b5768bb8e0587c40ed3fe80
 
         // Pending orders expect exact lots for Forex, but * 100 for Crypto
         const volumeToSend = getPendingOrderVolume(symbol, volume);
