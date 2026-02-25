@@ -212,17 +212,6 @@ export const TVChartContainer = (props: any) => {
                 custom_css_url: '/chart-custom.css',
                 allow_symbol_change: true,
                 disabled_features: [
-<<<<<<< HEAD
-                    'use_localstorage_for_settings', 'widgetbar', 'right_toolbar', 'legend_show_volume',
-                    'header_symbol_search', 'symbol_search_hot_key', 'header_compare', 'buy_sell_buttons',
-                    'objects_tree_widget', 'trading_notifications', 'trading_account_manager',
-                    'create_volume_indicator_by_default',
-                ],
-                enabled_features: [
-                    'study_templates', 'trading_bracket_orders', 'countdown',
-                    'high_density_bars', 'seconds_resolution',
-                    'bid_ask_labels', 'bid_ask_lines', 'horizontal_line_for_bid_ask', 'price_line',
-=======
                     'use_localstorage_for_settings',
                     'widgetbar',
                     'right_toolbar',
@@ -246,7 +235,6 @@ export const TVChartContainer = (props: any) => {
                     'countdown',
                     'high_density_bars',
                     'seconds_resolution',
->>>>>>> bd887245050eb8e30b5768bb8e0587c40ed3fe80
                 ],
                 save_load_adapter: new LocalStorageSaveLoadAdapter(),
                 auto_save_delay: 5,
@@ -261,12 +249,6 @@ export const TVChartContainer = (props: any) => {
                     backgroundColor: theme === 'dark' ? "#01040d" : "#ffffff",
                     foregroundColor: "#8B5CF6"
                 },
-                custom_translate_function: (key: string) => {
-                    if (key === 'Ask' || key === 'Bid' || key === 'ask' || key === 'bid' || key === 'Ask / Bid' || key === 'Bid / Ask') {
-                        return '';
-                    }
-                    return null; // fallback to default translation
-                },
                 overrides: {
                     "paneProperties.background": theme === 'dark' ? "#01040d" : "#ffffff",
                     "paneProperties.backgroundType": "solid",
@@ -276,19 +258,6 @@ export const TVChartContainer = (props: any) => {
                     "crossHairProperties.color": theme === 'dark' ? "#374151" : "#D1D5DB",
                     "mainSeriesProperties.candleStyle.upColor": "#16A34A",
                     "mainSeriesProperties.candleStyle.downColor": "#EF4444",
-<<<<<<< HEAD
-                    // Bid/Ask lines visible by default
-                    "mainSeriesProperties.showBidPriceLine": true,
-                    "mainSeriesProperties.showAskPriceLine": true,
-                    "mainSeriesProperties.bidLineColor": "#EF4444",
-                    "mainSeriesProperties.askLineColor": "#3B82F6",
-                    "mainSeriesProperties.bidLineStyle": 1,
-                    "mainSeriesProperties.askLineStyle": 1,
-                    "mainSeriesProperties.bidLineWidth": 1,
-                    "mainSeriesProperties.askLineWidth": 1,
-                    "tradingProperties.showBidPriceLine": true,
-                    "tradingProperties.showAskPriceLine": true,
-=======
                     "mainSeriesProperties.candleStyle.borderUpColor": "#16A34A",
                     "mainSeriesProperties.candleStyle.borderDownColor": "#EF4444",
                     "mainSeriesProperties.candleStyle.wickUpColor": "#16A34A",
@@ -300,10 +269,17 @@ export const TVChartContainer = (props: any) => {
                     "scalesProperties.showSymbolLabels": false,
                     "mainSeriesProperties.showPriceLine": false,
 
-                    // Comprehensive coverage for modern TV versions
-                    'mainSeriesProperties.showBidPriceLine': true,
-                    'mainSeriesProperties.showAskPriceLine': true,
->>>>>>> bd887245050eb8e30b5768bb8e0587c40ed3fe80
+                    // Bid/Ask lines visible by default
+                    "mainSeriesProperties.showBidPriceLine": true,
+                    "mainSeriesProperties.showAskPriceLine": true,
+                    "mainSeriesProperties.bidLineColor": "#EF4444",
+                    "mainSeriesProperties.askLineColor": "#3B82F6",
+                    "mainSeriesProperties.bidLineStyle": 1,
+                    "mainSeriesProperties.askLineStyle": 1,
+                    "mainSeriesProperties.bidLineWidth": 1,
+                    "mainSeriesProperties.askLineWidth": 1,
+                    "tradingProperties.showBidPriceLine": true,
+                    "tradingProperties.showAskPriceLine": true,
                     "mainSeriesProperties.bidAsk.lines.visible": true,
                     "mainSeriesProperties.bidAsk.labels.visible": true,
                     "mainSeriesProperties.bidAsk.labels.showText": false,
@@ -399,18 +375,12 @@ export const TVChartContainer = (props: any) => {
                 const chart = tvWidget.activeChart();
 
                 tvWidget.applyOverrides({
-<<<<<<< HEAD
                     "paneProperties.vertGridProperties.color": theme === 'dark' ? "rgba(0, 0, 0, 0)" : "#F3F4F6",
                     "paneProperties.horzGridProperties.color": theme === 'dark' ? "rgba(0, 0, 0, 0)" : "#F3F4F6",
                     "scalesProperties.showSeriesLastValue": false,
                     "scalesProperties.showSymbolLabels": false,
                     "mainSeriesProperties.showCountdown": false,
-=======
-                    "scalesProperties.showSeriesLastValue": false,
-                    "scalesProperties.showSymbolLabels": false,
-                    "mainSeriesProperties.showCountdown": false,
                     "mainSeriesProperties.showPriceLine": false,
->>>>>>> bd887245050eb8e30b5768bb8e0587c40ed3fe80
                     "mainSeriesProperties.showBidPriceLine": true,
                     "mainSeriesProperties.showAskPriceLine": true,
                     "mainSeriesProperties.bidLineColor": "#EF4444",
