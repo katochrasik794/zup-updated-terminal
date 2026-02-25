@@ -54,8 +54,8 @@ export default function CloseAllPositionsModal({ isOpen, onClose, onConfirm, pos
   }
 
   const getColor = (val) => {
-    if (val === 0) return 'text-[#8b9096]'
-    return val > 0 ? 'text-[#2ebd85]' : 'text-[#f6465d]'
+    if (val === 0) return 'text-gray-400'
+    return val > 0 ? 'text-success' : 'text-danger'
   }
 
   useEffect(() => {
@@ -81,13 +81,13 @@ export default function CloseAllPositionsModal({ isOpen, onClose, onConfirm, pos
   ]
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-background/50 backdrop-blur-sm animate-in fade-in duration-200">
       <div
         ref={modalRef}
-        className="bg-background rounded-lg shadow-2xl w-[400px] border border-[#363c47] overflow-hidden"
+        className="bg-background rounded-lg shadow-2xl w-[400px] border border-gray-800 overflow-hidden"
       >
         <div className="p-6">
-          <h3 className="text-white font-medium text-[16px] mb-4">
+          <h3 className="text-foreground font-medium text-[16px] mb-4">
             Close all positions at the market prices?
           </h3>
 
@@ -117,7 +117,7 @@ export default function CloseAllPositionsModal({ isOpen, onClose, onConfirm, pos
                     <div className="flex items-center gap-2">
                       <span className="text-[#e1e3e6] text-[14px]">{opt.label}</span>
                       {stat.count > 0 && (
-                        <span className="bg-[#363c47] text-[#b2b5be] text-[11px] px-1.5 py-0.5 rounded">
+                        <span className="bg-gray-800 text-gray-300 text-[11px] px-1.5 py-0.5 rounded">
                           {stat.count}
                         </span>
                       )}
@@ -134,7 +134,7 @@ export default function CloseAllPositionsModal({ isOpen, onClose, onConfirm, pos
           <div className="flex gap-3 mt-8">
             <button
               onClick={onClose}
-              className="flex-1 py-2.5 text-[14px] font-medium text-[#e1e3e6] bg-[#363c47] hover:bg-[#404652] transition-colors rounded"
+              className="flex-1 py-2.5 text-[14px] font-medium text-[#e1e3e6] bg-gray-800 hover:bg-gray-700 transition-colors rounded"
             >
               Cancel
             </button>
@@ -143,7 +143,7 @@ export default function CloseAllPositionsModal({ isOpen, onClose, onConfirm, pos
                 onConfirm(selectedOption)
                 onClose()
               }}
-              className="flex-1 py-2.5 text-[14px] font-medium text-[#141d22] bg-[#8b5cf6] hover:bg-[#ffe54f] transition-colors rounded"
+              className="flex-1 py-2.5 text-[14px] font-medium text-[#141d22] bg-primary hover:bg-[#ffe54f] transition-colors rounded"
             >
               Confirm
             </button>

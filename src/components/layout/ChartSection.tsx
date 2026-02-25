@@ -5,7 +5,7 @@ import TVChartContainer from '../chart/TVChartContainer';
 
 const ChartSection = () => {
     return (
-        <div className="flex-1 h-full overflow-hidden bg-[#0F0F0F]">
+        <div className="flex-1 h-full overflow-hidden bg-background">
             <TVChartContainer />
         </div>
     );

@@ -4,7 +4,7 @@
 @theme {
   --font-sans: 'Manrope', sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
-  
+
   /* Zuperior Brand Colors */
   --color-primary: #8B5CF6;
   --color-primary-foreground: #FFFFFF;
@@ -12,8 +12,49 @@
   --color-danger: #EF4444;
   --color-warning: #F59E0B;
   --color-info: #3B82F6;
-  --color-background: #01040D;
-  --color-foreground: #FAFAFA;
+  --color-background: var(--bg-main);
+  --color-foreground: var(--fg-main);
+  /* Use dedicated semantic tokens for things that should flip but aren't gray-scale */
+  --color-muted: var(--color-gray-500);
+}
+
+:root {
+  /* Default Dark Mode mappings */
+  --bg-main: #01040D;
+  --fg-main: #FAFAFA;
+}
+
+:root.light {
+  /* INVERT BACKGROUND/FOREGROUND */
+  --bg-main: #FFFFFF;
+  --fg-main: #111827;
+
+  /* INVERT TAILWIND GRAY SCALE FOR LIGHT MODE */
+  /* We map Dark-Mode usage to Light-Mode visually equivalent intensity */
+  /* e.g. gray-900 (used for containers in dark) -> gray-100 (light containers) */
+  --color-gray-50: #111827;
+  --color-gray-100: #1f2937;
+  --color-gray-200: #374151;
+  --color-gray-300: #4b5563;
+  --color-gray-400: #6b7280;
+  --color-gray-500: #9ca3af;
+  --color-gray-600: #d1d5db;
+  --color-gray-700: #e5e7eb;
+  --color-gray-800: #f3f4f6;
+  --color-gray-900: #f9fafb;
+  --color-gray-950: #ffffff;
+
+  /* Scrollbar override for Light Mode */
+  --sb-track: #f3f4f6;
+  --sb-thumb: #9ca3af;
+  --sb-thumb-hover: #6b7280;
+}
+
+:root {
+  /* Default Scrollbar Colors */
+  --sb-track: #20232A;
+  --sb-thumb: #A8B1BD;
+  --sb-thumb-hover: #C0C8D4;
 }
 
 /* Global font-family configuration */
@@ -52,9 +93,9 @@ body,
   margin: 0;
   padding: 0;
   overflow: hidden;
-  background-color: #02040d !important;
-  /* Zuperior Background */
-  /* Ensure gaps are visible as black */
+  background-color: var(--color-background) !important;
+  color: var(--color-foreground) !important;
+  /* Ensure gaps are visible properly based on theme */
 }
 
 /* Custom scrollbar styles */
@@ -65,30 +106,26 @@ body,
 }
 
 ::-webkit-scrollbar-track {
-  background: #20232A;
-  /* Dark track matching image */
+  background: var(--sb-track);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #A8B1BD;
-  /* Light blue-ish gray thumb matching image */
-  border: 3.5px solid #20232A;
-  /* Increased border to make thumb thinner */
+  background: var(--sb-thumb);
+  border: 3.5px solid var(--sb-track);
   border-radius: 6px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #C0C8D4;
-  /* Slightly lighter on hover */
+  background: var(--sb-thumb-hover);
 }
 
 ::-webkit-scrollbar-corner {
-  background: #20232A;
+  background: var(--sb-track);
 }
 
 /* Scrollbar Buttons (Arrows) */
 ::-webkit-scrollbar-button:single-button {
-  background-color: #20232A;
+  background-color: var(--sb-track);
   display: block;
   background-size: 15px;
   background-repeat: no-repeat;
@@ -209,29 +246,46 @@ body,
 
 /* Wavy / Shimmer Loader for Financial Data */
 @keyframes shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
+  0% {
+    background-position: -200% 0;
+  }
+
+  100% {
+    background-position: 200% 0;
+  }
 }
 
 .animate-shimmer {
-  background: linear-gradient(
-    90deg, 
-    rgba(255, 255, 255, 0) 25%, 
-    rgba(255, 255, 255, 0.08) 50%, 
-    rgba(255, 255, 255, 0) 75%
-  );
+  background: linear-gradient(90deg,
+      rgba(255, 255, 255, 0) 25%,
+      rgba(255, 255, 255, 0.08) 50%,
+      rgba(255, 255, 255, 0) 75%);
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite linear;
 }
 
 @keyframes wavyText {
-  0%, 100% { transform: translateY(0); opacity: 0.5; }
-  50% { transform: translateY(-3px); opacity: 0.8; }
+
+  0%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.5;
+  }
+
+  50% {
+    transform: translateY(-3px);
+    opacity: 0.8;
+  }
 }
 
 @keyframes progress {
-  from { width: 100%; }
-  to { width: 0%; }
+  from {
+    width: 100%;
+  }
+
+  to {
+    width: 0%;
+  }
 }
 
 .animate-wavy {

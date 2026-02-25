@@ -21,10 +21,10 @@ export const LoadingWave = () => {
 
 export const LoadingScreen = () => {
     return (
-        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#01040D]">
+        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-background">
             <div className="flex flex-col items-center gap-6">
                 <LoadingWave />
-                <div className="text-sm font-medium text-white/40 animate-pulse">
+                <div className="text-sm font-medium text-foreground/40 animate-pulse">
                     Loading Terminal...
                 </div>
             </div>

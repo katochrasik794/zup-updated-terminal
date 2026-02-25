@@ -18,14 +18,14 @@ export default function PositionClosedToast({ position, onClose }) {
   // Calculate if profit is positive or negative
   const plValue = parseFloat(String(position.pl || '0').replace('+', ''));
   const isPositive = plValue >= 0;
-  const colorClass = isPositive ? 'text-[#2ebd85]' : 'text-[#f6465d]';
+  const colorClass = isPositive ? 'text-success' : 'text-danger';
 
   return ReactDOM.createPortal(
-    <div className="fixed bottom-4 left-4 z-[99999] bg-[#02040d] text-[#b2b5be] rounded-md shadow-lg border border-gray-800 w-[320px] overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-300">
+    <div className="fixed bottom-4 left-4 z-[99999] bg-background text-gray-300 rounded-md shadow-lg border border-gray-800 w-[320px] overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-300">
       <div className="p-4 relative">
         <button
           onClick={onClose}
-          className="absolute top-2 right-2 text-[#6e757c] hover:text-white transition-colors"
+          className="absolute top-2 right-2 text-[#6e757c] hover:text-foreground transition-colors"
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <line x1="18" y1="6" x2="6" y2="18" />
@@ -42,13 +42,13 @@ export default function PositionClosedToast({ position, onClose }) {
           </div>
 
           <div className="flex-1">
-            <h3 className="text-white font-medium text-[14px] leading-tight mb-1">Position closed</h3>
-            <p className="text-[13px] text-[#b2b5be] mb-3">
+            <h3 className="text-foreground font-medium text-[14px] leading-tight mb-1">Position closed</h3>
+            <p className="text-[13px] text-gray-300 mb-3">
               {position.type} {position.volume} lot {position.symbol} at {position.currentPrice}
             </p>
 
             <div className="flex items-center justify-between text-[13px]">
-              <span className="text-[#b2b5be]">Profit</span>
+              <span className="text-gray-300">Profit</span>
               <span className={`${colorClass} font-medium font-mono`}>
                 {position.pl} USD
               </span>

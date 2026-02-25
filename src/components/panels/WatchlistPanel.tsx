@@ -64,7 +64,7 @@ const InstrumentRow = ({ item, isVisible, toggleFavorite, lastQuote, handleDragS
 
   useEffect(() => {
     if (quote.bid && prevBidRef.current !== quote.bid) {
-      const color = quote.bid > prevBidRef.current ? 'text-[#2ebd85]' : 'text-[#f6465d]';
+      const color = quote.bid > prevBidRef.current ? 'text-success' : 'text-danger';
       setBidColor(color);
       const timer = setTimeout(() => setBidColor(''), 300); // Blink duration
       prevBidRef.current = quote.bid;
@@ -74,7 +74,7 @@ const InstrumentRow = ({ item, isVisible, toggleFavorite, lastQuote, handleDragS
 
   useEffect(() => {
     if (quote.ask && prevAskRef.current !== quote.ask) {
-      const color = quote.ask > prevAskRef.current ? 'text-[#2ebd85]' : 'text-[#f6465d]';
+      const color = quote.ask > prevAskRef.current ? 'text-success' : 'text-danger';
       setAskColor(color);
       const timer = setTimeout(() => setAskColor(''), 300);
       prevAskRef.current = quote.ask;
@@ -83,8 +83,8 @@ const InstrumentRow = ({ item, isVisible, toggleFavorite, lastQuote, handleDragS
   }, [quote.ask]);
 
   // Fallback static color logic
-  const staticBidColor = changeColor === 'green' ? 'text-[#2ebd85]' : 'text-[#f6465d]';
-  const staticAskColor = changeColor === 'green' ? 'text-[#2ebd85]' : 'text-[#f6465d]';
+  const staticBidColor = changeColor === 'green' ? 'text-success' : 'text-danger';
+  const staticAskColor = changeColor === 'green' ? 'text-success' : 'text-danger';
 
   return (
     <div
@@ -99,17 +99,17 @@ const InstrumentRow = ({ item, isVisible, toggleFavorite, lastQuote, handleDragS
           addNavbarTab(item.symbol);
         }
       }}
-      className="group grid grid-cols-[36px_minmax(70px,100px)_auto_auto_30px] gap-0 items-center border-b border-gray-800 hover:bg-[#1c252f] transition-colors h-[40px] cursor-pointer min-w-0"
+      className="group grid grid-cols-[36px_minmax(70px,100px)_auto_auto_30px] gap-0 items-center border-b border-gray-800 hover:bg-gray-900 transition-colors h-[40px] cursor-pointer min-w-0"
     >
       {/* Flag - Sticky Left 0 */}
-      <div className="sticky left-0 z-10 flex items-center justify-center bg-[#0b0e14] group-hover:bg-[#1c252f] h-full transition-colors border-r border-gray-800 p-1.5">
+      <div className="sticky left-0 z-10 flex items-center justify-center bg-background group-hover:bg-gray-900 h-full transition-colors border-r border-gray-800 p-1.5">
         <div className="w-6 h-6 rounded-full overflow-hidden">
           <FlagIcon symbol={item.symbol} />
         </div>
       </div>
 
       {/* Symbol - Sticky Left 36px */}
-      <div className="sticky left-[36px] z-10 pl-2 flex flex-col justify-center border-r border-gray-800 bg-[#0b0e14] group-hover:bg-[#1c252f] h-full transition-colors overflow-hidden min-w-[70px] flex-shrink-0">
+      <div className="sticky left-[36px] z-10 pl-2 flex flex-col justify-center border-r border-gray-800 bg-background group-hover:bg-gray-900 h-full transition-colors overflow-hidden min-w-[70px] flex-shrink-0">
         <span className="text-[13px] font-bold text-gray-200 truncate">{item.symbol}</span>
         {isVisible('description') && <span className="text-[10px] text-gray-500 truncate">{item.description || item.name}</span>}
         {isMarketClosed && (
@@ -123,7 +123,7 @@ const InstrumentRow = ({ item, isVisible, toggleFavorite, lastQuote, handleDragS
       {isVisible('bid') && (
         <div className="px-1 w-[90px] min-w-[90px] text-center flex items-center justify-center h-full flex-shrink-0">
           <span className={cn(
-            "text-[12px] font-medium px-1.5 py-1 rounded-[4px] w-full block transition-colors bg-[#2ebd85]/10 truncate",
+            "text-[12px] font-medium px-1.5 py-1 rounded-[4px] w-full block transition-colors bg-success/10 truncate",
             bidColor || staticBidColor
           )}>
             {bid}
@@ -135,7 +135,7 @@ const InstrumentRow = ({ item, isVisible, toggleFavorite, lastQuote, handleDragS
       {isVisible('ask') && (
         <div className="px-1 w-[90px] min-w-[90px] text-center flex items-center justify-center h-full flex-shrink-0">
           <span className={cn(
-            "text-[12px] font-medium px-1.5 py-1 rounded-[4px] w-full block transition-colors bg-[#f6465d]/10 truncate",
+            "text-[12px] font-medium px-1.5 py-1 rounded-[4px] w-full block transition-colors bg-danger/10 truncate",
             askColor || staticAskColor
           )}>
             {ask}
@@ -151,7 +151,7 @@ const InstrumentRow = ({ item, isVisible, toggleFavorite, lastQuote, handleDragS
       <div className="flex items-center justify-center h-full">
         <button
           onClick={(e) => { e.stopPropagation(); toggleFavorite(item.id); }}
-          className={`text-[14px] transition-colors ${item.favorite ? 'text-[#f59e0b]' : 'text-gray-600 hover:text-gray-400'}`}
+          className={`text-[14px] transition-colors ${item.favorite ? 'text-warning' : 'text-gray-600 hover:text-gray-400'}`}
         >
           {item.favorite ? <FiStar fill="currentColor" /> : <FiStar />}
         </button>
@@ -275,7 +275,7 @@ export default function WatchlistPanel({ onClose }) {
 
 
   return (
-    <div className="flex flex-col h-full overflow-hidden bg-background text-[#b2b5be] font-sans border border-gray-800 rounded-md">
+    <div className="flex flex-col h-full overflow-hidden bg-background text-gray-300 font-sans border border-gray-800 rounded-md">
 
       {/* New Header Layout: Dropdown Title + Actions */}
       <header className="flex items-center justify-between pl-3 pr-2 py-2 flex-shrink-0 min-h-[44px] border-b border-gray-800/50">
@@ -284,7 +284,7 @@ export default function WatchlistPanel({ onClose }) {
         <div className="relative">
           <button
             onClick={() => setShowCategoryDropdown(!showCategoryDropdown)}
-            className="flex items-center gap-2 text-[14px] font-semibold text-white hover:text-gray-300 transition-colors"
+            className="flex items-center gap-2 text-[14px] font-semibold text-foreground hover:text-gray-300 transition-colors"
           >
             {selectedCategory}
             <svg width="10" height="6" viewBox="0 0 10 6" fill="none" className={`transition-transform duration-200 ${showCategoryDropdown ? 'rotate-180' : ''}`}>
@@ -296,7 +296,7 @@ export default function WatchlistPanel({ onClose }) {
           {showCategoryDropdown && (
             <>
               <div className="fixed inset-0 z-40" onClick={() => setShowCategoryDropdown(false)}></div>
-              <div className="absolute top-full left-0 mt-2 w-[220px] bg-[#1a1e25] border border-gray-700 rounded-lg shadow-xl z-50 py-1 max-h-[400px] overflow-y-auto">
+              <div className="absolute top-full left-0 mt-2 w-[220px] bg-gray-900 border border-gray-700 rounded-lg shadow-xl z-50 py-1 max-h-[400px] overflow-y-auto">
                 {dynamicCategories.map(cat => (
                   <div
                     key={cat}
@@ -304,15 +304,15 @@ export default function WatchlistPanel({ onClose }) {
                       setSelectedCategory(cat);
                       setShowCategoryDropdown(false);
                     }}
-                    className="px-4 py-2.5 text-[13px] text-gray-300 hover:bg-[#2a303c] hover:text-white cursor-pointer flex items-center justify-between group transition-colors"
+                    className="px-4 py-2.5 text-[13px] text-gray-300 hover:bg-gray-800 hover:text-foreground cursor-pointer flex items-center justify-between group transition-colors"
                   >
                     <span>{cat}</span>
                     {selectedCategory === cat ? (
-                      <svg width="10" height="8" viewBox="0 0 10 8" fill="none" className="text-white">
+                      <svg width="10" height="8" viewBox="0 0 10 8" fill="none" className="text-foreground">
                         <path d="M1 4L3.5 6.5L9 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                       </svg>
                     ) : (
-                      <span className="opacity-0 group-hover:opacity-100 text-[#f59e0b]">
+                      <span className="opacity-0 group-hover:opacity-100 text-warning">
                         <FiStar size={12} fill="currentColor" />
                       </span>
                     )}
@@ -328,7 +328,7 @@ export default function WatchlistPanel({ onClose }) {
 
           <button
             onClick={onClose}
-            className="p-1.5 text-gray-400 hover:text-white hover:bg-gray-800 rounded transition-colors"
+            className="p-1.5 text-gray-400 hover:text-foreground hover:bg-gray-800 rounded transition-colors"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <line x1="18" y1="6" x2="6" y2="18" />
@@ -340,7 +340,7 @@ export default function WatchlistPanel({ onClose }) {
 
       {/* Search Bar - Below Header */}
       <div className="px-3 py-2 flex-shrink-0 border-b border-gray-800/50">
-        <div className="relative group bg-[#131720] rounded-md border border-gray-800 group-focus-within:border-gray-600 transition-colors">
+        <div className="relative group bg-gray-900 rounded-md border border-gray-800 group-focus-within:border-gray-600 transition-colors">
           <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="11" cy="11" r="8" />
@@ -352,7 +352,7 @@ export default function WatchlistPanel({ onClose }) {
             placeholder="Search"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-9 pr-3 py-1.5 bg-transparent text-[13px] text-white placeholder-gray-600 focus:outline-none"
+            className="w-full pl-9 pr-3 py-1.5 bg-transparent text-[13px] text-foreground placeholder-gray-600 focus:outline-none"
           />
         </div>
       </div>
@@ -360,13 +360,13 @@ export default function WatchlistPanel({ onClose }) {
       <div className="flex-1 overflow-y-auto overflow-x-auto custom-scrollbar">
         {/* Sticky Header */}
         <div className="sticky top-0 z-20 grid grid-cols-[36px_minmax(70px,100px)_auto_auto_30px] gap-0 border-b border-gray-800 bg-background text-[11px] font-medium text-gray-500 uppercase min-w-0">
-          <div className="sticky left-0 z-30 py-2 text-center bg-[#0b0e14] border-r border-gray-800"></div> {/* Flag placeholder */}
-          <div className="sticky left-[36px] z-30 py-2 pl-2 text-left bg-[#0b0e14] border-r border-gray-800 min-w-[70px] flex-shrink-0">Symbol</div>
+          <div className="sticky left-0 z-30 py-2 text-center bg-background border-r border-gray-800"></div> {/* Flag placeholder */}
+          <div className="sticky left-[36px] z-30 py-2 pl-2 text-left bg-background border-r border-gray-800 min-w-[70px] flex-shrink-0">Symbol</div>
 
-          {isVisible('bid') && <div className="py-2 px-1 text-center w-[90px] min-w-[90px] flex-shrink-0 bg-[#0b0e14] border-r border-gray-800">Bid</div>}
-          {isVisible('ask') && <div className="py-2 px-1 text-center w-[90px] min-w-[90px] flex-shrink-0 bg-[#0b0e14] border-r border-gray-800">Ask</div>}
+          {isVisible('bid') && <div className="py-2 px-1 text-center w-[90px] min-w-[90px] flex-shrink-0 bg-background border-r border-gray-800">Bid</div>}
+          {isVisible('ask') && <div className="py-2 px-1 text-center w-[90px] min-w-[90px] flex-shrink-0 bg-background border-r border-gray-800">Ask</div>}
 
-          <div className="py-2 text-center bg-[#0b0e14]"></div> {/* Star placeholder */}
+          <div className="py-2 text-center bg-background"></div> {/* Star placeholder */}
         </div>
 
         {/* Content */}

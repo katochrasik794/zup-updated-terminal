@@ -9,7 +9,7 @@ import { useWebSocket } from '../../context/WebSocketContext';
 
 import { useAccount } from '../../context/AccountContext';
 
-export default function StatusBar({ openPositions = [], onCloseAll }: any) {
+export default function StatusBar({ openPositions = [], onCloseAll, totalPL = 0 }: any) {
   const { hideBalance } = usePrivacy();
   const { ping } = useWebSocket();
   const { currentBalance } = useAccount(); // Use centralized account data
@@ -18,7 +18,6 @@ export default function StatusBar({ openPositions = [], onCloseAll }: any) {
 
   // Removed local polling and state - using currentBalance from AccountContext
 
-  // Map values from context
   // Map values from context
   const data = currentBalance;
   const equity = data?.equity ?? 0;
@@ -29,11 +28,6 @@ export default function StatusBar({ openPositions = [], onCloseAll }: any) {
 
   // Calculate Free Margin locally (Equity - Margin)
   const freeMargin = Number((equity - margin).toFixed(2));
-
-  // Calculate P/L locally (Equity - Balance - Credit)
-  const accountProfit = Number((equity - balance - credit).toFixed(2));
-
-  const totalPL = accountProfit;
 
   const renderValue = (value: number, suffix: string = 'USD') => {
     if (hideBalance) return '****';
@@ -56,7 +50,7 @@ export default function StatusBar({ openPositions = [], onCloseAll }: any) {
 
       {/* Right section - P/L, Close all, Connection */}
       <div className="flex items-center gap-4">
-        <span className="text-gray-400">Total P/L, USD: <span className={`font-mono ${totalPL >= 0 ? 'text-[#2ebd85]' : 'text-[#f6465d]'}`}>
+        <span className="text-gray-400">Total P/L, USD: <span className={`font-mono ${totalPL >= 0 ? 'text-success' : 'text-danger'}`}>
           {hideBalance ? '****' : <>{totalPL >= 0 ? '+' : ''}{totalPL.toFixed(2)}</>}
         </span></span>
 
@@ -66,7 +60,7 @@ export default function StatusBar({ openPositions = [], onCloseAll }: any) {
           disabled={openPositions.length === 0}
           className={`px-3 mr-20 py-1 rounded text-sm flex items-center gap-2 transition-colors ${openPositions.length === 0
             ? 'bg-background text-[#565c66] cursor-not-allowed'
-            : 'bg-background hover:bg-[#363c45] text-gray-200 cursor-pointer'
+            : 'bg-background hover:bg-gray-700 text-gray-200 cursor-pointer'
             }`}
         >
           Close all

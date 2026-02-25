@@ -21,6 +21,8 @@ export interface Instrument {
     spread?: number
     commission?: number
     pipValue?: number
+    leverage?: number
+
 }
 
 interface InstrumentContextType {

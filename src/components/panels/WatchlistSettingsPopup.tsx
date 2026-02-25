@@ -10,7 +10,7 @@ export default function WatchlistSettingsPopup({
   onClose 
 }) {
   return (
-    <div className="absolute top-[40px] right-2 z-50 w-[240px] bg-[#2a303c] rounded shadow-xl border border-[#2a303c] overflow-hidden">
+    <div className="absolute top-[40px] right-2 z-50 w-[240px] bg-gray-800 rounded shadow-xl border border-gray-800 overflow-hidden">
       <div className="py-2">
         <div className="px-4 py-2 text-[11px] font-medium text-[#8d929b] uppercase tracking-wide">
           Columns
@@ -20,7 +20,7 @@ export default function WatchlistSettingsPopup({
           {columns.map((col) => (
             <div 
               key={col.id} 
-              className="flex items-center justify-between px-4 py-2 hover:bg-[#323945] transition-colors group"
+              className="flex items-center justify-between px-4 py-2 hover:bg-gray-700 transition-colors group"
             >
               <div className="flex items-center gap-3">
                 {col.draggable ? (
@@ -34,11 +34,11 @@ export default function WatchlistSettingsPopup({
               <button
                 onClick={() => onToggleColumn(col.id)}
                 className={`w-9 h-5 rounded-full relative transition-colors duration-200 ease-in-out ${
-                  col.visible ? 'bg-[#7f8792]' : 'bg-[#545b64]'
+                  col.visible ? 'bg-gray-500' : 'bg-gray-600'
                 }`}
               >
                 <span
-                  className={`absolute top-1 left-1 bg-white w-3 h-3 rounded-full transition-transform duration-200 ease-in-out ${
+                  className={`absolute top-1 left-1 bg-foreground w-3 h-3 rounded-full transition-transform duration-200 ease-in-out ${
                     col.visible ? 'translate-x-4' : 'translate-x-0'
                   }`}
                 />
@@ -48,20 +48,20 @@ export default function WatchlistSettingsPopup({
         </div>
       </div>
 
-      <div className="border-t border-[#363c47] py-2">
+      <div className="border-t border-gray-800 py-2">
         <div className="px-4 py-2 text-[11px] font-medium text-[#8d929b] uppercase tracking-wide">
           Appearance
         </div>
-        <div className="flex items-center justify-between px-4 py-2 hover:bg-[#323945] transition-colors">
+        <div className="flex items-center justify-between px-4 py-2 hover:bg-gray-700 transition-colors">
           <span className="text-[#e1e3e6] text-[13px]">Price highlight</span>
           <button
             onClick={onTogglePriceHighlight}
             className={`w-9 h-5 rounded-full relative transition-colors duration-200 ease-in-out ${
-              showPriceHighlight ? 'bg-[#7f8792]' : 'bg-[#545b64]'
+              showPriceHighlight ? 'bg-gray-500' : 'bg-gray-600'
             }`}
           >
             <span
-              className={`absolute top-1 left-1 bg-white w-3 h-3 rounded-full transition-transform duration-200 ease-in-out ${
+              className={`absolute top-1 left-1 bg-foreground w-3 h-3 rounded-full transition-transform duration-200 ease-in-out ${
                 showPriceHighlight ? 'translate-x-4' : 'translate-x-0'
               }`}
             />

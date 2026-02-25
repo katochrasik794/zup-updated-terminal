@@ -25,11 +25,11 @@ export default function MarketClosedToast({ info, onClose }: MarketClosedToastPr
     if (!info) return null
 
     return ReactDOM.createPortal(
-        <div className="fixed bottom-4 left-4 z-[99999] bg-[#0b0e14] text-[#d1d5db] rounded-md shadow-lg border border-amber-500/60 w-[320px] overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-300">
+        <div className="fixed bottom-4 left-4 z-[99999] bg-background text-[#d1d5db] rounded-md shadow-lg border border-amber-500/60 w-[320px] overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-300">
             <div className="p-4 relative">
                 <button
                     onClick={onClose}
-                    className="absolute top-2 right-2 text-[#9ca3af] hover:text-white transition-colors"
+                    className="absolute top-2 right-2 text-gray-400 hover:text-foreground transition-colors"
                 >
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <line x1="18" y1="6" x2="6" y2="18" />
@@ -47,7 +47,7 @@ export default function MarketClosedToast({ info, onClose }: MarketClosedToastPr
                     </div>
 
                     <div className="flex-1">
-                        <h3 className="text-white font-medium text-[14px] leading-tight mb-1">
+                        <h3 className="text-foreground font-medium text-[14px] leading-tight mb-1">
                             Market Closed {typeof info === 'object' && info?.symbol ? ` - ${info.symbol}` : ''}
                         </h3>
                         <p className="text-[13px] text-[#d1d5db]">

@@ -80,11 +80,11 @@ const ColumnVisibilityPopup = ({
         onClick={onClose}
       />
       <div
-        className="fixed z-[9999] bg-[#02040d] border border-gray-800 rounded-lg shadow-2xl w-[280px] overflow-hidden text-[#e1e1e1] font-sans text-[14px]"
+        className="fixed z-[9999] bg-background border border-gray-800 rounded-lg shadow-2xl w-[280px] overflow-hidden text-[#e1e1e1] font-sans text-[14px]"
         style={style}
       >
         <div className="px-4 py-3 border-b border-[#2a3038] flex justify-between items-center">
-          <span className="font-medium text-[#8b9096] text-[12px] uppercase tracking-wide">Columns</span>
+          <span className="font-medium text-gray-400 text-[12px] uppercase tracking-wide">Columns</span>
           {/* Only show actions if needed, or keep generic */}
         </div>
         <div className="py-2">
@@ -99,7 +99,7 @@ const ColumnVisibilityPopup = ({
                 onDragEnter={(e) => handleDragEnter(e, index)}
                 onDragEnd={handleDragEnd}
                 onDragOver={(e) => e.preventDefault()}
-                className={`flex items-center justify-between px-4 py-2 hover:bg-[#363c45] transition-colors group ${draggedItemIndex === index ? 'opacity-50 bg-[#363c45]' : ''}`}
+                className={`flex items-center justify-between px-4 py-2 hover:bg-gray-700 transition-colors group ${draggedItemIndex === index ? 'opacity-50 bg-[#363c45]' : ''}`}
               >
                 <div className="flex items-center gap-3">
                   <div className="text-[#585c63] cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100 transition-opacity">
@@ -116,7 +116,7 @@ const ColumnVisibilityPopup = ({
                     checked={visibleColumns[colId]}
                     onChange={() => toggleColumn(colId)}
                   />
-                  <div className="w-9 h-5 bg-[#545b64] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#7f8792]"></div>
+                  <div className="w-9 h-5 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-foreground after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-gray-500"></div>
                 </label>
               </div>
             );

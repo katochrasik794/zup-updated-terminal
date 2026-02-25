@@ -50,8 +50,11 @@ export async function middleware(req: NextRequest) {
 
   // Check for token in query params (SSO/Direct login)
   const urlToken = req.nextUrl.searchParams.get('token') || req.nextUrl.searchParams.get('access_token');
+  const isAutoLogin = req.nextUrl.searchParams.get('autoLogin') === 'true';
 
-  if (urlToken) {
+  // If this is an autoLogin, we let the client side (AuthContext) handle the token exchange
+  // and URL cleanup via history.replaceState, as it needs the token to hit /api/auth/sso-login
+  if (urlToken && !isAutoLogin) {
     const payload = await verifyJWT(urlToken);
     if (payload) {
       // Valid token found in URL - set cookie and redirect to clean URL
@@ -78,14 +81,16 @@ export async function middleware(req: NextRequest) {
     req.headers.get('authorization')?.replace('Bearer ', '') ||
     req.cookies.get('token')?.value;
 
-  if (!token) {
+  if (!token && !isAutoLogin) {
     // not authenticated -> redirect to login
     return NextResponse.redirect(new URL('/login', req.url));
   }
 
-  const payload = await verifyJWT(token);
-  if (!payload) {
-    return NextResponse.redirect(new URL('/login', req.url));
+  if (token && !isAutoLogin) {
+    const payload = await verifyJWT(token);
+    if (!payload) {
+      return NextResponse.redirect(new URL('/login', req.url));
+    }
   }
 
   return NextResponse.next();

@@ -490,6 +490,30 @@ export async function closeMultiplePositionsDirect(
 }
 
 /**
+ * Helper to determine the volume for pending orders sent to the C# MT5 API bridge.
+ * Scaling varies by symbol category to satisfy server-side minimums and multipliers.
+ */
+function getPendingOrderVolume(symbol: string, volume: number): number {
+    const s = symbol.toUpperCase();
+
+    // Indices (US30, NAS100, DAX/GER40, etc.)
+    // User: typing 0.01 and sending 0.1 (v*10) placed 0.10. 
+    // To get 0.01 placed, we must send 0.01. So multiplier is 1x.
+    const isIndex = s.includes('US30') || s.includes('NAS') || s.includes('GER') || s.includes('DE30') ||
+        s.includes('SPX') || s.includes('UK100') || s.includes('HK50') || s.includes('FRA40') ||
+        s.includes('ESTX50') || s.includes('AUS200') || s.includes('US500') || s.includes('VIX');
+
+    if (isIndex) {
+        return parseFloat(volume.toFixed(3));
+    }
+
+    // Metals, Forex, Crypto, Energies
+    // Metals/Forex: v*10 (0.1) failed with "min=1". Sending 1 (v*100) targets 0.01 lot placement.
+    // Crypto: v*10 (0.1) placed 0.001. To get 0.01, we need 10x more (v*100 = 1).
+    return Math.round(volume * 100);
+}
+
+/**
  * Place a market order directly via MetaAPI
  */
 export async function placeMarketOrderDirect({
@@ -503,16 +527,17 @@ export async function placeMarketOrderDirect({
     comment = ''
 }: PlaceMarketOrderDirectParams): Promise<ClosePositionResponse> {
     try {
+        // Market orders expect volume * 100 for ALL symbols
+        const volumeToSend = Math.round(Number(volume) * 100);
+
+        // Use specific endpoint for buy vs sell
         const tradePath = side === 'sell' ? 'trade-sell' : 'trade';
         const url = `${METAAPI_BASE_URL}/api/client/${tradePath}?account_id=${encodeURIComponent(accountId)}`;
-
-        // Volume normalized to units
-        const volumeInUnits = Math.round(volume * 100);
 
         // Mirroring PascalCase keys from fast pending orders
         const payload = {
             Symbol: symbol,
-            Volume: volumeInUnits,
+            Volume: volumeToSend,
             Price: 0,
             StopLoss: Number(stopLoss || 0),
             TakeProfit: Number(takeProfit || 0),
@@ -592,12 +617,15 @@ export async function placePendingOrderDirect({
         }
 
         const url = `${METAAPI_BASE_URL}/api/client/${endpoint}?account_id=${encodeURIComponent(accountId)}`;
-        const volumeInUnits = Math.round(volume * 1000);
 
+        // Pending orders expect exact lots for Forex, but * 100 for Crypto
+        const volumeToSend = getPendingOrderVolume(symbol, volume);
+
+        // Match backend schema: FLAT PascalCase payload
         const payload = {
             Symbol: symbol,
             Price: Number(price),
-            Volume: volumeInUnits,
+            Volume: volumeToSend,
             StopLoss: Number(stopLoss || 0),
             TakeProfit: Number(takeProfit || 0),
             Expiration: '0001-01-01T00:00:00',
@@ -662,7 +690,10 @@ export async function modifyPositionDirect({
 }: ModifyPositionDirectParams): Promise<ClosePositionResponse> {
     try {
         const API_BASE = METAAPI_BASE_URL.endsWith('/api') ? METAAPI_BASE_URL : `${METAAPI_BASE_URL}/api`;
-        const url = `${API_BASE}/client/position/modify`;
+
+        const positionIdNum = typeof positionId === 'string' ? parseInt(positionId, 10) : positionId;
+        // Primary URL: /api/client/position/modify?account_id={accountId}
+        const modifyUrl = `${API_BASE}/client/position/modify?account_id=${encodeURIComponent(accountId)}`;
 
         const payload: any = {
             PositionId: typeof positionId === 'string' ? parseInt(positionId, 10) : positionId,
@@ -676,7 +707,7 @@ export async function modifyPositionDirect({
             payload.TakeProfit = Number(takeProfit);
         }
 
-        const response = await fetch(url, {
+        let response = await fetch(modifyUrl, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -685,6 +716,30 @@ export async function modifyPositionDirect({
             },
             body: JSON.stringify(payload),
         });
+
+        if (!response.ok) {
+            // Fallback: PUT /api/Trading/position/modify with PascalCase
+            const fallbackUrl = `${API_BASE}/Trading/position/modify?account_id=${encodeURIComponent(accountId)}`;
+            const fallbackPayload = {
+                Login: parseInt(accountId, 10),
+                PositionId: Number(positionIdNum),
+                StopLoss: stopLoss !== undefined ? Number(stopLoss) : 0,
+                TakeProfit: takeProfit !== undefined ? Number(takeProfit) : 0,
+                Comment: comment || 'Modified from Terminal'
+            };
+
+            const fallbackRes = await fetch(fallbackUrl, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${accessToken}`,
+                    'AccountId': String(accountId),
+                },
+                body: JSON.stringify(fallbackPayload),
+            });
+
+            if (fallbackRes.ok) response = fallbackRes;
+        }
 
         if (!response.ok) {
             const errorText = await response.text().catch(() => '');
@@ -743,6 +798,7 @@ export async function modifyPendingOrderDirect({
         } else {
             orderIdNum = orderId;
         }
+        // URL: /client/order/{orderId} — matches working zup-updated-terminal implementation
         const url = `${API_BASE}/client/order/${orderIdNum}`;
 
         const payload: any = {
@@ -759,8 +815,6 @@ export async function modifyPendingOrderDirect({
         if (takeProfit !== undefined && takeProfit !== null) {
             payload.TakeProfit = Number(takeProfit) > 0 ? Number(takeProfit) : 0;
         }
-
-        // console.log('[modifyPendingOrderDirect] Payload:', payload);
 
         const response = await fetch(url, {
             method: 'PUT',
@@ -793,7 +847,7 @@ export async function modifyPendingOrderDirect({
                 return { success: true, message: 'Modify not supported; skipped' };
             }
 
-            console.error('[modifyPendingOrderDirect] Failed:', response.status, errorText);
+            console.warn('[modifyPendingOrderDirect] Failed:', response.status, errorText);
             return {
                 success: false,
                 message: `Failed to modify pending order: ${response.status} - ${errorText}`,
@@ -807,7 +861,7 @@ export async function modifyPendingOrderDirect({
             data,
         };
     } catch (error: any) {
-        console.error('[modifyPendingOrderDirect] Error:', error);
+        console.warn('[modifyPendingOrderDirect] Error:', error);
         return {
             success: false,
             message: error.message || 'Network error',

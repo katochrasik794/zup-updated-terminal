@@ -9,7 +9,7 @@ import PositionClosedToast from '../ui/PositionClosedToast'
 import GroupClosePopup from './GroupClosePopup'
 import { useTrading } from '../../context/TradingContext'
 
-export default function BottomPanel({ openPositions = [], pendingPositions = [], closedPositions = [], onClosePosition, onCloseGroup, closedToast, setClosedToast, onCloseAll, onHide, isMinimized = false }: any) {
+export default function BottomPanel({ openPositions = [], pendingPositions = [], closedPositions = [], onClosePosition, onCloseGroup, closedToast, setClosedToast, onCloseAll, onHide, isMinimized = false, onTabChange }: any) {
   const { setModifyModalState, setSymbol } = useTrading()
   const [activeTab, setActiveTab] = useState<'Open' | 'Pending' | 'Closed'>('Open')
   const [isGrouped, setIsGrouped] = useState(true)
@@ -87,7 +87,7 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
     const volumeDifference = Math.abs(group.totalBuyVolume - group.totalSellVolume);
     const isHedged = group.totalBuyVolume > 0 && group.totalSellVolume > 0 && volumeDifference < 0.0001;
     // Set plColor based on totalPL (green for positive, red for negative)
-    const plColor = group.totalPL >= 0 ? 'text-[#00ffaa]' : 'text-[#f6465d]';
+    const plColor = group.totalPL >= 0 ? 'text-success' : 'text-danger';
     return {
       ...group,
       type: isHedged ? 'Hedged' : group.positions[0].type,
@@ -139,8 +139,8 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
         const isStop = position.type === 'Buy Stop' || position.type === 'Sell Stop'
 
         let badgeClass = ''
-        if (isBuy) badgeClass = 'bg-[#00ffaa]/10 text-[#00ffaa]'
-        else if (isSell) badgeClass = 'bg-[#f6465d]/10 text-[#f6465d]'
+        if (isBuy) badgeClass = 'bg-success/10 text-success'
+        else if (isSell) badgeClass = 'bg-danger/10 text-danger'
         else badgeClass = 'bg-white/10 text-white'
 
         return (
@@ -151,27 +151,27 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
                 <path d="M6 0C2.68629 0 0 2.68629 0 6C0 9.31371 2.68629 12 6 12V0Z" fill="#0099ff" />
               </svg>
             ) : (
-              <span className={`w-2 h-2 rounded-full ${isBuy ? 'bg-[#00ffaa]' : 'bg-[#f6465d]'}`}></span>
+              <span className={`w-2 h-2 rounded-full ${isBuy ? 'bg-success' : 'bg-danger'}`}></span>
             )}
             {position.type}
           </span>
         )
       case 'volume':
-        return <span className="text-white border-b border-dashed border-gray-500">{position.volume}</span>
+        return <span className="text-foreground border-b border-dashed border-gray-500">{position.volume}</span>
       case 'openPrice':
-        return <span className="text-white">{position.openPrice}</span>
+        return <span className="text-foreground">{position.openPrice}</span>
       case 'currentPrice':
-        return <span className="text-white">{position.currentPrice || '-'}</span>
+        return <span className="text-foreground">{position.currentPrice || '-'}</span>
       case 'closePrice':
-        return <span className="text-white">{position.closePrice || position.currentPrice || '-'}</span>
+        return <span className="text-foreground">{position.closePrice || position.currentPrice || '-'}</span>
       case 'tp': {
         if (isGroupedView) {
-          return <span className="text-[#8b9096]">...</span>
+          return <span className="text-gray-400">...</span>
         }
 
         // For Closed tab, show plain text
         if (activeTab === 'Closed') {
-          return <span className="text-white">{position.tp}</span>
+          return <span className="text-foreground">{position.tp}</span>
         }
 
         // Check if TP is set (not 'Add', not 0, not empty, not null, not undefined)
@@ -181,7 +181,7 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
         const displayTP = hasTP ? tpValue : 'Add';
         return (
           <span
-            className="text-[#8b9096] cursor-pointer hover:text-white hover:underline decoration-dashed decoration-1 underline-offset-2"
+            className="text-gray-400 cursor-pointer hover:text-foreground hover:underline decoration-dashed decoration-1 underline-offset-2"
             onClick={(e) => {
               e.stopPropagation()
               // Use TradingContext modal for both pending orders and open positions
@@ -194,12 +194,12 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
       }
       case 'sl': {
         if (isGroupedView) {
-          return <span className="text-[#8b9096]">...</span>
+          return <span className="text-gray-400">...</span>
         }
 
         // For Closed tab, show plain text
         if (activeTab === 'Closed') {
-          return <span className="text-white">{position.sl}</span>
+          return <span className="text-foreground">{position.sl}</span>
         }
 
         // Check if SL is set (not 'Add', not 0, not empty, not null, not undefined)
@@ -209,7 +209,7 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
         const displaySL = hasSL ? slValue : 'Add';
         return (
           <span
-            className="text-[#8b9096] cursor-pointer hover:text-white hover:underline decoration-dashed decoration-1 underline-offset-2"
+            className="text-gray-400 cursor-pointer hover:text-foreground hover:underline decoration-dashed decoration-1 underline-offset-2"
             onClick={(e) => {
               e.stopPropagation()
               // Use TradingContext modal for both pending orders and open positions
@@ -221,17 +221,17 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
         )
       }
       case 'ticket':
-        return <span className="text-white">{!isGroupedView ? position.ticket : ''}</span>
+        return <span className="text-foreground">{!isGroupedView ? position.ticket : ''}</span>
       case 'openTime':
-        return <span className="text-white">{position.openTime || position.time}</span>
+        return <span className="text-foreground">{position.openTime || position.time}</span>
       case 'closeTime':
-        return <span className="text-white">{position.closeTime || '-'}</span>
+        return <span className="text-foreground">{position.closeTime || '-'}</span>
       case 'swap':
-        return <span className="text-white">{position.swap || '0'}</span>
+        return <span className="text-foreground">{position.swap || '0'}</span>
       case 'commission':
-        return <span className="text-white">{position.commission || '0'}</span>
+        return <span className="text-foreground">{position.commission || '0'}</span>
       case 'marketCloses':
-        return <span className="text-white">-</span>
+        return <span className="text-foreground">-</span>
       default:
         return null
     }
@@ -260,16 +260,16 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
 
 
   return (
-    <div className={`flex flex-col overflow-hidden rounded-md border border-gray-800 ${isMinimized ? 'h-[40px] bg-black border-none' : 'h-full bg-background min-h-0 relative'}`} style={{ fontFamily: "'Manrope', 'Manrope Fallback', sans-serif" }}>
+    <div className={`flex flex-col overflow-hidden rounded-md border border-gray-800 ${isMinimized ? 'h-[40px] bg-background border-none' : 'h-full bg-background min-h-0 relative'}`} style={{ fontFamily: "'Manrope', 'Manrope Fallback', sans-serif" }}>
       {/* Header Section */}
-      <div className={`flex items-center justify-between px-1 border-b border-gray-800 h-[40px] min-h-[40px] ${isMinimized ? 'bg-black border-t' : 'bg-background'}`}>
+      <div className={`flex items-center justify-between px-1 border-b border-gray-800 h-[40px] min-h-[40px] ${isMinimized ? 'bg-background border-t' : 'bg-background'}`}>
         {/* Tabs */}
         {/* Tabs - conditionally render based on isMinimized */}
         <div className="flex items-center h-full">
           {isMinimized ? (
-            <div className="px-5 text-[14px] font-medium text-white flex items-center gap-2">
+            <div className="px-5 text-[14px] font-medium text-foreground flex items-center gap-2">
               <span>Open Positions</span>
-              <span className="text-[11px] px-1.5 py-0.5 rounded-[3px] leading-none bg-[#8b5cf6] text-white">
+              <span className="text-[11px] px-1.5 py-0.5 rounded-[3px] leading-none bg-primary text-white">
                 {openPositions.length}
               </span>
             </div>
@@ -277,21 +277,24 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
             tabs.map(tab => (
               <button
                 key={tab}
-                onClick={() => setActiveTab(tab)}
+                onClick={() => {
+                  setActiveTab(tab)
+                  if (onTabChange) onTabChange(tab)
+                }}
                 className={`relative h-full px-5 text-[14px] font-medium transition-colors flex items-center gap-1 cursor-pointer ${activeTab === tab
-                  ? 'text-white after:content-[""] after:absolute after:bottom-0 after:left-0 after:w-full after:h-[2px] after:bg-white'
-                  : 'text-[#8b9096] hover:text-white'
+                  ? 'text-foreground after:content-[""] after:absolute after:bottom-0 after:left-0 after:w-full after:h-[2px] after:bg-foreground'
+                  : 'text-gray-400 hover:text-foreground'
                   }`}
               >
                 {tab}
                 {tab === 'Open' && (
-                  <span className={`text-[11px] px-1.5 py-0.5 rounded-[3px] leading-none bg-[#8b5cf6] text-white`}>{openPositions.length}</span>
+                  <span className={`text-[11px] px-1.5 py-0.5 rounded-[3px] leading-none bg-primary text-white`}>{openPositions.length}</span>
                 )}
                 {tab === 'Pending' && (
-                  <span className={`text-[11px] px-1.5 py-0.5 rounded-[3px] leading-none bg-[#8b5cf6] text-white`}>{pendingPositions.length}</span>
+                  <span className={`text-[11px] px-1.5 py-0.5 rounded-[3px] leading-none bg-primary text-white`}>{pendingPositions.length}</span>
                 )}
                 {tab === 'Closed' && (
-                  <span className={`text-[11px] px-1.5 py-0.5 rounded-[3px] leading-none bg-[#8b5cf6] text-white`}>{closedPositions.length}</span>
+                  <span className={`text-[11px] px-1.5 py-0.5 rounded-[3px] leading-none bg-primary text-white`}>{closedPositions.length}</span>
                 )}
               </button>
             ))
@@ -303,11 +306,11 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
           {!isMinimized && (
             <>
               {/* Group/Ungroup Toggle */}
-              <div className="flex items-center border border-[#2a353e] rounded p-[2px] mr-2">
+              <div className="flex items-center border border-gray-800 rounded p-[2px] mr-2">
                 <Tooltip text="Group positions">
                   <button
                     onClick={() => setIsGrouped(true)}
-                    className={`p-1 rounded cursor-pointer transition-colors ${isGrouped ? 'bg-[#2a353e] text-white' : 'text-[#8b9096] hover:text-white'}`}
+                    className={`p-1 rounded cursor-pointer transition-colors ${isGrouped ? 'bg-gray-800 text-foreground' : 'text-gray-400 hover:text-foreground'}`}
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 7L3 12l9 5 9-5-9-5z" />
@@ -318,7 +321,7 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
                 <Tooltip text="Ungroup positions">
                   <button
                     onClick={() => setIsGrouped(false)}
-                    className={`p-1 rounded cursor-pointer transition-colors ${!isGrouped ? 'bg-[#2a353e] text-white' : 'text-[#8b9096] hover:text-white'}`}
+                    className={`p-1 rounded cursor-pointer transition-colors ${!isGrouped ? 'bg-gray-800 text-foreground' : 'text-gray-400 hover:text-foreground'}`}
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 2L2 7l10 5 10-5-10-5z" />
@@ -332,7 +335,7 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
                 <IconButton
                   tooltip="Settings"
                   onClick={() => setIsColumnPopupOpen(!isColumnPopupOpen)}
-                  className={isColumnPopupOpen ? 'text-white' : ''}
+                  className={isColumnPopupOpen ? 'text-foreground' : ''}
                 >
                   <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
                     <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" />
@@ -360,10 +363,10 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
         <>
           <div className="flex-1 overflow-auto bg-background min-h-0">
             <table className="w-full text-[12px] border-collapse min-w-max">
-              <thead className="sticky top-0 bg-[#02040d] z-40">
+              <thead className="sticky top-0 bg-background z-40">
                 <tr className="text-[11px] text-gray-400 border-b border-gray-800">
                   {/* Symbol is fixed */}
-                  <th className="px-3 py-[3px] text-left font-normal whitespace-nowrap bg-[#02040d] z-50 sticky left-0">Symbol</th>
+                  <th className="px-3 py-[3px] text-left font-normal whitespace-nowrap bg-background z-50 sticky left-0">Symbol</th>
 
                   {/* Dynamic Columns */}
                   {columnOrder.map(colId => {
@@ -399,9 +402,9 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
 
                   {/* Sticky Columns Header - Hide P/L for Pending tab */}
                   {activeTab !== 'Pending' && (
-                    <th className="px-3 py-[3px] text-right font-normal whitespace-nowrap sticky right-[90px] bg-[#02040d] z-50 shadow-[-10px_0_10px_-5px_rgba(0,0,0,0.3)] border-b border-gray-800 w-[120px] min-w-[120px]">P/L</th>
+                    <th className="px-3 py-[3px] text-right font-normal whitespace-nowrap sticky right-[90px] bg-background z-50 shadow-[-10px_0_10px_-5px_rgba(0,0,0,0.3)] border-b border-gray-800 w-[120px] min-w-[120px]">P/L</th>
                   )}
-                  <th className="px-3 py-[3px] text-center font-normal w-[90px] min-w-[90px] sticky right-0 bg-[#02040d] z-50 border-b border-gray-800"></th>
+                  <th className="px-3 py-[3px] text-center font-normal w-[90px] min-w-[90px] sticky right-0 bg-background z-50 border-b border-gray-800"></th>
                 </tr>
               </thead>
               <tbody>
@@ -415,7 +418,7 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
                           setSymbol(position.symbol)
                         }
                       }}
-                      className={`border-b border-gray-800 hover:bg-[#1c252f] group cursor-pointer`}
+                      className={`border-b border-gray-800 hover:bg-gray-900 group cursor-pointer`}
                     >
                       <td className="px-3 py-1.5 whitespace-nowrap">
                         <div className="flex items-center gap-1.5">
@@ -429,9 +432,9 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
                           <div className="w-5 h-5 relative">
                             <FlagIcon type={position.flag || 'xauusd'} />
                           </div>
-                          <span className="text-white font-medium">{position.symbol}</span>
+                          <span className="text-foreground font-medium">{position.symbol}</span>
                           {isGrouped && position.count > 1 && (
-                            <span className="ml-1 text-[10px] bg-[#8b5cf6] text-white px-1 rounded">{position.count}</span>
+                            <span className="ml-1 text-[10px] bg-primary text-white px-1 rounded">{position.count}</span>
                           )}
                         </div>
                       </td>
@@ -467,18 +470,18 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
 
                       {/* Sticky Columns Data - Hide P/L for Pending tab */}
                       {(activeTab as string) !== 'Pending' && (
-                        <td className="px-3 py-1.5 text-right whitespace-nowrap sticky right-[90px] bg-[#02040d] group-hover:bg-[#1c252f] z-20 shadow-[-10px_0_10px_-5px_rgba(0,0,0,0.3)] border-b border-gray-800 w-[120px] min-w-[120px]">
+                        <td className="px-3 py-1.5 text-right whitespace-nowrap sticky right-[90px] bg-background group-hover:bg-gray-900 z-20 shadow-[-10px_0_10px_-5px_rgba(0,0,0,0.3)] border-b border-gray-800 w-[120px] min-w-[120px]">
                           <span className={`font-medium ${position.plColor}`}>{position.pl}</span>
                         </td>
                       )}
-                      <td className="px-3 py-1.5 text-center whitespace-nowrap sticky right-0 bg-[#02040d] group-hover:bg-[#1c252f] z-20 border-b border-gray-800">
+                      <td className="px-3 py-1.5 text-center whitespace-nowrap sticky right-0 bg-background group-hover:bg-gray-900 z-20 border-b border-gray-800">
                         <div className="flex items-center justify-center gap-0.5">
                           {!isGrouped ? (
                             <>
                               <IconButton
                                 tooltip="Edit"
                                 placement="left"
-                                className="text-[#8b9096]"
+                                className="text-gray-400"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   setModifyModalState({ isOpen: true, position });
@@ -491,7 +494,7 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
                               <IconButton
                                 tooltip="Close position"
                                 placement="left"
-                                className="text-[#8b9096]"
+                                className="text-gray-400"
                                 onClick={(e) => {
                                   e.stopPropagation()
                                   onClosePosition(position)
@@ -506,7 +509,7 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
                             <IconButton
                               tooltip="Close all positions"
                               placement="left"
-                              className="text-[#8b9096]"
+                              className="text-gray-400"
                               onClick={(e) => handleCloseGroup(e, position.symbol)}
                             >
                               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -533,7 +536,7 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
                                   {position.positions.map((subPos, subIdx) => (
                                     <tr
                                       key={`${position.symbol}-${subIdx}`}
-                                      className="border-b border-gray-800 hover:bg-[#1c252f] group/sub cursor-pointer"
+                                      className="border-b border-gray-800 hover:bg-gray-900 group/sub cursor-pointer"
                                       onClick={() => setSymbol(subPos.symbol)}
                                     >
                                       <td className="px-3 py-1.5 whitespace-nowrap">
@@ -576,16 +579,16 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
 
                                       {/* Sticky Columns Data - Hide P/L for Pending tab */}
                                       {(activeTab as string) !== 'Pending' && (
-                                        <td className="px-3 py-1.5 text-right whitespace-nowrap sticky right-[90px] bg-[#02040d] group-hover/sub:bg-[#1c252f] z-20 shadow-[-10px_0_10px_-5px_rgba(0,0,0,0.3)] border-b border-gray-800 w-[120px] min-w-[120px]">
+                                        <td className="px-3 py-1.5 text-right whitespace-nowrap sticky right-[90px] bg-background group-hover/sub:bg-gray-900 z-20 shadow-[-10px_0_10px_-5px_rgba(0,0,0,0.3)] border-b border-gray-800 w-[120px] min-w-[120px]">
                                           <span className={`font-medium ${subPos.plColor}`}>{subPos.pl}</span>
                                         </td>
                                       )}
-                                      <td className="px-3 py-1.5 text-center whitespace-nowrap sticky right-0 bg-[#02040d] group-hover/sub:bg-[#1c252f] z-20 border-b border-gray-800">
+                                      <td className="px-3 py-1.5 text-center whitespace-nowrap sticky right-0 bg-background group-hover/sub:bg-gray-900 z-20 border-b border-gray-800">
                                         <div className="flex items-center justify-center gap-0.5">
                                           <IconButton
                                             tooltip="Edit"
                                             placement="left"
-                                            className="text-[#8b9096]"
+                                            className="text-gray-400"
                                             onClick={(e) => {
                                               e.stopPropagation();
                                               setModifyModalState({ isOpen: true, position: subPos });
@@ -598,7 +601,7 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
                                           <IconButton
                                             tooltip="Close position"
                                             placement="left"
-                                            className="text-[#8b9096]"
+                                            className="text-gray-400"
                                             onClick={(e) => {
                                               e.stopPropagation()
                                               onClosePosition(subPos)
@@ -624,7 +627,7 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
                 {activeTab === 'Closed' && closedPositions.map((position, idx) => (
                   <tr
                     key={idx}
-                    className="border-b border-gray-800 hover:bg-[#1c252f] group cursor-pointer"
+                    className="border-b border-gray-800 hover:bg-gray-900 group cursor-pointer"
                     onClick={() => setSymbol(position.symbol)}
                   >
                     <td className="px-3 py-1.5 whitespace-nowrap">
@@ -632,7 +635,7 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
                         <div className="w-5 h-5 relative">
                           <FlagIcon type={position.flag || 'xauusd'} />
                         </div>
-                        <span className="text-white font-medium">{position.symbol}</span>
+                        <span className="text-foreground font-medium">{position.symbol}</span>
                       </div>
                     </td>
 
@@ -667,11 +670,11 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
 
                     {/* Sticky Columns Data - Hide P/L for Pending tab */}
                     {(activeTab as string) !== 'Pending' && (
-                      <td className="px-3 py-1.5 text-right whitespace-nowrap sticky right-[90px] bg-[#02040d] group-hover:bg-[#1c252f] z-20 shadow-[-10px_0_10px_-5px_rgba(0,0,0,0.3)] border-b border-gray-800 w-[120px] min-w-[120px]">
+                      <td className="px-3 py-1.5 text-right whitespace-nowrap sticky right-[90px] bg-background group-hover:bg-gray-900 z-20 shadow-[-10px_0_10px_-5px_rgba(0,0,0,0.3)] border-b border-gray-800 w-[120px] min-w-[120px]">
                         <span className={`font-medium ${position.plColor}`}>{position.pl}</span>
                       </td>
                     )}
-                    <td className="px-3 py-1.5 text-center whitespace-nowrap sticky right-0 bg-[#02040d] group-hover:bg-[#1c252f] z-20 border-b border-gray-800">
+                    <td className="px-3 py-1.5 text-center whitespace-nowrap sticky right-0 bg-background group-hover:bg-gray-900 z-20 border-b border-gray-800">
                       {/* Empty cell for closed positions */}
                     </td>
                   </tr>
@@ -680,7 +683,7 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
                 {(activeTab as string) === 'Pending' && (
                   pendingPositions.length === 0 ? (
                     <tr>
-                      <td colSpan={13} className="text-center py-16 text-[#8b9096]">
+                      <td colSpan={13} className="text-center py-16 text-gray-400">
                         No pending orders
                       </td>
                     </tr>
@@ -688,7 +691,7 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
                     pendingPositions.map((position, idx) => (
                       <tr
                         key={idx}
-                        className="border-b border-gray-800 hover:bg-[#1c252f] group cursor-pointer"
+                        className="border-b border-gray-800 hover:bg-gray-900 group cursor-pointer"
                         onClick={() => setSymbol(position.symbol)}
                       >
                         <td className="px-3 py-1.5 whitespace-nowrap">
@@ -696,7 +699,7 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
                             <div className="w-5 h-5 relative">
                               <FlagIcon type={position.flag || 'xauusd'} />
                             </div>
-                            <span className="text-white font-medium">{position.symbol}</span>
+                            <span className="text-foreground font-medium">{position.symbol}</span>
                           </div>
                         </td>
 
@@ -731,16 +734,16 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
 
                         {/* Sticky Columns Data - Hide P/L for Pending tab */}
                         {(activeTab as string) !== 'Pending' && (
-                          <td className="px-3 py-1.5 text-right whitespace-nowrap sticky right-[90px] bg-[#02040d] group-hover:bg-[#1c252f] z-20 shadow-[-10px_0_10px_-5px_rgba(0,0,0,0.3)] border-b border-gray-800 w-[120px] min-w-[120px]">
+                          <td className="px-3 py-1.5 text-right whitespace-nowrap sticky right-[90px] bg-background group-hover:bg-gray-900 z-20 shadow-[-10px_0_10px_-5px_rgba(0,0,0,0.3)] border-b border-gray-800 w-[120px] min-w-[120px]">
                             <span className={`font-medium ${position.plColor}`}>{position.pl}</span>
                           </td>
                         )}
-                        <td className="px-3 py-1.5 text-center whitespace-nowrap sticky right-0 bg-[#02040d] group-hover:bg-[#1c252f] z-20 border-b border-gray-800">
+                        <td className="px-3 py-1.5 text-center whitespace-nowrap sticky right-0 bg-background group-hover:bg-gray-900 z-20 border-b border-gray-800">
                           <div className="flex items-center justify-center gap-0.5">
                             <IconButton
                               tooltip="Edit"
                               placement="left"
-                              className="text-[#8b9096]"
+                              className="text-gray-400"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setModifyModalState({ isOpen: true, position });
@@ -753,7 +756,7 @@ export default function BottomPanel({ openPositions = [], pendingPositions = [],
                             <IconButton
                               tooltip="Cancel order"
                               placement="left"
-                              className="text-[#8b9096]"
+                              className="text-gray-400"
                               onClick={(e) => {
                                 e.stopPropagation()
                                 onClosePosition(position)

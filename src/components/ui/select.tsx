@@ -11,8 +11,8 @@ function Select({ className, children, ...props }: SelectProps) {
   return (
     <select
       className={cn(
-        "flex h-9 w-full rounded-md border border-white/10 bg-white/[0.02] px-3 py-1 text-sm text-white",
-        "focus:outline-none focus:border-[#8B5CF6]",
+        "flex h-9 w-full rounded-md border border-foreground/10 bg-white/[0.02] px-3 py-1 text-sm text-foreground",
+        "focus:outline-none focus:border-primary",
         "disabled:cursor-not-allowed disabled:opacity-50",
         className
       )}
@@ -32,8 +32,8 @@ function SelectTrigger({ className, children, ...props }: SelectTriggerProps) {
     <button
       type="button"
       className={cn(
-        "flex h-9 w-full items-center justify-between rounded-md border border-white/10 bg-white/[0.02] px-3 py-1 text-sm text-white",
-        "focus:outline-none focus:border-[#8B5CF6]",
+        "flex h-9 w-full items-center justify-between rounded-md border border-foreground/10 bg-white/[0.02] px-3 py-1 text-sm text-foreground",
+        "focus:outline-none focus:border-primary",
         "disabled:cursor-not-allowed disabled:opacity-50",
         className
       )}
@@ -59,7 +59,7 @@ interface SelectContentProps {
 
 function SelectContent({ children, className }: SelectContentProps) {
   return (
-    <div className={cn("absolute z-50 min-w-[8rem] overflow-hidden rounded-md border border-white/10 bg-[#1a1f28] shadow-lg", className)}>
+    <div className={cn("absolute z-50 min-w-[8rem] overflow-hidden rounded-md border border-foreground/10 bg-gray-900 shadow-lg", className)}>
       {children}
     </div>
   )

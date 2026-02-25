@@ -26,6 +26,7 @@ import ModifyPositionModal from '@/components/modals/ModifyPositionModal'
 import OrderPlacedToast from '@/components/ui/OrderPlacedToast'
 import MarketClosedToast from '@/components/ui/MarketClosedToast'
 import PositionClosedToast from '@/components/ui/PositionClosedToast'
+import { PREVIEW_ORDER_ID, PREVIEW_POSITION_ID } from '@/components/chart/ZuperiorBroker'
 import ReactDOM from 'react-dom'
 
 export default function TradingTerminal() {
@@ -45,6 +46,15 @@ export default function TradingTerminal() {
   const [confirmedInjections, setConfirmedInjections] = useState<any[]>([])
   const [closedTickets, setClosedTickets] = useState<string[]>([])
 
+  // --- SYNC WITH CHART BROKER ---
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      (window as any).__CONFIRMED_INJECTIONS__ = confirmedInjections;
+      // Notify broker that injections changed
+      window.dispatchEvent(new CustomEvent('zuperior-positions-updated'));
+    }
+  }, [confirmedInjections]);
+
   // Ref for pending confirmations removed per user request (immediate toast)
 
   // Memoize toast close handlers to prevent timer resets
@@ -56,6 +66,12 @@ export default function TradingTerminal() {
     setClosedToast(null);
   }, []);
 
+  // Refs for stable handler access in listeners (avoids churn)
+  const tradeHandlersRef = useRef({
+    buy: (data: any) => { },
+    sell: (data: any) => { }
+  });
+
   // Fetch positions, pending orders, and closed positions using REST API hook
   const {
     positions: rawPositions,
@@ -63,10 +79,12 @@ export default function TradingTerminal() {
     closedPositions: rawClosedPositions,
     isLoading: isPositionsLoading,
     error: positionsError,
-    refetch: refetchPositions
+    refetch: refetchPositions,
+    refetchClosed
   } = usePositions({
     accountId: currentAccountId,
     enabled: !!currentAccountId,
+    includeClosed: false,
   });
 
   useEffect(() => {
@@ -80,6 +98,13 @@ export default function TradingTerminal() {
       window.dispatchEvent(new CustomEvent('zuperior-positions-updated'));
     }
   }, [rawPositions, rawPendingOrders, rawClosedPositions]);
+
+  // Fetch closed positions on initial load and account changes
+  useEffect(() => {
+    if (currentAccountId) {
+      refetchClosed();
+    }
+  }, [currentAccountId, refetchClosed]);
 
   // Market closed helper
   const isMarketClosed = useCallback((sym?: string) => {
@@ -126,11 +151,8 @@ export default function TradingTerminal() {
         sl: pos.stopLoss && pos.stopLoss !== 0 ? pos.stopLoss.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 }) : 'Add',
         ticket: pos.ticket.toString(),
         openTime: new Date(pos.openTime).toLocaleString('en-US', {
-          month: 'short',
-          day: 'numeric',
-          hour: 'numeric',
-          minute: '2-digit',
-          second: '2-digit',
+          month: 'short', day: 'numeric',
+          hour: 'numeric', minute: '2-digit', second: '2-digit',
           hour12: true
         }),
         swap: pos.swap.toFixed(2),
@@ -138,10 +160,15 @@ export default function TradingTerminal() {
         pl: plFormatted,
         plColor,
         flag,
-        id: pos.id, // Keep original ID for closing
+        id: pos.id,
       };
     });
-  }, [rawPositions, confirmedInjections, closedTickets]);
+  }, [rawPositions, confirmedInjections, closedTickets, lastQuotes, instruments, normalizeSymbol]);
+
+  // Calculate total P/L in real-time from openPositions
+  const totalPL = useMemo(() => {
+    return openPositions.reduce((sum, pos) => sum + (parseFloat(pos.pl) || 0), 0);
+  }, [openPositions]);
 
   // Format pending orders for BottomPanel display
   const pendingPositions = useMemo(() => {
@@ -159,7 +186,7 @@ export default function TradingTerminal() {
     return combined.map((pos: Position) => {
       const profit = pos.profit || 0;
       const plFormatted = profit >= 0 ? `+${profit.toFixed(2)}` : profit.toFixed(2);
-      const plColor = profit >= 0 ? 'text-[#00ffaa]' : 'text-[#f6465d]';
+      const plColor = profit >= 0 ? 'text-success' : 'text-danger';
       const symbol = pos.symbol || '';
       const flag = symbol.toLowerCase().replace('/', '');
 
@@ -197,7 +224,7 @@ export default function TradingTerminal() {
     return rawClosedPositions.map((pos: Position) => {
       const profit = pos.profit || 0;
       const plFormatted = profit >= 0 ? `+${profit.toFixed(2)}` : profit.toFixed(2);
-      const plColor = profit >= 0 ? 'text-[#00ffaa]' : 'text-[#f6465d]';
+      const plColor = profit >= 0 ? 'text-success' : 'text-danger';
       const symbol = pos.symbol || '';
       const flag = symbol.toLowerCase().replace('/', '');
 
@@ -314,6 +341,7 @@ export default function TradingTerminal() {
 
           // Refresh positions/orders to update UI
           refetchPositions();
+          refetchClosed(); // Also refetch closed after cancellation
         }
         return;
       }
@@ -356,6 +384,7 @@ export default function TradingTerminal() {
       } else {
         // Refresh positions in background
         refetchPositions();
+        refetchClosed(); // Also refetch closed after closure
       }
     } catch (error) {
       console.error('[ClosePosition] Error:', error);
@@ -439,6 +468,7 @@ export default function TradingTerminal() {
       } else {
         // Refresh positions to sync with server
         refetchPositions();
+        refetchClosed(); // Also refetch closed after closure
       }
     } catch (error) {
     }
@@ -538,6 +568,7 @@ export default function TradingTerminal() {
       } else {
         // Refresh positions
         refetchPositions();
+        refetchClosed(); // Also refetch closed after closure
       }
     } catch (error) {
     }
@@ -610,13 +641,20 @@ export default function TradingTerminal() {
     return false;
   }, [currentAccount, symbol]);
 
-  const handleBuyOrder = async (orderData: any) => {
-    if (!currentAccountId) {
+  const handleBuyOrder = useCallback(async (orderData: any) => {
+    if (!currentAccountId || (typeof window !== 'undefined' && (window as any).__IS_PROCESSING_TRADE__)) {
       return;
     }
 
+    if (typeof window !== 'undefined') {
+      (window as any).__IS_PROCESSING_TRADE__ = true;
+    }
+
     // Check kill switch status
-    if (checkKillSwitch('buy')) return;
+    if (checkKillSwitch('buy')) {
+      if (typeof window !== 'undefined') (window as any).__IS_PROCESSING_TRADE__ = false;
+      return;
+    }
 
 
     try {
@@ -642,6 +680,7 @@ export default function TradingTerminal() {
           profit: null,
           error: 'Insufficient Funds Order not placed',
         });
+        if (typeof window !== 'undefined') (window as any).__IS_PROCESSING_TRADE__ = false;
         return;
       }
 
@@ -661,6 +700,7 @@ export default function TradingTerminal() {
             profit: null,
             error: 'Price not available. Order not placed.',
           });
+          if (typeof window !== 'undefined') (window as any).__IS_PROCESSING_TRADE__ = false;
           return;
         }
 
@@ -671,6 +711,7 @@ export default function TradingTerminal() {
         }
 
         if (!accessToken) {
+          if (typeof window !== 'undefined') (window as any).__IS_PROCESSING_TRADE__ = false;
           throw new Error('Failed to get MetaAPI access token');
         }
 
@@ -721,12 +762,12 @@ export default function TradingTerminal() {
             };
             setConfirmedInjections(prev => [...prev, confirmedTrade]);
           }
-
           refetchPositions();
-
-          // Toast already shown optimistically
         } else {
-          // If API call failed, show error toast
+          // REMOVE optimistic trade on failure
+          setConfirmedInjections(prev => prev.filter(t => t.id !== 'PREVIEW_POSITION_ID'));
+
+          // Show error toast
           setOrderToast({
             side: 'buy',
             symbol: chosenSymbol,
@@ -749,7 +790,30 @@ export default function TradingTerminal() {
             profit: null,
             error: 'Open price is required for pending orders',
           });
+          if (typeof window !== 'undefined') (window as any).__IS_PROCESSING_TRADE__ = false;
           return;
+        }
+
+        const entryPrice = orderData.openPrice || 0;
+        const pType = orderData.pendingOrderType || 'limit';
+
+        // Optimistic Toast
+        setOrderToast({
+          side: 'buy',
+          symbol: chosenSymbol,
+          volume: orderData.volume,
+          price: entryPrice,
+          orderType: pType,
+          profit: null,
+          status: 'success'
+        });
+
+        // SL/TP Validation
+        if (orderData.stopLoss && orderData.stopLoss > 0 && orderData.stopLoss >= entryPrice) {
+          throw new Error("Buy Stop Loss must be below the entry price.");
+        }
+        if (orderData.takeProfit && orderData.takeProfit > 0 && orderData.takeProfit <= entryPrice) {
+          throw new Error("Buy Take Profit must be above the entry price.");
         }
 
         // Get MetaAPI access token - Try cache first for speed
@@ -761,17 +825,6 @@ export default function TradingTerminal() {
         if (!accessToken) {
           throw new Error('Failed to get MetaAPI access token');
         }
-
-        // Optimistic Toast: Show "Sending..." immediately
-        setOrderToast({
-          side: 'buy',
-          symbol: chosenSymbol,
-          volume: orderData.volume,
-          price: orderData.openPrice,
-          orderType: orderData.pendingOrderType || 'limit',
-          profit: null,
-          status: 'success' // Optimistic Success
-        });
 
         // Place pending order directly (symbol already normalized above)
         const response = await placePendingOrderDirect({
@@ -788,10 +841,9 @@ export default function TradingTerminal() {
         });
 
         if (response.success) {
-          // Confident Injection: Zero-latency confirmation UI for pending orders
+          // Confident Injection: Post-success for Pending
           const apiData: any = response.data || {};
           const ticket = apiData.OrderId || apiData.Ticket || apiData.Id || 0;
-          const pType = orderData.pendingOrderType || 'limit';
 
           if (ticket) {
             const confirmedTrade: any = {
@@ -799,9 +851,9 @@ export default function TradingTerminal() {
               ticket: Number(ticket),
               symbol: chosenSymbol,
               type: `Buy ${pType.charAt(0).toUpperCase() + pType.slice(1)}`,
-              volume: (orderData.volume || 0) * 100, // Normalized to lots * 100 for pending 1/100 scaling
-              openPrice: orderData.openPrice || 0,
-              currentPrice: orderData.openPrice || 0,
+              volume: (orderData.volume || 0) * 100,
+              openPrice: entryPrice,
+              currentPrice: entryPrice,
               takeProfit: orderData.takeProfit || 0,
               stopLoss: orderData.stopLoss || 0,
               openTime: new Date().toISOString(),
@@ -812,15 +864,8 @@ export default function TradingTerminal() {
             };
             setConfirmedInjections(prev => [...prev, confirmedTrade]);
           }
-
-          // Immediately refresh UI
           refetchPositions();
-
-          // Delayed Toast Logic for Pending Orders
-          // IMMEDIATE SUCCESS TOAST (User Request: No verification)
-          // Toast already shown optimistically
         } else {
-          // If API call failed, show error toast
           setOrderToast({
             side: 'buy',
             symbol: chosenSymbol,
@@ -834,7 +879,7 @@ export default function TradingTerminal() {
       }
     } catch (error: any) {
       // If API call fails, show error toast
-      const chosenSymbol = symbol || 'BTCUSD';
+      const chosenSymbol = normalizeSymbolForOrder(symbol || 'BTCUSD');
       setOrderToast({
         side: 'buy',
         symbol: chosenSymbol,
@@ -844,15 +889,24 @@ export default function TradingTerminal() {
         profit: null,
         error: error?.message || 'Not enough money',
       });
+    } finally {
+      if (typeof window !== 'undefined') (window as any).__IS_PROCESSING_TRADE__ = false;
     }
-  };
+  }, [currentAccountId, currentBalance, metaApiTokens, getMetaApiToken, symbol, lastQuotes, isMarketClosed, normalizeSymbol, refetchPositions, checkKillSwitch]);
 
-  const handleSellOrder = async (orderData: any) => {
-    if (!currentAccountId) {
+  const handleSellOrder = useCallback(async (orderData: any) => {
+    if (!currentAccountId || (typeof window !== 'undefined' && (window as any).__IS_PROCESSING_TRADE__)) {
       return;
     }
 
-    if (checkKillSwitch('sell')) return;
+    if (typeof window !== 'undefined') {
+      (window as any).__IS_PROCESSING_TRADE__ = true;
+    }
+
+    if (checkKillSwitch('sell')) {
+      if (typeof window !== 'undefined') (window as any).__IS_PROCESSING_TRADE__ = false;
+      return;
+    }
 
     try {
       const chosenSymbol = normalizeSymbolForOrder(symbol || 'BTCUSD');
@@ -860,6 +914,7 @@ export default function TradingTerminal() {
       // Check if market is closed BEFORE optimistic injection
       if (isMarketClosed(chosenSymbol)) {
         setMarketClosedToast('Market closed');
+        if (typeof window !== 'undefined') (window as any).__IS_PROCESSING_TRADE__ = false;
         return;
       }
 
@@ -877,6 +932,7 @@ export default function TradingTerminal() {
           profit: null,
           error: 'Insufficient Funds Order not placed',
         });
+        if (typeof window !== 'undefined') (window as any).__IS_PROCESSING_TRADE__ = false;
         return;
       }
 
@@ -896,6 +952,7 @@ export default function TradingTerminal() {
             profit: null,
             error: 'Price not available. Order not placed.',
           });
+          if (typeof window !== 'undefined') (window as any).__IS_PROCESSING_TRADE__ = false;
           return;
         }
 
@@ -906,6 +963,7 @@ export default function TradingTerminal() {
         }
 
         if (!accessToken) {
+          if (typeof window !== 'undefined') (window as any).__IS_PROCESSING_TRADE__ = false;
           throw new Error('Failed to get MetaAPI access token');
         }
 
@@ -956,10 +1014,7 @@ export default function TradingTerminal() {
             };
             setConfirmedInjections(prev => [...prev, confirmedTrade]);
           }
-
           refetchPositions();
-
-          // Toast already shown optimistically
         } else {
           // If API call failed, show error toast
           setOrderToast({
@@ -984,7 +1039,30 @@ export default function TradingTerminal() {
             profit: null,
             error: 'Open price is required for pending orders',
           });
+          if (typeof window !== 'undefined') (window as any).__IS_PROCESSING_TRADE__ = false;
           return;
+        }
+
+        const entryPrice = orderData.openPrice || 0;
+        const pType = orderData.pendingOrderType || 'limit';
+
+        // Optimistic Toast
+        setOrderToast({
+          side: 'sell',
+          symbol: chosenSymbol,
+          volume: orderData.volume,
+          price: entryPrice,
+          orderType: pType,
+          profit: null,
+          status: 'success'
+        });
+
+        // SL/TP Validation
+        if (orderData.stopLoss && orderData.stopLoss > 0 && orderData.stopLoss <= entryPrice) {
+          throw new Error("Sell Stop Loss must be above the entry price.");
+        }
+        if (orderData.takeProfit && orderData.takeProfit > 0 && orderData.takeProfit >= entryPrice) {
+          throw new Error("Sell Take Profit must be below the entry price.");
         }
 
         // Get MetaAPI access token - Try cache first for speed
@@ -996,17 +1074,6 @@ export default function TradingTerminal() {
         if (!accessToken) {
           throw new Error('Failed to get MetaAPI access token');
         }
-
-        // Optimistic Toast: Show "Sending..." immediately
-        setOrderToast({
-          side: 'sell',
-          symbol: chosenSymbol,
-          volume: orderData.volume,
-          price: orderData.openPrice,
-          orderType: orderData.pendingOrderType || 'limit',
-          profit: null,
-          status: 'success' // Optimistic Success
-        });
 
         // Place pending order directly (symbol already normalized above)
         const response = await placePendingOrderDirect({
@@ -1023,10 +1090,9 @@ export default function TradingTerminal() {
         });
 
         if (response.success) {
-          // Confident Injection: Zero-latency confirmation UI for pending orders
+          // Confident Injection: Post-success for Pending
           const apiData: any = response.data || {};
           const ticket = apiData.OrderId || apiData.Ticket || apiData.Id || 0;
-          const pType = orderData.pendingOrderType || 'limit';
 
           if (ticket) {
             const confirmedTrade: any = {
@@ -1035,8 +1101,8 @@ export default function TradingTerminal() {
               symbol: chosenSymbol,
               type: `Sell ${pType.charAt(0).toUpperCase() + pType.slice(1)}`,
               volume: (orderData.volume || 0) * 100,
-              openPrice: orderData.openPrice || 0,
-              currentPrice: orderData.openPrice || 0,
+              openPrice: entryPrice,
+              currentPrice: entryPrice,
               takeProfit: orderData.takeProfit || 0,
               stopLoss: orderData.stopLoss || 0,
               openTime: new Date().toISOString(),
@@ -1047,15 +1113,8 @@ export default function TradingTerminal() {
             };
             setConfirmedInjections(prev => [...prev, confirmedTrade]);
           }
-
-          // Immediately refresh UI
           refetchPositions();
-
-          // Delayed Toast Logic for Pending Orders
-          // IMMEDIATE SUCCESS TOAST (User Request: No verification)
-          // Toast already shown optimistically
         } else {
-          // If API call failed, show error toast
           setOrderToast({
             side: 'sell',
             symbol: chosenSymbol,
@@ -1079,8 +1138,10 @@ export default function TradingTerminal() {
         profit: null,
         error: error?.message || 'Not enough money',
       });
+    } finally {
+      if (typeof window !== 'undefined') (window as any).__IS_PROCESSING_TRADE__ = false;
     }
-  };
+  }, [currentAccountId, currentBalance, metaApiTokens, getMetaApiToken, symbol, lastQuotes, isMarketClosed, normalizeSymbol, refetchPositions, checkKillSwitch]);
 
   // Handle modify position/order requests
   const lastModificationRef = useRef<any | null>(null);
@@ -1282,14 +1343,22 @@ export default function TradingTerminal() {
     }
   }, [isSidebarExpanded])
 
+  // Sync refs with latest callbacks
+  useEffect(() => {
+    tradeHandlersRef.current = {
+      buy: handleBuyOrder,
+      sell: handleSellOrder
+    };
+  }, [handleBuyOrder, handleSellOrder]);
+
   // Listen for trade triggers from the chart (ZuperiorBroker)
   useEffect(() => {
     const handleTradeTrigger = (e: any) => {
       const { orderData, side } = e.detail;
       if (side === 'buy') {
-        handleBuyOrder(orderData).catch(console.error);
+        tradeHandlersRef.current.buy(orderData);
       } else {
-        handleSellOrder(orderData).catch(console.error);
+        tradeHandlersRef.current.sell(orderData);
       }
     };
 
@@ -1309,7 +1378,7 @@ export default function TradingTerminal() {
       window.removeEventListener('zuperior-trigger-trade', handleTradeTrigger);
       window.removeEventListener('zuperior-show-toast', handleShowToast);
     }
-  }, [handleBuyOrder, handleSellOrder]);
+  }, []); // Dependencies empty -> Only set once
 
   return (
     <>
@@ -1363,6 +1432,11 @@ export default function TradingTerminal() {
                         setClosedToast={setClosedToast}
                         onCloseAll={handleCloseAll}
                         onHide={() => setIsBottomPanelVisible(false)}
+                        onTabChange={(tab: string) => {
+                          if (tab === 'Closed') {
+                            refetchClosed();
+                          }
+                        }}
                       />
                     </ResizablePanel>
                   </>
@@ -1370,7 +1444,7 @@ export default function TradingTerminal() {
 
                 {/* Minimized Bottom Panel */}
                 {!isBottomPanelVisible && (
-                  <div className="flex-none h-[40px] border-t border-gray-800 bg-black">
+                  <div className="flex-none h-[40px] border-t border-gray-800 bg-background">
                     <BottomPanel
                       openPositions={openPositions}
                       pendingPositions={pendingPositions}
@@ -1382,6 +1456,11 @@ export default function TradingTerminal() {
                       onCloseAll={handleCloseAll}
                       isMinimized={true}
                       onHide={() => setIsBottomPanelVisible(true)}
+                      onTabChange={(tab: string) => {
+                        if (tab === 'Closed') {
+                          refetchClosed();
+                        }
+                      }}
                     />
                   </div>
                 )}
@@ -1390,7 +1469,7 @@ export default function TradingTerminal() {
 
             {/* Order Panel */}
             {isRightSidebarOpen && (
-              <div className="w-[280px] border-l border-[#2a2f36] bg-background flex-shrink-0">
+              <div className="w-[280px] border-l border-gray-800 bg-background flex-shrink-0">
                 <OrderPanel
                   onClose={() => setIsRightSidebarOpen(false)}
                   onBuy={handleBuyOrder}
@@ -1403,7 +1482,7 @@ export default function TradingTerminal() {
             {!isRightSidebarOpen && (
               <button
                 onClick={() => setIsRightSidebarOpen(true)}
-                className="absolute right-0 top-2 z-50 bg-background border border-[#2a2f36] border-r-0 text-gray-400 hover:text-white transition-colors p-1.5 rounded-l-md shadow-lg cursor-pointer"
+                className="absolute right-0 top-2 z-50 bg-background border border-gray-800 border-r-0 text-gray-400 hover:text-foreground transition-colors p-1.5 rounded-l-md shadow-lg cursor-pointer"
                 title="Open Order Panel"
               >
                 <ChevronLeft size={20} />
@@ -1415,6 +1494,7 @@ export default function TradingTerminal() {
           <StatusBar
             openPositions={openPositions}
             onCloseAll={handleCloseAll}
+            totalPL={totalPL}
           />
         </ResizablePanel>
       </ResizablePanelGroup>

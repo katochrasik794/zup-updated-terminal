@@ -1,5 +1,5 @@
 {
-  "name": "Zuperior Terminal",
+  "name": "zuperior-terminal",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -9,7 +9,7 @@
     "start": "next start",
     "lint": "next lint",
     "build:trading-bundles": "node scripts/build-trading-bundles.cjs",
-    "postinstall": "npm run build:trading-bundles"
+    "postinstall": "node scripts/postinstall.cjs"
   },
   "dependencies": {
     "@microsoft/signalr": "^10.0.0",
@@ -39,8 +39,8 @@
     "@types/node": "^20.19.32",
     "@types/react": "^19.2.9",
     "@types/react-dom": "^19.2.3",
-    "eslint": "^4.0.0",
-    "eslint-config-next": "^0.2.4",
+    "eslint": "^9.14.0",
+    "eslint-config-next": "^15.0.0",
     "typescript": "^5.9.3"
   },
   "optionalDependencies": {

@@ -9,7 +9,7 @@ import {
 } from 'react-icons/fi'
 import { MdOutlineAccessAlarms, MdApps } from "react-icons/md"
 import { BiUserCircle } from "react-icons/bi"
-import { Bell, User, ChevronDown } from 'lucide-react'
+import { Bell, User, ChevronDown, Sun, Moon } from 'lucide-react'
 import SymbolSearchPopup from '../panels/SymbolSearchPopup'
 import AccountDropdown from '../panels/AccountDropdown'
 import PriceAlertsDropdown from '../panels/PriceAlertsDropdown'
@@ -23,6 +23,7 @@ import IconButton from '../ui/IconButton'
 import { useAuth } from '../../context/AuthContext'
 import { usePrivacy } from '../../context/PrivacyContext'
 import { useAccount } from '../../context/AccountContext'
+import { useTheme } from '../../context/ThemeContext'
 import { formatCurrency, cn } from '../../lib/utils'
 import { useInstruments } from '../../context/InstrumentContext'
 import { useTrading } from '../../context/TradingContext'
@@ -45,8 +46,8 @@ interface InstrumentTabProps {
 
 const InstrumentTab = ({ tab, isActive, onClick, onClose }: InstrumentTabProps) => {
   const tabClasses = `
-    relative flex text-gray-400 font-semibold items-center h-10 px-3 cursor-pointer group hover:border-b-2 hover:border-white 
-    ${isActive ? 'border-b-2 border-white text-white' : ''}
+    relative flex text-gray-400 font-semibold items-center h-10 px-3 cursor-pointer group hover:border-b-2 hover:border-primary 
+    ${isActive ? 'border-b-2 border-primary text-foreground' : ''}
   `
 
   return (
@@ -92,6 +93,7 @@ export default function Navbar({ logoLarge, logoSmall }: NavbarProps) {
   const { isSidebarExpanded } = useSidebar();
   const { hideBalance } = usePrivacy();
   const { user } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const {
     currentAccountId,
     mt5Accounts,
@@ -289,8 +291,8 @@ export default function Navbar({ logoLarge, logoSmall }: NavbarProps) {
           <div className='flex items-center'>
             <div className="text-yellow-300 font-semi-bold">
               <img
-                src={isSidebarExpanded ? logoLarge : logoSmall}
-                className='h-8'
+                src={theme === 'dark' ? '/logo-dark.png' : '/logo-light.png'}
+                className='h-10 w-auto object-contain'
                 alt="Zuperior"
               />
             </div>
@@ -317,12 +319,12 @@ export default function Navbar({ logoLarge, logoSmall }: NavbarProps) {
               <div className="flex items-center h-full relative">
                 <button
                   ref={addTabButtonRef}
-                  className="cursor-pointer px-2 py-1 text-gray-400 hover:text-white hover:bg-gray-800 rounded-md transition-colors mx-1 flex items-center justify-center h-8 border border-transparent hover:border-gray-400 "
+                  className="cursor-pointer px-2 py-1 text-gray-400 hover:text-foreground hover:bg-gray-800 rounded-md transition-colors mx-1 flex items-center justify-center h-8 border border-transparent hover:border-gray-400 "
                   data-test="add-tab-button"
                   type="button"
                   onClick={handleAddTab}
                 >
-                  <FiPlus size={18} className="stroke-current fill-white text-white cursor-pointer" />
+                  <FiPlus size={18} className="stroke-current fill-white text-foreground cursor-pointer" />
                 </button>
 
                 {/* Symbol Search Popup */}
@@ -350,7 +352,7 @@ export default function Navbar({ logoLarge, logoSmall }: NavbarProps) {
             >
               <div className="flex flex-col items-start">
                 <div className="flex items-center gap-1">
-                  <span className="text-[10px] text-white/60">
+                  <span className="text-[10px] text-foreground/60">
                     <span
                       className={cn(
                         "px-1 py-0.5 rounded text-[10px] font-medium",
@@ -367,7 +369,7 @@ export default function Navbar({ logoLarge, logoSmall }: NavbarProps) {
                   {hideBalance ? "......" : `${formatCurrency(balance, 2)} USD`}
                 </span>
               </div>
-              <ChevronDown className="h-3 w-3 text-white/40 group-hover:text-white/60 ml-0.5" />
+              <ChevronDown className="h-3 w-3 text-foreground/40 group-hover:text-foreground/60 ml-0.5" />
             </button>
 
             {/* Account Dropdown */}
@@ -377,7 +379,14 @@ export default function Navbar({ logoLarge, logoSmall }: NavbarProps) {
             />
           </div>
 
-
+          {/* Theme Toggle */}
+          <IconButton
+            onClick={toggleTheme}
+            className="p-1.5"
+            tooltip={theme === 'dark' ? "Switch to Light Mode" : "Switch to Dark Mode"}
+          >
+            {theme === 'dark' ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
+          </IconButton>
 
           {/* User Icon */}
           <div className="relative">

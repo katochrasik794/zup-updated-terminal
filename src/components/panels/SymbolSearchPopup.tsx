@@ -19,7 +19,7 @@ function SearchRow({ item, handleSelectSymbol, lastQuote }) {
 
   useEffect(() => {
     if (quote.bid && prevBidRef.current !== quote.bid) {
-      const color = quote.bid > prevBidRef.current ? 'text-[#2ebd85]' : 'text-[#f6465d]';
+      const color = quote.bid > prevBidRef.current ? 'text-success' : 'text-danger';
       setBidColor(color);
       const timer = setTimeout(() => setBidColor(''), 300);
       prevBidRef.current = quote.bid;
@@ -29,7 +29,7 @@ function SearchRow({ item, handleSelectSymbol, lastQuote }) {
 
   useEffect(() => {
     if (quote.ask && prevAskRef.current !== quote.ask) {
-      const color = quote.ask > prevAskRef.current ? 'text-[#2ebd85]' : 'text-[#f6465d]';
+      const color = quote.ask > prevAskRef.current ? 'text-success' : 'text-danger';
       setAskColor(color);
       const timer = setTimeout(() => setAskColor(''), 300);
       prevAskRef.current = quote.ask;
@@ -39,7 +39,7 @@ function SearchRow({ item, handleSelectSymbol, lastQuote }) {
 
   return (
     <tr
-      className="border-b border-gray-800 hover:bg-[#1a1e25] cursor-pointer transition-colors group"
+      className="border-b border-gray-800 hover:bg-gray-900 cursor-pointer transition-colors group"
       onClick={() => handleSelectSymbol(item)}
     >
       <td className="px-4 py-2.5">
@@ -48,7 +48,7 @@ function SearchRow({ item, handleSelectSymbol, lastQuote }) {
             <FlagIcon symbol={item.symbol} />
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-white font-bold text-[13px] group-hover:text-blue-400 transition-colors">{item.symbol}</span>
+            <span className="text-foreground font-bold text-[13px] group-hover:text-blue-400 transition-colors">{item.symbol}</span>
           </div>
         </div>
       </td>
@@ -57,13 +57,13 @@ function SearchRow({ item, handleSelectSymbol, lastQuote }) {
       </td>
 
       <td className="px-4 py-2.5 text-right">
-        <span className="text-[12px] font-medium px-2 py-1 rounded bg-[#f6465d] text-white">
+        <span className="text-[12px] font-medium px-2 py-1 rounded bg-danger text-white">
           {bid}
         </span>
       </td>
 
       <td className="px-4 py-2.5 text-right">
-        <span className="text-[12px] font-medium px-2 py-1 rounded bg-[#2ebd85] text-white">
+        <span className="text-[12px] font-medium px-2 py-1 rounded bg-success text-white">
           {ask}
         </span>
       </td>
@@ -151,7 +151,7 @@ export default function SymbolSearchPopup({ isOpen, onClose, onSelectSymbol, tri
       <div className="fixed inset-0 z-40" onClick={onClose} />
 
       <div
-        className={`${triggerRef ? 'fixed' : 'absolute top-full left-0 mt-2'} w-[500px] bg-[#02040d] border border-gray-700 rounded-lg shadow-2xl z-50 flex flex-col max-h-[500px]`}
+        className={`${triggerRef ? 'fixed' : 'absolute top-full left-0 mt-2'} w-[500px] bg-background border border-gray-700 rounded-lg shadow-2xl z-50 flex flex-col max-h-[500px]`}
         style={triggerRef ? { top: position.top, left: position.left } : {}}
       >
         {/* Search Bar */}
@@ -163,7 +163,7 @@ export default function SymbolSearchPopup({ isOpen, onClose, onSelectSymbol, tri
               placeholder="Search symbol"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 bg-[#0b0e14] border border-gray-600 rounded text-sm text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+              className="w-full pl-9 pr-3 py-2 bg-background border border-gray-600 rounded text-sm text-foreground placeholder-gray-400 focus:outline-none focus:border-blue-500"
               autoFocus
             />
           </div>
@@ -173,9 +173,9 @@ export default function SymbolSearchPopup({ isOpen, onClose, onSelectSymbol, tri
         <div className="px-2 py-2 flex-shrink-0 relative">
           <button
             onClick={() => setShowCategoryDropdown(!showCategoryDropdown)}
-            className="w-full flex items-center justify-between px-3 py-2 text-left text-gray-300 hover:bg-[#1a1e25] rounded transition-colors group"
+            className="w-full flex items-center justify-between px-3 py-2 text-left text-gray-300 hover:bg-gray-900 rounded transition-colors group"
           >
-            <span className="text-xs font-medium uppercase tracking-wider text-gray-400 group-hover:text-white transition-colors">{selectedCategory}</span>
+            <span className="text-xs font-medium uppercase tracking-wider text-gray-400 group-hover:text-foreground transition-colors">{selectedCategory}</span>
             <svg
               className={`w-3 h-3 text-gray-400 transition-transform duration-200 ${showCategoryDropdown ? 'rotate-180' : ''}`}
               fill="none"
@@ -188,7 +188,7 @@ export default function SymbolSearchPopup({ isOpen, onClose, onSelectSymbol, tri
 
           {/* Dropdown Menu Overlay */}
           {showCategoryDropdown && (
-            <div className="absolute top-full left-2 right-2 mt-1 bg-[#1a1e25] border border-gray-700 rounded-md shadow-xl z-50 py-1 max-h-[250px] overflow-y-auto">
+            <div className="absolute top-full left-2 right-2 mt-1 bg-gray-900 border border-gray-700 rounded-md shadow-xl z-50 py-1 max-h-[250px] overflow-y-auto">
               {dynamicCategories.map(cat => (
                 <div
                   key={cat}
@@ -197,7 +197,7 @@ export default function SymbolSearchPopup({ isOpen, onClose, onSelectSymbol, tri
                     setShowCategoryDropdown(false);
                     setSearchTerm(''); // Clear search on category switch? Optional but usually good.
                   }}
-                  className="px-3 py-2 text-[12px] text-gray-300 hover:bg-[#2a303c] hover:text-white cursor-pointer flex items-center justify-between"
+                  className="px-3 py-2 text-[12px] text-gray-300 hover:bg-gray-800 hover:text-foreground cursor-pointer flex items-center justify-between"
                 >
                   <span>{cat}</span>
                   {selectedCategory === cat && (
@@ -212,13 +212,13 @@ export default function SymbolSearchPopup({ isOpen, onClose, onSelectSymbol, tri
         {/* Instruments List */}
         <div className="flex-1 overflow-y-auto custom-scrollbar">
           <table className="w-full">
-            <thead className="sticky top-0 bg-[#02040d] border-b border-gray-700 z-10">
+            <thead className="sticky top-0 bg-background border-b border-gray-700 z-10">
               <tr className="text-gray-500 text-[10px] uppercase">
-                <th className="px-4 py-2 text-left font-medium bg-[#02040d]">Symbol</th>
-                <th className="px-4 py-2 text-left font-medium bg-[#02040d]">Description</th>
-                <th className="px-4 py-2 text-right font-medium bg-[#02040d]">Bid</th>
-                <th className="px-4 py-2 text-right font-medium bg-[#02040d]">Ask</th>
-                <th className="px-4 py-2 text-center font-medium w-10 bg-[#02040d]"></th>
+                <th className="px-4 py-2 text-left font-medium bg-background">Symbol</th>
+                <th className="px-4 py-2 text-left font-medium bg-background">Description</th>
+                <th className="px-4 py-2 text-right font-medium bg-background">Bid</th>
+                <th className="px-4 py-2 text-right font-medium bg-background">Ask</th>
+                <th className="px-4 py-2 text-center font-medium w-10 bg-background"></th>
               </tr>
             </thead>
             <tbody>

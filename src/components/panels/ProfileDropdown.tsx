@@ -59,21 +59,21 @@ export default function ProfileDropdown({ isOpen, onClose }) {
 
       {/* Signing Out Toast */}
       {isSigningOut && (
-        <div className="fixed top-6 right-6 z-[100] flex items-center gap-4 px-5 py-3.5 bg-[#0b0e14] border border-white/10 rounded-xl shadow-2xl animate-in fade-in slide-in-from-top-4 duration-300">
+        <div className="fixed top-6 right-6 z-[100] flex items-center gap-4 px-5 py-3.5 bg-background border border-foreground/10 rounded-xl shadow-2xl animate-in fade-in slide-in-from-top-4 duration-300">
           <LoadingWave />
           <div className="flex flex-col">
-            <span className="text-sm font-semibold text-white">Signing out</span>
-            <span className="text-[11px] text-white/40">Please wait a moment...</span>
+            <span className="text-sm font-semibold text-foreground">Signing out</span>
+            <span className="text-[11px] text-foreground/40">Please wait a moment...</span>
           </div>
         </div>
       )}
 
       {/* Dropdown Container */}
-      <div className="absolute top-full right-0 mt-2 w-64 bg-[#01040D] border border-white/10 rounded-md shadow-xl z-50 overflow-visible">
+      <div className="absolute top-full right-0 mt-2 w-64 bg-background border border-foreground/10 rounded-md shadow-xl z-50 overflow-visible">
         <div className="p-2 space-y-1 relative">
           {/* Header - User Info */}
           <div className="px-3 py-2.5">
-            <div className="flex items-center gap-2 text-sm text-white/80">
+            <div className="flex items-center gap-2 text-sm text-foreground/80">
               <User className="h-4 w-4" />
               <span className="font-mono">{maskedEmail}</span>
             </div>
@@ -89,8 +89,8 @@ export default function ProfileDropdown({ isOpen, onClose }) {
             className="flex items-center gap-3 w-full px-3 py-2.5 text-sm text-left hover:bg-white/5 rounded group"
             onClick={onClose}
           >
-            <LifeBuoy className="h-4 w-4 text-white/60 group-hover:text-white" />
-            <span className="text-white/80 group-hover:text-white">Support</span>
+            <LifeBuoy className="h-4 w-4 text-foreground/60 group-hover:text-foreground" />
+            <span className="text-foreground/80 group-hover:text-foreground">Support</span>
           </a>
 
           {/* Suggest a feature */}
@@ -98,15 +98,15 @@ export default function ProfileDropdown({ isOpen, onClose }) {
             className="flex items-center gap-3 w-full px-3 py-2.5 text-sm text-left hover:bg-white/5 rounded group"
             onClick={handleSuggestFeature}
           >
-            <Lightbulb className="h-4 w-4 text-white/60 group-hover:text-white" />
-            <span className="text-white/80 group-hover:text-white">Suggest a feature</span>
+            <Lightbulb className="h-4 w-4 text-foreground/60 group-hover:text-foreground" />
+            <span className="text-foreground/80 group-hover:text-foreground">Suggest a feature</span>
           </button>
 
           <Separator className="bg-white/10" />
 
           {/* Sign Out */}
           <button
-            className="flex items-center gap-3 w-full px-3 py-2.5 text-sm text-left hover:bg-white/5 rounded text-[#EF4444] group"
+            className="flex items-center gap-3 w-full px-3 py-2.5 text-sm text-left hover:bg-white/5 rounded text-danger group"
             onClick={handleSignOut}
           >
             <LogOut className="h-4 w-4" />

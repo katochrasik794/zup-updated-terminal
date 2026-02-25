@@ -12,22 +12,22 @@ const buttonVariants = cva(
     variants: {
       variant: {
         // Primary - Flat purple
-        default: "bg-primary text-white hover:bg-primary/90",
+        default: "bg-primary text-[#ffffff] hover:bg-primary/90",
         
         // Glass - Subtle glassmorphic button
         glass: "glass-card hover:bg-white/5 text-white",
         
         // Outline - Minimal border
-        outline: "border border-white/10 bg-transparent hover:bg-white/5 text-white",
+        outline: "border border-foreground/10 bg-transparent hover:bg-white/5 text-foreground",
         
         // Ghost - No background
         ghost: "bg-transparent hover:bg-white/5 text-white",
         
         // Success - For buy/profit actions
-        success: "bg-success text-white hover:bg-success/90",
+        success: "bg-success text-[#ffffff] hover:bg-success/90",
         
         // Danger - For sell/loss actions  
-        danger: "bg-danger text-white hover:bg-danger/90",
+        danger: "bg-danger text-[#ffffff] hover:bg-danger/90",
         
         // Link - Simple text button
         link: "text-primary underline-offset-4 hover:underline bg-transparent",

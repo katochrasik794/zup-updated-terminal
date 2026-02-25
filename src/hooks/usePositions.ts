@@ -28,6 +28,7 @@ export interface Position {
 interface UsePositionsProps {
   accountId: string | null;
   enabled?: boolean;
+  includeClosed?: boolean;
 }
 
 interface UsePositionsReturn {
@@ -37,6 +38,7 @@ interface UsePositionsReturn {
   isLoading: boolean;
   error: string | null;
   refetch: () => void;
+  refetchClosed: () => void;
 }
 
 // Polling interval tuned to balance freshness and backend load
@@ -264,7 +266,7 @@ const formatPositions = (data: any, isClosedTrades: boolean = false): Position[]
  * Hook to fetch positions using REST API polling
  * Polls the backend API every 200ms to get real-time position updates
  */
-export function usePositions({ accountId, enabled = true }: UsePositionsProps): UsePositionsReturn {
+export function usePositions({ accountId, enabled = true, includeClosed = true }: UsePositionsProps): UsePositionsReturn {
   const [positions, setPositions] = useState<Position[]>([]);
   const [pendingOrders, setPendingOrders] = useState<Position[]>([]);
   const [closedPositions, setClosedPositions] = useState<Position[]>([]);
@@ -294,6 +296,7 @@ export function usePositions({ accountId, enabled = true }: UsePositionsProps): 
       setIsLoading(true);
       setError(null);
 
+      const url = `/api/positions/${accountId}${!includeClosed ? '?excludeClosed=true' : ''}`;
       const response = await apiClient.get<{
         success: boolean;
         positions?: any[];
@@ -302,27 +305,23 @@ export function usePositions({ accountId, enabled = true }: UsePositionsProps): 
         data?: any[];
         message?: string;
         accountId?: number;
-      }>(`/api/positions/${accountId}`);
+      }>(url);
 
       if (response.success) {
-        // Backend returns: { success: true, positions: [...], pendingOrders: [...], closedPositions: [...] }
-        // apiClient.get returns the response directly
         const positionsArray = response.positions || response.data || [];
         const pendingArray = response.pendingOrders || [];
-        const closedArray = response.closedPositions || [];
-
-
 
         const formattedPositions = formatPositions(positionsArray, false);
         const formattedPending = formatPositions(pendingArray, false);
-        const formattedClosed = formatPositions(closedArray, true); // Mark as closed trades for proper formatting
-
-
 
         if (isMountedRef.current) {
           setPositions(formattedPositions);
           setPendingOrders(formattedPending);
-          setClosedPositions(formattedClosed);
+
+          if (response.closedPositions !== undefined) {
+            const formattedClosed = formatPositions(response.closedPositions, true);
+            setClosedPositions(formattedClosed);
+          }
         }
       } else {
         throw new Error(response.message || 'Failed to fetch positions');
@@ -366,6 +365,28 @@ export function usePositions({ accountId, enabled = true }: UsePositionsProps): 
     fetchPositions();
   }, [fetchPositions]);
 
+  // Fetch only closed positions
+  const refetchClosed = useCallback(async () => {
+    if (!accountId) return;
+
+    try {
+      const response = await apiClient.get<{
+        success: boolean;
+        closedPositions?: any[];
+        message?: string;
+      }>(`/api/positions/${accountId}/closed`);
+
+      if (response.success && response.closedPositions) {
+        const formattedClosed = formatPositions(response.closedPositions, true);
+        if (isMountedRef.current) {
+          setClosedPositions(formattedClosed);
+        }
+      }
+    } catch (err: any) {
+      console.error('Failed to refetch closed positions:', err);
+    }
+  }, [accountId]);
+
   // Setup polling
   useEffect(() => {
     isMountedRef.current = true;
@@ -406,5 +427,6 @@ export function usePositions({ accountId, enabled = true }: UsePositionsProps): 
     isLoading,
     error,
     refetch,
+    refetchClosed,
   };
 }

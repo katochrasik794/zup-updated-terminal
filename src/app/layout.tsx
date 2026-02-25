@@ -5,6 +5,7 @@ import { PrivacyProvider } from "../context/PrivacyContext";
 import { AuthProvider } from "../context/AuthContext";
 import { AccountProvider } from "../context/AccountContext";
 import { InstrumentProvider } from "../context/InstrumentContext";
+import { ThemeProvider } from "../context/ThemeContext";
 
 export const metadata = {
     title: "Zuperior Terminal",
@@ -18,11 +19,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <AuthProvider>
                     <AccountProvider>
                         <InstrumentProvider>
-                <PrivacyProvider>
-                    <ClientLayout>
-                        {children}
-                    </ClientLayout>
-                </PrivacyProvider>
+                            <PrivacyProvider>
+                                <ThemeProvider>
+                                    <ClientLayout>
+                                        {children}
+                                    </ClientLayout>
+                                </ThemeProvider>
+                            </PrivacyProvider>
                         </InstrumentProvider>
                     </AccountProvider>
                 </AuthProvider>

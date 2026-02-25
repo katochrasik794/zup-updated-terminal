@@ -62,10 +62,10 @@ export default function EconomicCalendarPanel({ onClose }) {
   }
 
   return (
-    <div className="flex flex-col h-full overflow-hidden bg-background text-[#b2b5be] border border-gray-800 rounded-md">
+    <div className="flex flex-col h-full overflow-hidden bg-background text-gray-300 border border-gray-800 rounded-md">
       {/* Header */}
       <div className="flex items-center justify-between pt-4 px-4 flex-shrink-0">
-        <h2 className="text-[#b2b5be] text-[13px] font-medium uppercase tracking-wider">ECONOMIC CALENDAR</h2>
+        <h2 className="text-gray-300 text-[13px] font-medium uppercase tracking-wider">ECONOMIC CALENDAR</h2>
         <IconButton onClick={onClose} tooltip="Hide panel">
           <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
             <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
@@ -113,16 +113,16 @@ export default function EconomicCalendarPanel({ onClose }) {
 
       {/* Events List */}
       <div className="flex-1 overflow-y-auto custom-scrollbar">
-        <div className="bg-[#1e2830] px-4 py-2.5 text-[13px] font-bold text-[#e1e2e5] sticky top-0 z-10 border-b border-gray-800">
+        <div className="bg-gray-900 px-4 py-2.5 text-[13px] font-bold text-[#e1e2e5] sticky top-0 z-10 border-b border-gray-800">
           November 27
         </div>
         <div>
           {economicEvents.map((item, index) => (
-            <div key={index} className="flex border-b border-gray-800 py-3 px-4 hover:bg-[#1c252f] transition-colors cursor-pointer group">
+            <div key={index} className="flex border-b border-gray-800 py-3 px-4 hover:bg-gray-900 transition-colors cursor-pointer group">
               {/* Left Column: Time & Flag/Impact */}
               <div className="w-[70px] flex flex-col gap-2.5 flex-shrink-0">
                 <div className="flex flex-col leading-none">
-                  <span className="text-[13px] text-[#b2b5be] font-medium">{item.time}</span>
+                  <span className="text-[13px] text-gray-300 font-medium">{item.time}</span>
                   <span className="text-[11px] text-[#6f7682] mt-0.5">{item.ampm}</span>
                 </div>
                 <div className="flex items-center gap-2">
@@ -131,7 +131,7 @@ export default function EconomicCalendarPanel({ onClose }) {
                     {[1, 2, 3].map(bar => (
                       <div
                         key={bar}
-                        className={`w-[3px] rounded-[1px] ${bar <= item.impact ? 'bg-[#eab308]' : 'bg-[#2a353e]'} ${bar === 1 ? 'h-1.5' : bar === 2 ? 'h-2.5' : 'h-3.5'}`}
+                        className={`w-[3px] rounded-[1px] ${bar <= item.impact ? 'bg-[#eab308]' : 'bg-gray-800'} ${bar === 1 ? 'h-1.5' : bar === 2 ? 'h-2.5' : 'h-3.5'}`}
                       />
                     ))}
                   </div>
@@ -142,7 +142,7 @@ export default function EconomicCalendarPanel({ onClose }) {
               <div className="flex-1 min-w-0 pl-1">
                 <div className="flex justify-between items-start mb-2">
                   <span className="text-[#e1e2e5] text-[13px] font-normal leading-tight pr-2">{item.event}</span>
-                  <svg className="w-4 h-4 text-[#6f7682] group-hover:text-[#b2b5be] transition-colors flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4 text-[#6f7682] group-hover:text-gray-300 transition-colors flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                   </svg>
                 </div>

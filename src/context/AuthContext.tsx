@@ -59,22 +59,48 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const params = new URLSearchParams(window.location.search);
 
         // 1. Get SSO params from URL or sessionStorage
-        const autoLogin = params.get('autoLogin') || sessionStorage.getItem('sso_autoLogin');
-        const token = params.get('token') || sessionStorage.getItem('sso_token');
-        const clientId = params.get('clientId') || sessionStorage.getItem('sso_clientId');
-        const accountId = params.get('accountId') || params.get('mtLogin') || sessionStorage.getItem('sso_accountId');
+        const urlAutoLogin = params.get('autoLogin');
+        const urlToken = params.get('token');
+        const urlClientId = params.get('clientId');
+        const urlAccountId = params.get('accountId') || params.get('mtLogin');
+
+        // IF we have params in URL, save them to sessionStorage and HIDE them immediately
+        if (urlAutoLogin === 'true' && urlToken && urlClientId) {
+          // *** CROSS-ACCOUNT FIX: Clear the old session from localStorage explicitly! ***
+          // Because middleware no longer strips this token, we successfully reach this block.
+          apiClient.clearToken();
+          localStorage.removeItem('accountId');
+          localStorage.removeItem('defaultMt5Account');
+          localStorage.removeItem('userName');
+          localStorage.removeItem('userEmail');
+          document.cookie = 'token=; path=/; max-age=0'; // Clear old terminal cookie just in case
+
+          sessionStorage.setItem('sso_autoLogin', 'true');
+          sessionStorage.setItem('sso_token', urlToken);
+          sessionStorage.setItem('sso_clientId', urlClientId);
+          if (urlAccountId) sessionStorage.setItem('sso_accountId', urlAccountId);
+
+          // Hide from URL instantly to prevent leakage and bookmarking of tokens
+          if (window.location.search) {
+            const newUrl = window.location.pathname + window.location.hash;
+            window.history.replaceState({}, '', newUrl);
+          }
+        }
+
+        // Now read from either source (prefer sessionStorage which we just populated)
+        const autoLogin = sessionStorage.getItem('sso_autoLogin') || urlAutoLogin;
+        const token = sessionStorage.getItem('sso_token') || urlToken;
+        const clientId = sessionStorage.getItem('sso_clientId') || urlClientId;
+        const accountId = sessionStorage.getItem('sso_accountId') || urlAccountId;
 
         // 2. Process SSO if we have the minimum required params
         if (autoLogin === 'true' && token && clientId) {
           try {
-            console.log('Attempting SSO login with hidden credentials');
+            console.log('Attempting SSO login with persistent credentials');
             const response = await authApi.ssoLogin(token, clientId, accountId || undefined) as any;
 
             if (response.success) {
               // 3. SUCCESS: Clear SSO params now that we have a session
-              if (window.location.search) {
-                window.history.replaceState({}, '', window.location.pathname);
-              }
               sessionStorage.removeItem('sso_autoLogin');
               sessionStorage.removeItem('sso_token');
               sessionStorage.removeItem('sso_clientId');

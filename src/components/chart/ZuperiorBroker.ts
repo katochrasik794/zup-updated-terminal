@@ -123,6 +123,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 	private _accountBalance: number = 0;
 	private _lastActionTime: number = 0; // Timestamp of last user action to pause polling
 	private _isBrokerModalOpen: boolean = false;
+	private _isPlacingOrder: boolean = false;
 	private _chartSettings: ChartSettings = { openPositions: true, tpsl: true };
 
 	private _positionsSubscription = new SimpleSubscription<(data: {}) => void>();
@@ -200,6 +201,111 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 		}
 
 		return true;
+	}
+
+	private _validateSLTP(side: 'buy' | 'sell', currentPrice: number, sl?: number, tp?: number): string | null {
+		const isBuy = side === 'buy';
+		if (sl && sl > 0) {
+			if (isBuy && sl >= currentPrice) return "Buy Stop Loss must be below the current price.";
+			if (!isBuy && sl <= currentPrice) return "Sell Stop Loss must be above the current price.";
+		}
+		if (tp && tp > 0) {
+			if (isBuy && tp <= currentPrice) return "Buy Take Profit must be above the current price.";
+			if (!isBuy && tp >= currentPrice) return "Sell Take Profit must be below the current price.";
+		}
+		return null;
+	}
+
+	private _getTradeSide(entity: Order | Position): 'buy' | 'sell' {
+		// Priority 1: Check explicit sideText or type strings
+		const idStr = entity.id.toString();
+		const typeStr = ((entity as any).sideText || (entity as any).type || '').toString().toLowerCase();
+
+		if (typeStr.includes('buy')) return 'buy';
+		if (typeStr.includes('sell')) return 'sell';
+
+		// Priority 2: Infer from ID if it's a bracket and parent lookup fails
+		// If this is a TP/SL bracket, its side is always the OPPOSITE of the trade side.
+		if (idStr.includes('_TP') || idStr.includes('_SL')) {
+			const bracketSide = entity.side === Side.Buy ? 'buy' : 'sell';
+			return bracketSide === 'buy' ? 'sell' : 'buy';
+		}
+
+		// Priority 3: Check parent trade
+		const parentId = (entity as any).parentId;
+		if (parentId !== undefined && parentId !== null) {
+			const pidStr = String(parentId);
+			const parent = this._positionById[pidStr] ||
+				this._orderById[pidStr] ||
+				this._positionById[pidStr.replace('GHOST_', '')] ||
+				this._orderById[pidStr.replace('GHOST_', '')] ||
+				// Try numeric lookup if it looks like a ticket
+				(isNaN(Number(pidStr)) ? null : (this._positionById[Number(pidStr)] || this._orderById[Number(pidStr)]));
+
+			if (parent) return this._getTradeSide(parent);
+		}
+
+		// Fallback to the numeric side value
+		return entity.side === Side.Buy ? 'buy' : 'sell';
+	}
+
+	private _getCurrentPrice(symbol: string, side: Side): number {
+		const liveData = (typeof window !== 'undefined' ? (window as any).__LIVE_POSITIONS_DATA__ : null);
+		// Try to find a position with this symbol to get real-time price
+		const livePos = liveData?.openPositions?.find((p: any) => p.symbol === symbol);
+		if (livePos) {
+			return side === Side.Buy ? livePos.currentPrice : livePos.currentPrice; // Simplification: livePos.currentPrice is generally the relevant one
+		}
+		return 0;
+	}
+
+	private _triggerSnapBack(entity: Order | Position, originalTP?: Order, originalSL?: Order) {
+		// Small delay to ensure TradingView has finished its internal drag state before we force an update
+		setTimeout(() => {
+			if (!this._host) return;
+			try {
+				const idStr = String(entity.id);
+				// We MUST use the latest known valid state from our own maps, not necessarily the 'entity' passed (which might have been mutated)
+				const originalEntity = (entity as any).avgPrice !== undefined
+					? this._positionById[idStr]
+					: this._orderById[idStr];
+
+				if (!originalEntity) {
+					console.warn("[ZuperiorBroker] _triggerSnapBack: Original entity not found in map for snap-back:", idStr);
+					return;
+				}
+
+				// Side check: ensure we use the actual Side enum values (1 for Buy, -1 for Sell)
+				const entityClone = { ...originalEntity };
+
+				if ((entityClone as any).avgPrice !== undefined) {
+					if (typeof this._host.positionUpdate === 'function') {
+						this._host.positionUpdate(entityClone as Position);
+					}
+				} else {
+					if (typeof this._host.orderUpdate === 'function') {
+						this._host.orderUpdate(entityClone as Order);
+					}
+				}
+
+				// Also notify associated brackets if it's a position/order
+				const tpId = `${idStr}_TP`;
+				const slId = `${idStr}_SL`;
+
+				// Use explicitly provided original brackets if available, otherwise fallback to map (which might be optimistically mutated)
+				const tpToRestore = originalTP || this._orderById[tpId];
+				const slToRestore = originalSL || this._orderById[slId];
+
+				if (tpToRestore && typeof this._host.orderUpdate === 'function') {
+					this._host.orderUpdate({ ...tpToRestore });
+				}
+				if (slToRestore && typeof this._host.orderUpdate === 'function') {
+					this._host.orderUpdate({ ...slToRestore });
+				}
+			} catch (e) {
+				console.error("[ZuperiorBroker] _triggerSnapBack failed:", e);
+			}
+		}, 120); // Slightly longer delay to be safe
 	}
 
 	private _showOrderToast(detail: any) {
@@ -523,6 +629,53 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 				}
 				return true;
 			});
+
+		// --- RESTORED: Handle truly zero-latency optimistic injections ---
+		const confirmedInjections = (typeof window !== 'undefined' ? (window as any).__CONFIRMED_INJECTIONS__ : null) || [];
+		if (Array.isArray(confirmedInjections) && confirmedInjections.length > 0) {
+			confirmedInjections.forEach((inj: any) => {
+				const injIdStr = String(inj.id);
+				// If this injection is already in tvOrders/tvPositions (matching by Ticket ID), skip it
+				const alreadyExists = tvOrders.some(o => String(o.id) === injIdStr || String((o as any).ticket) === injIdStr) ||
+					tvPositions.some(p => String(p.id) === injIdStr || String((p as any).ticket) === injIdStr);
+
+				if (!alreadyExists) {
+					// Map to TV Order or Position based on status
+					const side = (inj.side === 1 || inj.side === 'buy') ? Side.Buy : Side.Sell;
+
+					if (inj.status === 'Filled' || inj.status === 1 || inj.isPosition) {
+						tvPositions.push({
+							id: inj.ghostId || injIdStr, // Use ghostId if available for bracket linkage
+							symbol: inj.symbol,
+							qty: (inj.volume || inj.qty || 0) / 100,
+							side: side,
+							sideText: (side === Side.Buy) ? 'Buy' : 'Sell',
+							avgPrice: inj.price || inj.openPrice || inj.currentPrice,
+							currentPrice: inj.price || inj.currentPrice || inj.openPrice,
+							takeProfit: inj.takeProfit,
+							stopLoss: inj.stopLoss,
+							profit: 0,
+							isOptimistic: true,
+							ticket: inj.ticket || 0
+						});
+					} else {
+						tvOrders.push({
+							id: injIdStr,
+							symbol: inj.symbol,
+							qty: (inj.volume || inj.qty || 0) / 100,
+							side: side,
+							sideText: (side === Side.Buy) ? 'Buy' : 'Sell',
+							type: inj.type?.includes('Limit') ? OrderType.Limit : OrderType.Stop,
+							status: OrderStatus.Working,
+							limitPrice: inj.type?.includes('Limit') ? (inj.price || inj.openPrice) : undefined,
+							stopPrice: inj.type?.includes('Stop') ? (inj.price || inj.openPrice) : undefined,
+							takeProfit: inj.takeProfit,
+							stopLoss: inj.stopLoss
+						});
+					}
+				}
+			});
+		}
 
 		// Create bracket orders for positions with TP/SL using helper methods
 		const bracketOrders: Order[] = [];
@@ -1079,6 +1232,13 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			takeProfit: preOrder.takeProfit,
 		};
 
+		if (this._isPlacingOrder) {
+			console.warn('[ZuperiorBroker] placeOrder blocked: Already placing an order');
+			return {};
+		}
+
+		this._isPlacingOrder = true;
+
 		// Dispatch to TradingTerminal for central central execution & API call
 		if (typeof window !== 'undefined') {
 			console.log('[ZuperiorBroker] Dispatching zuperior-trigger-trade for chart-placed order');
@@ -1086,6 +1246,11 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 				detail: { orderData, side }
 			}));
 		}
+
+		// Reset flag after a short delay to allow subsequent orders while preventing immediate double-clicks
+		setTimeout(() => {
+			this._isPlacingOrder = false;
+		}, 2000);
 
 		return {}; // Resolve immediately for instant chart feel
 	}
@@ -1146,6 +1311,39 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 		const finalTP = order.takeProfit !== undefined ? order.takeProfit : originalOrder.takeProfit;
 		const finalSL = order.stopLoss !== undefined ? order.stopLoss : originalOrder.stopLoss;
 
+		// SL/TP Validation
+		const liveData = (typeof window !== 'undefined' ? (window as any).__LIVE_POSITIONS_DATA__ : null);
+		const parentIdStr = String(order.parentId || order.id);
+		const livePos = liveData?.openPositions?.find((p: any) => String(p.ticket || p.id) === parentIdStr);
+		const tradeSide = this._getTradeSide(originalOrder);
+		const currentPrice = livePos?.currentPrice || (originalOrder as any).currentPrice || (originalOrder as any).avgPrice || finalPrice;
+
+		// Validation vs Current Price for Positions, or vs Open Price for Orders
+		let validationError: string | null = null;
+		if (originalOrder.parentId) {
+			// Bracket of a position or order
+			validationError = this._validateSLTP(tradeSide, currentPrice, finalSL, finalTP);
+		} else if (originalOrder.status === OrderStatus.Working) {
+			// Main pending order - validate vs open price
+			validationError = this._validateSLTP(tradeSide, finalPrice, finalSL, finalTP);
+		}
+
+		if (validationError) {
+			this._showOrderToast({
+				side: tradeSide,
+				symbol: originalOrder.symbol,
+				volume: String(originalOrder.qty),
+				price: null,
+				orderType: originalOrder.type === OrderType.Limit ? 'limit' : 'stop',
+				profit: null,
+				error: validationError,
+			});
+
+			this._triggerSnapBack(originalOrder);
+			this._fetchPositionsAndOrders(true);
+			return Promise.reject(validationError);
+		}
+
 		// Persist to API
 		try {
 			console.log('[ZuperiorBroker] modifyOrder (Wait for Conf) triggered for:', order.id);
@@ -1205,9 +1403,11 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 				takeProfit: finalTP
 			});
 
-			await this._fetchPositionsAndOrders(true);
+			setTimeout(() => this._fetchPositionsAndOrders(true), 400);
 		} catch (e) {
 			console.error('[ZuperiorBroker] modifyOrder API call failed:', e);
+			// FORCE SNAP-BACK ON API FAILURE
+			this._triggerSnapBack(originalOrder);
 			this._fetchPositionsAndOrders(true);
 			throw e;
 		}
@@ -1243,9 +1443,10 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 		}
 
 		// 2. MAIN PREVIEW / GHOST ORDER CANCELLATION (Not a bracket)
-		if (orderId === PREVIEW_ORDER_ID || (orderId.startsWith(PREVIEW_ORDER_ID) && !isTP && !isSL)) {
-			console.log('[ZuperiorBroker] Cancelling preview order (ghost):', orderId);
-			const order = this._orderById[orderId];
+		const orderIdStr = String(orderId);
+		if (orderIdStr === PREVIEW_ORDER_ID || (orderIdStr.startsWith(PREVIEW_ORDER_ID) && !isTP && !isSL)) {
+			console.log('[ZuperiorBroker] Cancelling preview order (ghost):', orderIdStr);
+			const order = this._orderById[orderIdStr];
 
 			// Cancel main order
 			if (order) {
@@ -1264,7 +1465,9 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 				const bracket = this._orderById[bracketId];
 				if (bracket) {
 					console.log('[ZuperiorBroker] Cancelling preview bracket:', bracketId);
-					this._host.orderUpdate({ ...bracket, status: OrderStatus.Canceled });
+					if (this._host && typeof this._host.orderUpdate === 'function') {
+						this._host.orderUpdate({ ...bracket, status: OrderStatus.Canceled });
+					}
 					delete this._orderById[bracketId];
 				}
 			});
@@ -1294,12 +1497,12 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 		}
 
 		// Optimistic update for regular orders
-		const order = this._orderById[orderId];
+		const order = this._orderById[orderIdStr];
 		if (order) {
 			// Remove from maps
-			delete this._orderById[orderId];
+			delete this._orderById[orderIdStr];
 			// Remove from array
-			this._orders = this._orders.filter(o => o.id !== orderId);
+			this._orders = this._orders.filter(o => String(o.id) !== orderIdStr);
 			// Notify chart
 			this._notifyAllPositionsAndOrders();
 		}
@@ -1324,9 +1527,14 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 	private _notifyBracketCancelled(bracketId: string, bracketObj?: Order) {
 		const bracket = bracketObj || this._orderById[bracketId];
 		if (this._host && typeof this._host.orderUpdate === 'function') {
-			this._host.orderUpdate({ ...(bracket || { id: bracketId }), status: OrderStatus.Canceled });
+			try {
+				this._host.orderUpdate({ ...(bracket || { id: bracketId }), status: OrderStatus.Canceled });
+			} catch (e) {
+				console.error("[ZuperiorBroker] _notifyBracketCancelled failed:", e);
+			}
 		}
 	}
+
 
 	public async editPositionBrackets(positionId: string, modification: any): Promise<void> {
 		if (positionId === PREVIEW_POSITION_ID) {
@@ -1368,6 +1576,12 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			return;
 		}
 
+		// Capture initial bracket states BEFORE any optimistic modifications or validations
+		const tpId = `${originalPosition.id}_TP`;
+		const slId = `${originalPosition.id}_SL`;
+		const originalTP = this._orderById[tpId] ? { ...this._orderById[tpId] } : undefined;
+		const originalSL = this._orderById[slId] ? { ...this._orderById[slId] } : undefined;
+
 		// Pre-conditions Check (Kill Switch, Market Closed, Free Margin)
 		if (!this._checkPreConditions('modify', originalPosition.symbol, originalPosition.qty)) {
 			return Promise.reject("Pre-conditions failed");
@@ -1390,11 +1604,37 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 					? originalPosition.stopLoss ?? 0
 					: Number(newSLRaw);
 
+		// SL/TP Validation
+		const liveData = (typeof window !== 'undefined' ? (window as any).__LIVE_POSITIONS_DATA__ : null);
+		const posIdStr = String(positionId);
+		const livePos = liveData?.openPositions?.find((p: any) => String(p.ticket || p.id) === posIdStr);
+		const currentPrice = livePos?.currentPrice || originalPosition.currentPrice || originalPosition.avgPrice;
+
+		const tradeSide = this._getTradeSide(originalPosition);
+		const validationError = this._validateSLTP(tradeSide, currentPrice, newSL, newTP);
+		if (validationError) {
+			this._showOrderToast({
+				side: tradeSide,
+				symbol: originalPosition.symbol,
+				volume: String(originalPosition.qty),
+				price: null,
+				orderType: 'market',
+				profit: null,
+				error: validationError,
+			});
+
+			this._triggerSnapBack(originalPosition, originalTP, originalSL);
+
+			// Force refresh to snap lines back
+			this._fetchPositionsAndOrders(true);
+			return Promise.reject(validationError);
+		}
+
 		console.log('[ZuperiorBroker] Modifying Brackets (Wait for Conf):', positionId, { newSL, newTP });
 
 		try {
 			// API Call
-			await modifyPositionDirect({
+			const response = await modifyPositionDirect({
 				accountId: this._accountId,
 				accessToken: this._accessToken,
 				positionId: positionId,
@@ -1402,11 +1642,29 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 				takeProfit: newTP
 			});
 
+			if (!response.success) {
+				throw new Error(response.message || 'Failed to modify position');
+			}
+
 			// Fetch updates immediately to show new brackets
 			await this._fetchPositionsAndOrders(true);
 
 		} catch (e) {
-			console.error('Modify position failed', e);
+			console.warn('[ZuperiorBroker] Modify position failed', e);
+			// FORCE SNAP-BACK ON API FAILURE
+			this._triggerSnapBack(originalPosition, originalTP, originalSL);
+
+			const errorMessage = e instanceof Error ? e.message : (typeof e === 'string' ? e : 'Unknown error');
+			this._showOrderToast({
+				side: tradeSide,
+				symbol: originalPosition.symbol,
+				volume: String(originalPosition.qty),
+				price: null,
+				orderType: 'market',
+				profit: null,
+				error: errorMessage,
+			});
+
 			// Refresh to ensure we are in sync with reality
 			this._fetchPositionsAndOrders(true);
 			throw e;
@@ -1416,7 +1674,8 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 	public async closePosition(positionId: string): Promise<void> {
 		if (!this._accessToken || !this._accountId) return Promise.reject("Auth failed");
 
-		const position = this._positionById[positionId];
+		const posIdStr = String(positionId);
+		const position = this._positionById[posIdStr];
 
 		// Pre-conditions Check (Kill Switch, Market Closed) - Margin not strictly checked for Close
 		if (position && !this._checkPreConditions('close', position.symbol, position.qty)) {
@@ -1426,8 +1685,8 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 		console.log('[ZuperiorBroker] closePosition called for:', positionId);
 
 		// Ghost Position Cleanup (Market Preview Cancellation)
-		if (positionId === PREVIEW_POSITION_ID) {
-			console.log('[ZuperiorBroker] Closing preview position (ghost):', positionId);
+		if (posIdStr === PREVIEW_POSITION_ID) {
+			console.log('[ZuperiorBroker] Closing preview position (ghost):', posIdStr);
 			if (position) {
 				// 1. Notify Chart of Closure
 				if (this._host && typeof this._host.positionUpdate === 'function') {
@@ -1448,6 +1707,11 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 						delete this._orderById[bracketId];
 					}
 				});
+
+				// Robust cleanup of any other ghost lines by sending null preview
+				if (typeof (window as any).__SET_ORDER_PREVIEW__ === 'function') {
+					(window as any).__SET_ORDER_PREVIEW__({ side: null });
+				}
 
 				this._positions = this._positions.filter(p => p.id !== positionId);
 
@@ -1497,7 +1761,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 	public config(): any {
 		return {
 			supportPlaceOrderPreview: true,
-			supportModifyOrderPreview: true,
+			supportModifyOrderPreview: false,
 			supportBrackets: true,
 			supportClosePosition: true,
 			supportPLUpdate: true,
@@ -1665,7 +1929,11 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 		let minTick = 0.00001;
 		let pipValue = 1; // Default
 
-		if (symbolUpper.includes('JPY') || symbolUpper.includes('XAU')) {
+		if (symbolUpper.includes('XAG')) {
+			pricescale = 100000;
+			minTick = 0.00001;
+			pipValue = 0.05;
+		} else if (symbolUpper.includes('JPY') || symbolUpper.includes('XAU')) {
 			pricescale = 100;
 			minTick = 0.01;
 			pipValue = 1; // For Gold (100oz), 0.01 move = $1. So pipValue = 1? 
@@ -1681,6 +1949,20 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 		} else if (symbolUpper.includes('ETH')) {
 			minTick = 0.01;
 			// Matches 1.0 config for ETH to show exact 100x projection
+			pipValue = 0.10;
+		} else if (
+			symbolUpper.includes('US30') ||
+			symbolUpper.includes('US500') ||
+			symbolUpper.includes('USTEC') ||
+			symbolUpper.includes('DE30') ||
+			symbolUpper.includes('FR40') ||
+			symbolUpper.includes('UK100') ||
+			symbolUpper.includes('AUS200') ||
+			symbolUpper.includes('HK50') ||
+			symbolUpper.includes('JP225')
+		) {
+			pricescale = 100;
+			minTick = 0.01;
 			pipValue = 0.10;
 		}
 
@@ -1742,10 +2024,40 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 		});
 	}
 	public async editOrder(orderId: string, modification: any): Promise<void> {
-		const originalOrder = this._orderById[orderId];
+		let originalOrder = this._orderById[orderId];
 		if (!originalOrder) {
 			console.error(`[ZuperiorBroker] Order not found: ${orderId}`);
 			return Promise.reject('Order not found');
+		}
+
+		// Capture initial bracket states BEFORE any optimistic modifications or validations
+		const tpIdSnapshot = `${originalOrder.id}_TP`;
+		const slIdSnapshot = `${originalOrder.id}_SL`;
+		const originalTP = this._orderById[tpIdSnapshot] ? { ...this._orderById[tpIdSnapshot] } : undefined;
+		const originalSL = this._orderById[slIdSnapshot] ? { ...this._orderById[slIdSnapshot] } : undefined;
+
+		const idStr = orderId.toString();
+		const isTP = idStr.includes('_TP');
+		const isSL = idStr.includes('_SL');
+
+		// Handle bracket redirection to parent for both ghost and real orders
+		// This ensures dragging a TP/SL bracket modifies the parent's TP/SL instead of the bracket's price
+		if (originalOrder.parentId && (isTP || isSL)) {
+			const parent = this._orderById[originalOrder.parentId];
+			if (parent) {
+				console.log('[ZuperiorBroker] editOrder: Redirecting bracket modification to parent:', parent.id);
+				const targetId = originalOrder.parentId.toString();
+
+				// Map bracket price modification back to parent TP/SL
+				const targetModification: any = {};
+				if (isTP) targetModification.takeProfit = modification.limitPrice !== undefined ? modification.limitPrice : modification.takeProfit;
+				if (isSL) targetModification.stopLoss = modification.stopPrice !== undefined ? modification.stopPrice : modification.stopLoss;
+
+				// Critical: update our pointers to the parent order and target modification
+				originalOrder = parent;
+				orderId = targetId;
+				modification = targetModification;
+			}
 		}
 
 		// Pre-conditions Check (Kill Switch, Market Closed, Free Margin)
@@ -1753,52 +2065,55 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			return Promise.reject("Pre-conditions failed");
 		}
 
-		// console.log('[ZuperiorBroker] editOrder called:', orderId, modification);
-
 		// SKIP API FOR PREVIEW
 		const isGhost = orderId.startsWith(PREVIEW_ORDER_ID);
 		if (isGhost) {
-			// console.log('[ZuperiorBroker] editOrder: Handling ghost order modification');
+			// Updating the main order or parent
+			if (modification.hasOwnProperty('limitPrice')) originalOrder.limitPrice = modification.limitPrice;
+			if (modification.hasOwnProperty('stopPrice')) originalOrder.stopPrice = modification.stopPrice;
+			if (modification.hasOwnProperty('qty')) originalOrder.qty = modification.qty;
+			if (modification.hasOwnProperty('takeProfit')) originalOrder.takeProfit = modification.takeProfit;
+			if (modification.hasOwnProperty('stopLoss')) originalOrder.stopLoss = modification.stopLoss;
+			if (modification.hasOwnProperty('type')) originalOrder.type = modification.type;
 
-			const idStr = orderId.toString();
-			const isTP = idStr.includes('_TP');
-			const isSL = idStr.includes('_SL');
-
-			let targetOrder = originalOrder;
-			let targetId = orderId;
-
-			// If this is a bracket being dragged, update the parent order's TP/SL
-			if (originalOrder.parentId && (isTP || isSL)) {
-				const parent = this._orderById[originalOrder.parentId];
-				if (parent) {
-					console.log('[ZuperiorBroker] editOrder: Bracket drag for ghost, updating parent:', parent.id);
-					targetOrder = parent;
-					targetId = originalOrder.parentId.toString();
-					if (isTP) targetOrder.takeProfit = modification.limitPrice ?? modification.takeProfit;
-					if (isSL) targetOrder.stopLoss = modification.stopPrice ?? modification.stopLoss;
-				}
-			} else {
-				// Updating the main order itself
-				if (modification.hasOwnProperty('limitPrice')) targetOrder.limitPrice = modification.limitPrice;
-				if (modification.hasOwnProperty('stopPrice')) targetOrder.stopPrice = modification.stopPrice;
-				if (modification.hasOwnProperty('qty')) targetOrder.qty = modification.qty;
-				if (modification.hasOwnProperty('takeProfit')) targetOrder.takeProfit = modification.takeProfit;
-				if (modification.hasOwnProperty('stopLoss')) targetOrder.stopLoss = modification.stopLoss;
-				if (modification.hasOwnProperty('type')) targetOrder.type = modification.type;
-			}
-
-			// Regents brackets for the parent/target order
-			this._handlePreviewBrackets(targetOrder, targetId);
+			// Regenerate brackets for the parent/target order
+			this._handlePreviewBrackets(originalOrder, orderId);
 
 			this._notifyAllPositionsAndOrders();
 
 			// Sync to panel
-			this._syncToPanel(targetOrder, 'chart');
+			this._syncToPanel(originalOrder, 'chart');
 
 			return Promise.resolve();
 		}
 
 		this._lastActionTime = Date.now();
+
+		const finalPrice = modification.hasOwnProperty('limitPrice') ? modification.limitPrice :
+			(modification.hasOwnProperty('stopPrice') ? modification.stopPrice :
+				(originalOrder.type === OrderType.Limit ? originalOrder.limitPrice : originalOrder.stopPrice));
+		const finalTP = modification.hasOwnProperty('takeProfit') ? modification.takeProfit : originalOrder.takeProfit;
+		const finalSL = modification.hasOwnProperty('stopLoss') ? modification.stopLoss : originalOrder.stopLoss;
+
+		// SL/TP Validation (Pending Orders validate vs their hypothetical open price)
+		const tradeSide = this._getTradeSide(originalOrder);
+		const validationError = this._validateSLTP(tradeSide, finalPrice, finalSL, finalTP);
+		if (validationError) {
+			this._showOrderToast({
+				side: tradeSide,
+				symbol: originalOrder.symbol,
+				volume: String(originalOrder.qty),
+				price: null,
+				orderType: originalOrder.type === OrderType.Limit ? 'limit' : 'stop',
+				profit: null,
+				error: validationError,
+			});
+
+			this._triggerSnapBack(originalOrder, originalTP, originalSL);
+
+			this._fetchPositionsAndOrders(true);
+			return Promise.reject(validationError);
+		}
 
 		const tpId = `${orderId}_TP`;
 		const slId = `${orderId}_SL`;
@@ -1906,7 +2221,7 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			});
 
 			// Use values from originalOrder which now contains the merged state
-			await modifyPendingOrderDirect({
+			const response = await modifyPendingOrderDirect({
 				accountId: this._accountId!,
 				accessToken: this._accessToken!,
 				orderId: orderId,
@@ -1914,13 +2229,32 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 				stopLoss: originalOrder.stopLoss,
 				takeProfit: originalOrder.takeProfit
 			});
+
+			if (!response.success) {
+				throw new Error(response.message || 'Failed to modify order');
+			}
+
 			// Re-fetch to validate
 			setTimeout(() => this._fetchPositionsAndOrders(true), 400);
 
 			// Synchronize final state back to panel
 			this._syncToPanel(originalOrder, 'chart');
 		} catch (e) {
-			console.error('[ZuperiorBroker] Modify order failed', e);
+			console.warn('[ZuperiorBroker] Edit order failed', e);
+			// FORCE SNAP-BACK ON API FAILURE
+			this._triggerSnapBack(originalOrder, originalTP, originalSL);
+
+			const errorMessage = e instanceof Error ? e.message : (typeof e === 'string' ? e : 'Unknown error');
+			this._showOrderToast({
+				side: originalOrder.side === Side.Buy ? 'buy' : 'sell',
+				symbol: originalOrder.symbol,
+				volume: String(originalOrder.qty),
+				price: null,
+				orderType: originalOrder.type === OrderType.Limit ? 'limit' : (originalOrder.type === OrderType.Stop ? 'stop' : 'market'),
+				profit: null,
+				error: errorMessage
+			});
+
 			// Rollback (Simplified: just re-fetch to restore state)
 			this._fetchPositionsAndOrders(true);
 			throw e;
@@ -2031,8 +2365,9 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 			return Promise.resolve();
 		}
 
-		const isTP = orderId.includes('_TP') || orderId.includes('TP-');
-		const isSL = orderId.includes('_SL') || orderId.includes('SL-');
+		const orderIdStr = String(orderId);
+		const isTP = orderIdStr.includes('_TP') || orderIdStr.includes('TP-');
+		const isSL = orderIdStr.includes('_SL') || orderIdStr.includes('SL-');
 
 		console.log('[ZuperiorBroker] Moving order details:', { isTP, isSL, parentId: order.parentId, parentType: order.parentType });
 
@@ -2075,8 +2410,8 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 		// If this is a bracket of a position
 		if (order.parentId && order.parentType === ParentType.Position && (isTP || isSL)) {
 			const mod: any = {};
-			if (isTP) mod.takeProfit = price;
-			if (isSL) mod.stopLoss = price;
+			if (isTP) mod.takeProfit = effectivePrice;
+			if (isSL) mod.stopLoss = effectivePrice;
 			console.log('[ZuperiorBroker] Moving position bracket -> editPositionBrackets', order.parentId, mod);
 			return this.editPositionBrackets(order.parentId, mod);
 		}
@@ -2344,28 +2679,19 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 	private _syncToPanel(order: Order | Position, source: string = 'chart') {
 		if (typeof window === 'undefined') return;
 
-		const sideValue = order.side;
-		const isBuy = sideValue === Side.Buy ||
-			(sideValue as any) === 1 ||
-			(sideValue as any) === 'buy' ||
-			(sideValue as any) === 'Buy' ||
-			(sideValue as any) === 0;
-
-		const sideStr = isBuy ? 'buy' : 'sell';
+		const isPosition = 'avgPrice' in order;
 
 		// Determine type and price based on whether it's an Order or Position
-		let typeStr = 'limit';
+		let typeStr = 'market';
 		let price = 0;
 
-		if ('type' in order) {
+		if (isPosition) {
+			typeStr = 'market';
+			price = (order as Position).avgPrice;
+		} else {
 			typeStr = (order as Order).type === OrderType.Limit ? 'limit' : 'stop';
 			price = (order as Order).type === OrderType.Limit ? (order as Order).limitPrice! : (order as Order).stopPrice!;
-		} else {
-			// It's a Position
-			price = (order as Position).avgPrice;
 		}
-
-		// console.log(`[ZuperiorBroker] Syncing to panel: id=${order.id} side=${sideStr} type=${typeStr} price=${price}`);
 
 		const targetWin = window.top || window;
 		targetWin.dispatchEvent(new CustomEvent('__ON_ORDER_PREVIEW_CHANGE__', {
@@ -2376,7 +2702,9 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 				stopLoss: order.stopLoss,
 				qty: order.qty,
 				type: typeStr,
-				side: sideStr,
+				// NOTE: 'side' is intentionally NOT included here for real order modifications.
+				// Including 'side' triggers setPendingOrderSide() in OrderPanel which opens
+				// the confirmation dialog — we only want that for new order previews.
 				source: source
 			}
 		}));

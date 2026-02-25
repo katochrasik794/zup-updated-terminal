@@ -73,27 +73,27 @@ export default function AccountDropdown({ isOpen, onClose }) {
     <div className={cn("transition-all duration-200", isOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none")}>
       <div className="fixed inset-0 z-40" onClick={onClose} />
 
-      <div className="absolute top-full right-0 mt-2 w-[340px] bg-[#0b0e14] border border-gray-800 rounded-lg shadow-2xl z-[100] overflow-hidden font-sans">
+      <div className="absolute top-full right-0 mt-2 w-[340px] bg-background border border-gray-800 rounded-lg shadow-2xl z-[100] overflow-hidden font-sans">
         <div className="flex items-center justify-between px-4 py-4">
           <span className="text-gray-300 text-[13px]">Hide balance</span>
           <button
-            className={`w-9 h-5 rounded-full relative transition-colors cursor-pointer ${hideBalance ? 'bg-white' : 'bg-gray-800'}`}
+            className={`w-9 h-5 rounded-full relative transition-colors cursor-pointer ${hideBalance ? 'bg-foreground' : 'bg-gray-800'}`}
             onClick={toggleHideBalance}
           >
-            <div className={`absolute top-1 w-3 h-3 rounded-full transition-transform ${hideBalance ? 'left-5 bg-black' : 'left-1 bg-white'}`}></div>
+            <div className={`absolute top-1 w-3 h-3 rounded-full transition-transform ${hideBalance ? 'left-5 bg-background' : 'left-1 bg-foreground'}`}></div>
           </button>
         </div>
 
         <div className="px-4 pb-4 space-y-2 border-b border-gray-800">
           {[
             { label: 'Balance', value: balance },
-            { label: 'Equity', value: equity, color: 'text-[#00ffaa]' },
+            { label: 'Equity', value: equity, color: 'text-success' },
             { label: 'Margin', value: margin },
             { label: 'Free margin', value: freeMargin },
             { label: 'Margin level', value: marginLevel, isPercent: true },
             { label: 'Account leverage', value: leverage, isLeverage: true },
             { label: 'Credit', value: credit },
-            { label: 'Total P/L, USD', value: profitLoss, color: profitLoss >= 0 ? 'text-[#00ffaa]' : 'text-[#f6465d]', isPL: true }
+            { label: 'Total P/L, USD', value: profitLoss, color: profitLoss >= 0 ? 'text-success' : 'text-danger', isPL: true }
           ].map((item, idx) => {
             // Handle P/L rendering with proper loading states
             let displayValue: string | React.ReactNode;
@@ -119,7 +119,7 @@ export default function AccountDropdown({ isOpen, onClose }) {
               <div key={idx} className="flex justify-between items-center text-[13px]">
                 <span className="text-gray-400">{item.label}</span>
                 <div className="flex items-center gap-2">
-                  <span className={item.color || 'text-white'}>
+                  <span className={item.color || 'text-foreground'}>
                     {displayValue}
                   </span>
                   <FiHelpCircle className="text-gray-600" size={14} />
@@ -128,7 +128,7 @@ export default function AccountDropdown({ isOpen, onClose }) {
             );
           })}
 
-          <button className="w-full py-2.5 mt-2 border border-gray-800 hover:bg-gray-800 text-white rounded text-[13px] font-medium transition-colors cursor-pointer uppercase">
+          <button className="w-full py-2.5 mt-2 border border-gray-800 hover:bg-gray-800 text-foreground rounded text-[13px] font-medium transition-colors cursor-pointer uppercase">
             Top Up
           </button>
         </div>
@@ -152,10 +152,12 @@ export default function AccountDropdown({ isOpen, onClose }) {
                   <div
                     key={account.id}
                     onClick={() => handleAccountSelect(account.accountId)}
-                    className={`relative p-3 rounded-md cursor-pointer transition-colors border ${isSelected
-                      ? 'bg-[#1e1b2e] border-[#5a4d9e]'
-                      : 'bg-[#151921] border-transparent hover:bg-[#1c222b]'
-                      }`}
+                    className={cn(
+                      "relative p-3 rounded-md cursor-pointer transition-colors border",
+                      isSelected
+                        ? "bg-gray-800 border-primary"
+                        : "bg-gray-900 border-transparent hover:bg-gray-800"
+                    )}
                   >
                     <div className="flex items-center gap-2 mb-1">
                       <span className={`px-1.5 py-[2px] text-[10px] rounded font-medium ${account.accountType === 'Live' ? 'bg-[#3d2e18] text-[#eab308]' : 'bg-green-900/40 text-green-400'}`}>
@@ -163,11 +165,11 @@ export default function AccountDropdown({ isOpen, onClose }) {
                       </span>
                       <span className="text-gray-400 text-[12px]">{account.displayAccountId}</span>
                     </div>
-                    <div className="text-white text-[14px] font-semibold">
+                    <div className="text-foreground text-[14px] font-semibold">
                       {hideBalance
                         ? '***'
                         : (!accData)
-                          ? <div className="h-4 w-20 animate-shimmer rounded bg-white/5" />
+                          ? <div className="h-4 w-20 animate-pulse rounded bg-gray-800" />
                           : `${formatCurrency(accEquity, 2)} USD`
                       }
                     </div>

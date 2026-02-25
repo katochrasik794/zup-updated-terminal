@@ -91,7 +91,7 @@ export default function FlagIcon({ symbol, type, className = "" }: FlagIconProps
   const indexMatch = Object.keys(INDICES_MAP).find(key => finalSymbol.startsWith(key));
   if (indexMatch) {
     return (
-      <div className={`${baseClass} rounded-full overflow-hidden border-[1px] border-[#0b0e14]`}>
+      <div className={`${baseClass} rounded-full overflow-hidden border-[1px] border-background`}>
         <img
           src={flagUrl(INDICES_MAP[indexMatch])}
           alt={indexMatch}
@@ -166,17 +166,17 @@ export default function FlagIcon({ symbol, type, className = "" }: FlagIconProps
   // Double Icon
   if (quoteCode) {
     const TopLeft = baseElement || (
-      <div className="w-full h-full bg-[#1a1e25] flex items-center justify-center">
+      <div className="w-full h-full bg-gray-900 flex items-center justify-center">
         <span className="text-[9px] font-bold text-gray-400">{baseSymbol.substring(0, 1)}</span>
       </div>
     );
 
     return (
       <div className={baseClass}>
-        <div className="absolute top-0 left-0 w-[70%] h-[70%] rounded-full z-10 overflow-hidden bg-[#141d22] border-[1px] border-[#0b0e14]">
+        <div className="absolute top-0 left-0 w-[70%] h-[70%] rounded-full z-10 overflow-hidden bg-[#141d22] border-[1px] border-background">
           {TopLeft}
         </div>
-        <div className="absolute bottom-0 right-0 w-[70%] h-[70%] rounded-full z-20 overflow-hidden bg-[#141d22] border-[1px] border-[#0b0e14]">
+        <div className="absolute bottom-0 right-0 w-[70%] h-[70%] rounded-full z-20 overflow-hidden bg-[#141d22] border-[1px] border-background">
           <img
             src={flagUrl(quoteCode)}
             alt={quoteCode}
@@ -192,13 +192,13 @@ export default function FlagIcon({ symbol, type, className = "" }: FlagIconProps
   if (baseElement) {
     if ((baseElement as any).type === 'img') {
       return (
-        <div className={`${baseClass} rounded-full overflow-hidden border-[1px] border-[#0b0e14]`}>
+        <div className={`${baseClass} rounded-full overflow-hidden border-[1px] border-background`}>
           {baseElement}
         </div>
       )
     }
     return (
-      <div className={`${baseClass} rounded-full overflow-hidden border-[1px] border-[#0b0e14]`}>
+      <div className={`${baseClass} rounded-full overflow-hidden border-[1px] border-background`}>
         {React.cloneElement(baseElement as React.ReactElement, { className: 'w-full h-full' } as any)}
       </div>
     );
@@ -206,7 +206,7 @@ export default function FlagIcon({ symbol, type, className = "" }: FlagIconProps
 
   // Final Fallback
   return (
-    <div className={`${baseClass} bg-[#1a1e25] rounded-full flex items-center justify-center border border-gray-700`}>
+    <div className={`${baseClass} bg-gray-900 rounded-full flex items-center justify-center border border-gray-700`}>
       <span className="text-[9px] font-bold text-gray-400">{finalSymbol.substring(0, 1)}</span>
     </div>
   )
@@ -214,7 +214,7 @@ export default function FlagIcon({ symbol, type, className = "" }: FlagIconProps
 
 // Custom Sub-components
 const CustomIcon = ({ src, alt, className }: any) => (
-  <div className={`relative w-full h-full rounded-full overflow-hidden bg-[#1a1e25] ${className}`}>
+  <div className={`relative w-full h-full rounded-full overflow-hidden bg-gray-900 ${className}`}>
     <img src={src} alt={alt} className="w-full h-full object-cover" />
   </div>
 )

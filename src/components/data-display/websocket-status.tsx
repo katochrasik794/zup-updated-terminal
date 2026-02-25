@@ -31,7 +31,7 @@ export function WebSocketStatus({ className, showDetails = false, positionsConne
           >
             {isUserOnline ? '●' : '○'}
           </span>
-          <span className="text-[10px] text-white/60">
+          <span className="text-[10px] text-foreground/60">
             {isUserOnline ? 'Live' : 'Offline'}
           </span>
         </div>
@@ -44,21 +44,21 @@ export function WebSocketStatus({ className, showDetails = false, positionsConne
             <span className={cn('text-xs', isUserOnline ? 'text-green-500' : 'text-red-500')}>
               {isUserOnline ? '●' : '○'}
             </span>
-            <span className="text-xs text-white/60">Prices</span>
+            <span className="text-xs text-foreground/60">Prices</span>
           </div>
           
           <div className="flex items-center gap-1.5">
             <span className={cn('text-xs', isUserOnline ? 'text-green-500' : 'text-red-500')}>
               {isUserOnline ? '●' : '○'}
             </span>
-            <span className="text-xs text-white/60">Charts</span>
+            <span className="text-xs text-foreground/60">Charts</span>
           </div>
           
           <div className="flex items-center gap-1.5">
             <span className={cn('text-xs', isUserOnline ? 'text-green-500' : 'text-red-500')}>
               {isUserOnline ? '●' : '○'}
             </span>
-            <span className="text-xs text-white/60">Trading</span>
+            <span className="text-xs text-foreground/60">Trading</span>
           </div>
         </div>
       )}

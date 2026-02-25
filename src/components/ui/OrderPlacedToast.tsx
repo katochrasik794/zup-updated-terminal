@@ -37,7 +37,7 @@ export default function OrderPlacedToast({ order, onClose }) {
   // If status is sending, show loading toast
   if (order.status === 'sending') {
     return ReactDOM.createPortal(
-      <div className="fixed bottom-4 left-4 z-[99999] bg-[#02040d] text-[#b2b5be] rounded-md shadow-lg border border-blue-500/50 w-[320px] overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-300">
+      <div className="fixed bottom-4 left-4 z-[99999] bg-background text-gray-300 rounded-md shadow-lg border border-blue-500/50 w-[320px] overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-300">
         <div className="p-4 relative">
           <div className="flex items-start gap-3">
             <div className="mt-0.5 text-blue-500">
@@ -48,10 +48,10 @@ export default function OrderPlacedToast({ order, onClose }) {
             </div>
 
             <div className="flex-1">
-              <h3 className="text-white font-medium text-[14px] leading-tight mb-1">
+              <h3 className="text-foreground font-medium text-[14px] leading-tight mb-1">
                 Sending Order...
               </h3>
-              <p className="text-[13px] text-[#b2b5be]">
+              <p className="text-[13px] text-gray-300">
                 {getOrderTypeLabel()} {volumeDisplay} lot {order.symbol}
               </p>
             </div>
@@ -65,11 +65,11 @@ export default function OrderPlacedToast({ order, onClose }) {
   // If there's an error, show error toast
   if (order.error) {
     return ReactDOM.createPortal(
-      <div className="fixed bottom-4 left-4 z-[99999] bg-[#02040d] text-[#b2b5be] rounded-md shadow-lg border border-red-500/50 w-[320px] overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-300">
+      <div className="fixed bottom-4 left-4 z-[99999] bg-background text-gray-300 rounded-md shadow-lg border border-red-500/50 w-[320px] overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-300">
         <div className="p-4 relative">
           <button
             onClick={onClose}
-            className="absolute top-2 right-2 text-[#6e757c] hover:text-white transition-colors"
+            className="absolute top-2 right-2 text-[#6e757c] hover:text-foreground transition-colors"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <line x1="18" y1="6" x2="6" y2="18" />
@@ -78,7 +78,7 @@ export default function OrderPlacedToast({ order, onClose }) {
           </button>
 
           <div className="flex items-start gap-3">
-            <div className="mt-0.5 text-[#f6465d]">
+            <div className="mt-0.5 text-danger">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="12" cy="12" r="10" />
                 <line x1="12" y1="8" x2="12" y2="12" />
@@ -87,7 +87,7 @@ export default function OrderPlacedToast({ order, onClose }) {
             </div>
 
             <div className="flex-1">
-              <h3 className="text-white font-medium text-[14px] leading-tight mb-1">
+              <h3 className="text-foreground font-medium text-[14px] leading-tight mb-1">
                 {order.error.includes('Cooling period') || order.error.includes('restricted')
                   ? 'Trading Restricted'
                   : order.error.includes('money')
@@ -96,7 +96,7 @@ export default function OrderPlacedToast({ order, onClose }) {
                       ? 'Confirmation Issue'
                       : 'Order Failed'}
               </h3>
-              <p className="text-[13px] text-[#b2b5be]">
+              <p className="text-[13px] text-gray-300">
                 {order.error}
               </p>
             </div>
@@ -108,11 +108,11 @@ export default function OrderPlacedToast({ order, onClose }) {
   }
 
   return ReactDOM.createPortal(
-    <div className="fixed bottom-4 left-4 z-[99999] bg-[#02040d] text-[#b2b5be] rounded-md shadow-lg border border-gray-800 w-[320px] overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-300">
+    <div className="fixed bottom-4 left-4 z-[99999] bg-background text-gray-300 rounded-md shadow-lg border border-gray-800 w-[320px] overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-300">
       <div className="p-4 relative">
         <button
           onClick={onClose}
-          className="absolute top-2 right-2 text-[#6e757c] hover:text-white transition-colors"
+          className="absolute top-2 right-2 text-[#6e757c] hover:text-foreground transition-colors"
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <line x1="18" y1="6" x2="6" y2="18" />
@@ -121,7 +121,7 @@ export default function OrderPlacedToast({ order, onClose }) {
         </button>
 
         <div className="flex items-start gap-3">
-          <div className="mt-0.5 text-[#2ebd85]">
+          <div className="mt-0.5 text-success">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="12" r="10" />
               <polyline points="9 11 12 14 22 4" />
@@ -129,17 +129,17 @@ export default function OrderPlacedToast({ order, onClose }) {
           </div>
 
           <div className="flex-1">
-            <h3 className="text-white font-medium text-[14px] leading-tight mb-1">
+            <h3 className="text-foreground font-medium text-[14px] leading-tight mb-1">
               {order.isModified ? 'Order Modified' : 'Order placed'}
             </h3>
-            <p className="text-[13px] text-[#b2b5be] mb-3">
+            <p className="text-[13px] text-gray-300 mb-3">
               {getOrderTypeLabel()} {volumeDisplay} lot {order.symbol} {priceDisplay ? `at ${priceDisplay}` : ''}
             </p>
 
             {order.profit !== undefined && order.profit !== null && (
               <div className="flex items-center justify-between text-[13px]">
-                <span className="text-[#b2b5be]">Profit</span>
-                <span className={`font-medium font-mono ${order.profit >= 0 ? 'text-[#2ebd85]' : 'text-[#f6465d]'}`}>
+                <span className="text-gray-300">Profit</span>
+                <span className={`font-medium font-mono ${order.profit >= 0 ? 'text-success' : 'text-danger'}`}>
                   {order.profit >= 0 ? '+' : ''}{order.profit.toFixed(2)} USD
                 </span>
               </div>

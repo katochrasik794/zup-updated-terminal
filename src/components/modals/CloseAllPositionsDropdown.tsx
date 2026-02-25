@@ -53,8 +53,8 @@ export default function CloseAllPositionsDropdown({ isOpen, onClose, onConfirm, 
   }
 
   const getColor = (val: number) => {
-    if (val === 0) return 'text-[#8b9096]'
-    return val > 0 ? 'text-[#2ebd85]' : 'text-[#f6465d]'
+    if (val === 0) return 'text-gray-400'
+    return val > 0 ? 'text-success' : 'text-danger'
   }
 
   useEffect(() => {
@@ -95,10 +95,10 @@ export default function CloseAllPositionsDropdown({ isOpen, onClose, onConfirm, 
     <div
       ref={dropdownRef}
       style={style}
-      className="fixed z-[100] bg-[#02040d] rounded-lg shadow-2xl w-[320px] border border-[#363c47] overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-200"
+      className="fixed z-[100] bg-background rounded-lg shadow-2xl w-[320px] border border-gray-800 overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-200"
     >
       <div className="p-4">
-        <h3 className="text-white font-medium text-[14px] mb-3">
+        <h3 className="text-foreground font-medium text-[14px] mb-3">
           Close all positions at the market prices?
         </h3>
 
@@ -110,7 +110,7 @@ export default function CloseAllPositionsDropdown({ isOpen, onClose, onConfirm, 
             return (
               <label
                 key={opt.id}
-                className={`flex items-center justify-between cursor-pointer group p-2 rounded hover:bg-[#363c47] transition-colors ${isDisabled ? 'opacity-50 pointer-events-none' : ''}`}
+                className={`flex items-center justify-between cursor-pointer group p-2 rounded hover:bg-gray-700 transition-colors ${isDisabled ? 'opacity-50 pointer-events-none' : ''}`}
               >
                 <div className="flex items-center gap-3">
                   <div className="relative flex items-center justify-center w-4 h-4">
@@ -121,13 +121,13 @@ export default function CloseAllPositionsDropdown({ isOpen, onClose, onConfirm, 
                       checked={selectedOption === opt.id}
                       onChange={(e) => setSelectedOption(e.target.value)}
                       disabled={isDisabled}
-                      className="peer appearance-none w-4 h-4 border border-[#565c66] rounded-full checked:border-[#8b5cf6] checked:bg-[#8b5cf6] transition-colors"
+                      className="peer appearance-none w-4 h-4 border border-[#565c66] rounded-full checked:border-primary checked:bg-primary transition-colors"
                     />
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-[#e1e3e6] text-[13px]">{opt.label}</span>
                     {stat.count > 0 && (
-                      <span className="bg-[#141d22] text-[#b2b5be] text-[10px] px-1.5 py-0.5 rounded">
+                      <span className="bg-[#141d22] text-gray-300 text-[10px] px-1.5 py-0.5 rounded">
                         {stat.count}
                       </span>
                     )}
@@ -144,7 +144,7 @@ export default function CloseAllPositionsDropdown({ isOpen, onClose, onConfirm, 
         <div className="flex gap-2 mt-4">
           <button
             onClick={onClose}
-            className="flex-1 py-2 text-[13px] font-medium text-[#e1e3e6] bg-[#363c47] hover:bg-[#404652] transition-colors rounded"
+            className="flex-1 py-2 text-[13px] font-medium text-[#e1e3e6] bg-gray-800 hover:bg-gray-700 transition-colors rounded"
           >
             Cancel
           </button>
@@ -153,7 +153,7 @@ export default function CloseAllPositionsDropdown({ isOpen, onClose, onConfirm, 
               onConfirm(selectedOption)
               onClose()
             }}
-            className="flex-1 py-2 text-[13px] font-medium text-[#141d22] bg-[#8b5cf6] hover:bg-[#ffe54f] transition-colors rounded"
+            className="flex-1 py-2 text-[13px] font-medium text-[#141d22] bg-primary hover:bg-[#ffe54f] transition-colors rounded"
           >
             Confirm
           </button>

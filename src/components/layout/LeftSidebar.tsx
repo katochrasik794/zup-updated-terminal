@@ -47,7 +47,7 @@ export default function LeftSidebar({ onPanelStateChange, isExpanded }: LeftSide
         <div>
           <Tooltip text="Instruments" placement="right">
             <button
-              className={`cursor-pointer w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-200 rounded-sm transition-all duration-200 ${activePanel === 'instruments' ? 'bg-[#263239] border border-gray-400 text-gray-200' : 'hover:bg-[#263239] hover:border hover:border-gray-400 border-2 border-transparent'
+              className={`cursor-pointer w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-200 rounded-sm transition-all duration-200 ${activePanel === 'instruments' ? 'bg-gray-800 border border-gray-400 text-gray-200' : 'hover:bg-gray-800 hover:border hover:border-gray-400 border-2 border-transparent'
                 }`}
               type="button"
               data-test="aside-panel-watchlist-button"
@@ -64,14 +64,14 @@ export default function LeftSidebar({ onPanelStateChange, isExpanded }: LeftSide
           <div>
             <Tooltip text="Economic calendar" placement="right">
               <button
-                className={`cursor-pointer w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-200 rounded-sm transition-all duration-200 ${activePanel === 'calendar' ? 'bg-[#263239] border border-gray-400 text-gray-200' : 'hover:bg-[#263239] hover:border hover:border-gray-400 border-2 border-transparent'
+                className={`cursor-pointer w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-200 rounded-sm transition-all duration-200 ${activePanel === 'calendar' ? 'bg-gray-800 border border-gray-400 text-gray-200' : 'hover:bg-gray-800 hover:border hover:border-gray-400 border-2 border-transparent'
                   }`}
                 type="button"
                 data-test="aside-panel-calendar-events-button"
                 aria-label="Economic calendar"
                 onClick={() => togglePanel('calendar')}
               >
-                <LuCalendar size={20} className={activePanel === 'calendar' ? 'text-white' : 'text-gray-300'} />
+                <LuCalendar size={20} className={activePanel === 'calendar' ? 'text-foreground' : 'text-gray-300'} />
               </button>
             </Tooltip>
           </div>
@@ -81,14 +81,14 @@ export default function LeftSidebar({ onPanelStateChange, isExpanded }: LeftSide
         <div>
           <Tooltip text="Settings" placement="right">
             <button
-              className={`cursor-pointer w-8 h-8 flex items-center justify-center text-gray-400 hover:text-white rounded-sm transition-all duration-200 ${activePanel === 'settings' ? 'bg-[#263239] border border-gray-400 text-gray-200' : 'hover:bg-[#263239] hover:border hover:border-gray-400 border-2 border-transparent'
+              className={`cursor-pointer w-8 h-8 flex items-center justify-center text-gray-400 hover:text-foreground rounded-sm transition-all duration-200 ${activePanel === 'settings' ? 'bg-gray-800 border border-gray-400 text-gray-200' : 'hover:bg-gray-800 hover:border hover:border-gray-400 border-2 border-transparent'
                 }`}
               type="button"
               data-test="aside-panel-settings-button"
               aria-label="Settings"
               onClick={() => togglePanel('settings')}
             >
-              <LuSettings size={20} className={activePanel === 'settings' ? 'text-white' : 'text-gray-300'} />
+              <LuSettings size={20} className={activePanel === 'settings' ? 'text-foreground' : 'text-gray-300'} />
             </button>
           </Tooltip>
         </div>

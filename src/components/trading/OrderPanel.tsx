@@ -229,12 +229,15 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
         if (orderTypeFromChart === 'limit' || orderTypeFromChart === 'stop') {
           // console.log(`[OrderPanel] >>> SYNCING TAB: Switching to ${orderTypeFromChart.toUpperCase()} <<<`);
           setPendingOrderType(orderTypeFromChart as "limit" | "stop");
+
+          // DO NOT force orderType to 'pending'. Let the user stay on their current tab.
+        } else if (orderTypeFromChart === 'market') {
+          // DO NOT force orderType to 'market'. Let the user stay on their current tab.
         }
 
         if (sideFromChart === 'buy' || sideFromChart === 'sell') {
           // console.log(`[OrderPanel] >>> SYNCING SIDE: Switching to ${sideFromChart.toUpperCase()} <<<`);
           setPendingOrderSide(sideFromChart as 'buy' | 'sell');
-          setOrderType('pending'); // Ensure we are in pending mode
         }
       } catch (err) {
         console.error("[OrderPanel] Error updating values from chart:", err);
@@ -603,6 +606,30 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
     setter(Math.max(0, basePrice - 0.001).toFixed(3))
   }
 
+  const validateSLTP = (side: 'buy' | 'sell', entryPrice: number, sl?: number, tp?: number) => {
+    if (sl && sl > 0) {
+      if (side === 'buy' && sl >= entryPrice) {
+        alert("Buy Stop Loss must be below the entry price.");
+        return false;
+      }
+      if (side === 'sell' && sl <= entryPrice) {
+        alert("Sell Stop Loss must be above the entry price.");
+        return false;
+      }
+    }
+    if (tp && tp > 0) {
+      if (side === 'buy' && tp <= entryPrice) {
+        alert("Buy Take Profit must be above the entry price.");
+        return false;
+      }
+      if (side === 'sell' && tp >= entryPrice) {
+        alert("Sell Take Profit must be below the entry price.");
+        return false;
+      }
+    }
+    return true;
+  }
+
   // Reset state and clear preview when symbol changes
   React.useEffect(() => {
     setPendingOrderSide(null);
@@ -676,23 +703,18 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
             return
           }
           if (isLoading) return;
-          setPendingOrderSide('sell');
+          setIsLoading(true);
           try {
-            // Optimistic execution: Trigger and move on
-            const sellCall = onSell?.({
-              orderType,
-              pendingOrderType: orderType === "pending" ? pendingOrderType : undefined,
-              volume: parseFloat(volume),
-              openPrice: openPrice ? parseFloat(openPrice) : currentSellPrice,
-              stopLoss: undefined,
-              takeProfit: undefined,
-            });
+            const entry = openPrice ? parseFloat(openPrice) : currentSellPrice;
+            const sl = stopLoss ? parseFloat(stopLoss) : undefined;
+            const tp = takeProfit ? parseFloat(takeProfit) : undefined;
 
-            if (sellCall && typeof sellCall.catch === 'function') {
-              sellCall.catch(() => { });
+            if (!validateSLTP('sell', entry, sl, tp)) {
+              setIsLoading(false);
+              return;
             }
 
-            // INSTANT UI RESET (10ms feel)
+            // INSTANT UI RESET (10ms feel) - trigger BEFORE await for snappiness
             setPendingOrderSide(null);
             setTakeProfit("");
             setStopLoss("");
@@ -701,18 +723,29 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
               (window as any).__SET_ORDER_PREVIEW__({ side: null });
               lastPreviewData.current = 'null';
             }
-            setIsLoading(false);
+
+            // Await execution to ensure isLoading blocks further clicks
+            await onSell?.({
+              orderType,
+              pendingOrderType: orderType === "pending" ? pendingOrderType : undefined,
+              volume: parseFloat(volume),
+              openPrice: entry,
+              stopLoss: sl,
+              takeProfit: tp,
+            });
           } catch (err) {
+            console.error("[OrderPanel] Sell order failed:", err);
+          } finally {
             setIsLoading(false);
           }
         }}
         disabled={isLoading}
         className={cn(
-          "rounded-md p-3 bg-[#FF5555] hover:bg-[#FF5555]/90 cursor-pointer text-left relative overflow-hidden transition-all text-white"
+          "rounded-md p-3 bg-danger hover:bg-danger/90 cursor-pointer text-left relative overflow-hidden transition-all text-[#ffffff]"
         )}
       >
         <div className="text-xs text-white/80 mb-1">Sell</div>
-        <div className="price-font text-white font-bold text-sm leading-tight">
+        <div className="price-font text-foreground font-bold text-sm leading-tight">
           {formatPriceForPanel(currentSellPrice)}
         </div>
       </button>
@@ -724,24 +757,18 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
             return
           }
           if (isLoading) return;
-          setPendingOrderSide('buy');
           setIsLoading(true);
           try {
-            // Optimistic execution
-            const buyCall = onBuy?.({
-              orderType,
-              pendingOrderType: orderType === "pending" ? pendingOrderType : undefined,
-              volume: parseFloat(volume),
-              openPrice: openPrice ? parseFloat(openPrice) : currentBuyPrice,
-              stopLoss: undefined,
-              takeProfit: undefined,
-            });
+            const entry = openPrice ? parseFloat(openPrice) : currentBuyPrice;
+            const sl = stopLoss ? parseFloat(stopLoss) : undefined;
+            const tp = takeProfit ? parseFloat(takeProfit) : undefined;
 
-            if (buyCall && typeof buyCall.catch === 'function') {
-              buyCall.catch(() => { });
+            if (!validateSLTP('buy', entry, sl, tp)) {
+              setIsLoading(false);
+              return;
             }
 
-            // INSTANT UI RESET
+            // INSTANT UI RESET - BEFORE await
             setStopLoss("");
             setTakeProfit("");
             setRisk("");
@@ -750,23 +777,34 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
               (window as any).__SET_ORDER_PREVIEW__({ side: null });
               lastPreviewData.current = 'null';
             }
-            setIsLoading(false);
+
+            // Await execution
+            await onBuy?.({
+              orderType,
+              pendingOrderType: orderType === "pending" ? pendingOrderType : undefined,
+              volume: parseFloat(volume),
+              openPrice: entry,
+              stopLoss: sl,
+              takeProfit: tp,
+            });
           } catch (err) {
+            console.error("[OrderPanel] Buy order failed:", err);
+          } finally {
             setIsLoading(false);
           }
         }}
         disabled={isLoading}
         className={cn(
-          "rounded-md p-3 bg-[#4A9EFF] hover:bg-[#4A9EFF]/90 cursor-pointer text-right relative overflow-hidden transition-all text-white"
+          "rounded-md p-3 bg-info hover:bg-info/90 cursor-pointer text-right relative overflow-hidden transition-all text-[#ffffff]"
         )}
       >
         <div className="text-xs text-white/80 mb-1">Buy</div>
-        <div className="price-font text-white font-bold text-sm leading-tight">
+        <div className="price-font text-foreground font-bold text-sm leading-tight">
           {formatPriceForPanel(currentBuyPrice)}
         </div>
       </button>
 
-      <div className="absolute left-1/2 bottom-0 -translate-x-1/2 px-2 py-0.5 rounded backdrop-blur-xl bg-white/[0.03] border border-white/10 text-[10px] text-white/80 font-medium whitespace-nowrap z-10">
+      <div className="absolute left-1/2 bottom-0 -translate-x-1/2 px-2 py-0.5 rounded backdrop-blur-xl bg-white/[0.03] border border-foreground/10 text-[10px] text-foreground/80 font-medium whitespace-nowrap z-10">
         {currentSpread} {isConnected && <span className="text-green-500 ml-1">●</span>}
       </div>
     </div >
@@ -835,28 +873,29 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
 
     // Use violet for risk calculator form buttons, keep red/blue for regular form
     const isRiskCalculator = formType === "risk-calculator"
-    const sellButtonBorder = isRiskCalculator ? 'border-[#8b5cf6]' : 'border-[#FF5555]'
-    const sellButtonHover = isRiskCalculator ? 'hover:bg-[#8b5cf6]/10' : 'hover:bg-[#FF5555]/10'
-    const buyButtonBorder = isRiskCalculator ? 'border-[#8b5cf6]' : 'border-[#4A9EFF]'
-    const buyButtonHover = isRiskCalculator ? 'hover:bg-[#8b5cf6]/10' : 'hover:bg-[#4A9EFF]/10'
-    const sellButtonTextColor = isRiskCalculator ? 'text-[#8b5cf6]' : 'text-[#FF5555]'
-    const buyButtonTextColor = isRiskCalculator ? 'text-[#8b5cf6]' : 'text-[#4A9EFF]'
+    const sellButtonBorder = isRiskCalculator ? 'border-primary' : 'border-danger'
+    const sellButtonHover = isRiskCalculator ? 'hover:bg-primary/10' : 'hover:bg-danger/10'
+    const buyButtonBorder = isRiskCalculator ? 'border-primary' : 'border-info'
+    const buyButtonHover = isRiskCalculator ? 'hover:bg-primary/10' : 'hover:bg-info/10'
+    const sellButtonTextColor = isRiskCalculator ? 'text-primary' : 'text-danger'
+    const buyButtonTextColor = isRiskCalculator ? 'text-primary' : 'text-info'
 
     return (
       <div className="relative grid grid-cols-2 gap-3">
         <button
           type="button"
           className={`rounded-md p-3 border-2 ${sellButtonBorder} bg-transparent ${readOnly ? '' : sellButtonHover} text-left cursor-pointer`}
-          onClick={readOnly ? undefined : () => {
+          onClick={readOnly ? undefined : async () => {
             if (isMarketClosed) {
               setMarketClosedToast(marketClosedMessage)
               return
             }
             if (showConfirmation) {
-              // In regular form, set pending order side to show confirmation
+              // ALWAYS allow opening the confirmation box, even if loading
               setPendingOrderSide('sell')
             } else {
-              // In risk calculator or pending orders, place order directly
+              // For direct execution (Risk Calculator), prevent double clicks
+              if (isLoading) return;
               if (!onSell) return
               if (!finalVolume || finalVolume <= 0) {
                 return
@@ -866,6 +905,8 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
                 alert('Please enter an open price for pending orders')
                 return
               }
+
+              setIsLoading(true);
 
               // Calculate Sell-specific SL/TP if in Pips mode
               let sellStopLoss = finalStopLoss
@@ -899,16 +940,33 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
                 stopLoss: sellStopLoss,
                 takeProfit: sellTakeProfit,
               }
-              onSell(orderData)
-              // Reset fields
-              setStopLoss("");
-              setTakeProfit("");
-              setRisk("");
+              if (!validateSLTP('sell', orderData.openPrice || 0, orderData.stopLoss, orderData.takeProfit)) {
+                setIsLoading(false);
+                return;
+              }
+
+              try {
+                // INSTANT reset BEFORE await
+                setStopLoss("");
+                setTakeProfit("");
+                setRisk("");
+                setPendingOrderSide(null);
+                if (typeof window !== 'undefined' && (window as any).__SET_ORDER_PREVIEW__) {
+                  (window as any).__SET_ORDER_PREVIEW__({ side: null });
+                  lastPreviewData.current = 'null';
+                }
+
+                await onSell(orderData)
+              } catch (err) {
+                console.error("[OrderPanel] Sell order (bordered) failed:", err);
+              } finally {
+                setIsLoading(false);
+              }
             }
           }}
           disabled={readOnly}
         >
-          <div className="text-xs text-white/60 mb-1">Sell</div>
+          <div className="text-xs text-foreground/60 mb-1">Sell</div>
           <div className={`price-font ${sellButtonTextColor} font-bold text-sm leading-tight`}>
             {formatPriceForPanel(currentSellPrice)}
           </div>
@@ -917,16 +975,17 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
         <button
           type="button"
           className={`rounded-md p-3 border-2 ${buyButtonBorder} bg-transparent ${readOnly ? '' : buyButtonHover} text-right cursor-pointer`}
-          onClick={readOnly ? undefined : () => {
+          onClick={readOnly ? undefined : async () => {
             if (isMarketClosed) {
               setMarketClosedToast(marketClosedMessage)
               return
             }
             if (showConfirmation) {
-              // In regular form, set pending order side to show confirmation
+              // ALWAYS allow opening the confirmation box, even if loading
               setPendingOrderSide('buy')
             } else {
-              // In risk calculator or pending orders, place order directly
+              // For direct execution, prevent double clicks
+              if (isLoading) return;
               if (!onBuy) return
               if (!finalVolume || finalVolume <= 0) {
                 return
@@ -936,6 +995,8 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
                 alert('Please enter an open price for pending orders')
                 return
               }
+
+              setIsLoading(true);
 
               // Calculate Buy-specific SL/TP if in Pips mode
               let buyStopLoss = finalStopLoss
@@ -969,22 +1030,39 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
                 stopLoss: buyStopLoss,
                 takeProfit: buyTakeProfit,
               }
-              onBuy(orderData)
-              // Reset fields
-              setStopLoss("");
-              setTakeProfit("");
-              setRisk("");
+              if (!validateSLTP('buy', orderData.openPrice || 0, orderData.stopLoss, orderData.takeProfit)) {
+                setIsLoading(false);
+                return;
+              }
+
+              try {
+                // INSTANT reset BEFORE await
+                setStopLoss("");
+                setTakeProfit("");
+                setRisk("");
+                setPendingOrderSide(null);
+                if (typeof window !== 'undefined' && (window as any).__SET_ORDER_PREVIEW__) {
+                  (window as any).__SET_ORDER_PREVIEW__({ side: null });
+                  lastPreviewData.current = 'null';
+                }
+
+                await onBuy(orderData)
+              } catch (err) {
+                console.error("[OrderPanel] Buy order (bordered) failed:", err);
+              } finally {
+                setIsLoading(false);
+              }
             }
           }}
           disabled={readOnly}
         >
-          <div className="text-xs text-white/60 mb-1">Buy</div>
+          <div className="text-xs text-foreground/60 mb-1">Buy</div>
           <div className={`price-font ${buyButtonTextColor} font-bold text-sm leading-tight`}>
             {formatPriceForPanel(currentBuyPrice)}
           </div>
         </button>
 
-        <div className="absolute left-1/2 bottom-0 -translate-x-1/2 px-2 py-0.5 rounded backdrop-blur-xl bg-white/[0.03] border border-white/10 text-[10px] text-white/80 font-medium whitespace-nowrap z-10">
+        <div className="absolute left-1/2 bottom-0 -translate-x-1/2 px-2 py-0.5 rounded backdrop-blur-xl bg-white/[0.03] border border-foreground/10 text-[10px] text-foreground/80 font-medium whitespace-nowrap z-10">
           {currentSpread} {isConnected && <span className="text-green-500 ml-1">●</span>}
         </div>
       </div>
@@ -997,11 +1075,11 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
       <>
         {/* Stop Loss Metrics - Show above confirmation button */}
         {stopLoss && (
-          <div className="flex items-center justify-center gap-4 pt-2 pb-1 text-xs text-white/60">
+          <div className="flex items-center justify-center gap-4 pt-2 pb-1 text-xs text-foreground/60">
             {stopLossMode === "pips" ? (
               <>
                 <span>{stopLoss.startsWith('-') ? stopLoss : `-${stopLoss}`} pips</span>
-                <span className="text-white/40">|</span>
+                <span className="text-foreground/40">|</span>
                 <span>
                   {(() => {
                     const pips = Math.abs(parseFloat(stopLoss) || 0)
@@ -1017,7 +1095,7 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
                     return '-0.00 USD'
                   })()}
                 </span>
-                <span className="text-white/40">|</span>
+                <span className="text-foreground/40">|</span>
                 <span>
                   {(() => {
                     const pips = Math.abs(parseFloat(stopLoss) || 0)
@@ -1044,7 +1122,7 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
                     return `${pips.toFixed(1)} pips`
                   })()}
                 </span>
-                <span className="text-white/40">|</span>
+                <span className="text-foreground/40">|</span>
                 <span>
                   {(() => {
                     const slPrice = parseFloat(stopLoss) || 0
@@ -1060,7 +1138,7 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
                     return `-${pipValue.toFixed(2)} USD`
                   })()}
                 </span>
-                <span className="text-white/40">|</span>
+                <span className="text-foreground/40">|</span>
                 <span>
                   {(() => {
                     const slPrice = parseFloat(stopLoss) || 0
@@ -1180,28 +1258,36 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
                 takeProfit: finalTakeProfit,
               }
 
+              if (!validateSLTP(pendingOrderSide as 'buy' | 'sell', orderData.openPrice || 0, orderData.stopLoss, orderData.takeProfit)) {
+                return;
+              }
+
               setIsLoading(true);
               try {
-                // Optimistic execution
-                const result = handler(orderData);
-                if (result && typeof result.catch === 'function') {
-                  result.catch(() => { });
-                }
-
-                // INSTANT UI RESET
+                // INSTANT UI RESET - Trigger BEFORE await for snappiness
                 setStopLoss("");
                 setTakeProfit("");
                 setRisk("");
-                setIsLoading(false);
                 setPendingOrderSide(null);
+
+                // EXPLICIT INSTANT CLEAR (User requested robust cleanup)
+                if (typeof window !== 'undefined' && (window as any).__SET_ORDER_PREVIEW__) {
+                  (window as any).__SET_ORDER_PREVIEW__({ side: null });
+                  lastPreviewData.current = 'null';
+                }
+
+                // Await the handler execution
+                await handler(orderData);
               } catch (err) {
-                setIsLoading(false);
+                console.error("[OrderPanel] Confirm order failed:", err);
                 setPendingOrderSide(null);
+              } finally {
+                setIsLoading(false);
               }
             }}
             className={cn(
               "w-full font-semibold py-3 px-4 rounded-md transition-all flex flex-col items-center justify-center relative overflow-hidden text-white",
-              pendingOrderSide === 'buy' ? 'bg-[#4A9EFF] hover:bg-[#4A9EFF]/90' : 'bg-[#FF5555] hover:bg-[#FF5555]/90',
+              pendingOrderSide === 'buy' ? 'bg-info hover:bg-info/90' : 'bg-danger hover:bg-danger/90',
             )}
           >
             <span className="text-sm">Confirm {pendingOrderSide === 'buy' ? 'Buy' : 'Sell'}</span>
@@ -1210,7 +1296,7 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
           <button
             onClick={() => setPendingOrderSide(null)}
             disabled={isLoading}
-            className="w-full bg-[#2a2f36] hover:bg-[#363c45] text-white font-medium py-2.5 px-4 rounded-md text-sm transition-colors disabled:opacity-50"
+            className="w-full bg-gray-800 hover:bg-gray-700 text-foreground font-medium py-2.5 px-4 rounded-md text-sm transition-colors disabled:opacity-50"
           >
             Cancel
           </button>
@@ -1226,18 +1312,18 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
   const renderMarketClosedToast = () => {
     if (!marketClosedToast) return null
     return ReactDOM.createPortal(
-      <div className="fixed bottom-4 left-4 z-[99999] bg-[#0b0e14] text-[#d1d5db] rounded-md shadow-lg border border-amber-500/60 w-[320px] overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-300">
+      <div className="fixed bottom-4 left-4 z-[99999] bg-background text-[#d1d5db] rounded-md shadow-lg border border-amber-500/60 w-[320px] overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-300">
         <div className="p-4 relative">
           <button
             onClick={() => setMarketClosedToast(null)}
-            className="absolute top-2 right-2 text-[#9ca3af] hover:text-white transition-colors"
+            className="absolute top-2 right-2 text-gray-400 hover:text-foreground transition-colors"
           >
             ×
           </button>
           <div className="flex items-start gap-3">
             <div className="mt-0.5 text-amber-400">⚠</div>
             <div className="flex-1">
-              <h3 className="text-white font-medium text-[14px] leading-tight mb-1">Market closed</h3>
+              <h3 className="text-foreground font-medium text-[14px] leading-tight mb-1">Market closed</h3>
               <p className="text-[13px] text-[#d1d5db]">{marketClosedMessage}</p>
             </div>
           </div>
@@ -1294,7 +1380,11 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
     const leverageStr = String(currentBalance?.leverage || "1:2000")
     // Correctly parse leverage from strings like "1:2000" or "2000"
     const leverageMatch = leverageStr.match(/(\d+)$/)
-    const leverage = leverageMatch ? parseInt(leverageMatch[1], 10) : 2000
+    const accountLeverage = leverageMatch ? parseInt(leverageMatch[1], 10) : 2000
+
+    // Prioritize symbol-specific leverage if available from instrument
+    const leverage = instrument?.leverage ? Number(instrument.leverage) : accountLeverage
+
 
     const margin = (vol * contractSize * price) / leverage
     const tradeValue = vol * contractSize * price
@@ -1330,18 +1420,18 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
       }
 
       // Calculate Fees
-      // Formula: Spread (in points or raw) * Volume * ContractSize
-      // User requested: "spread * Lot size * volume_contract"
-      fees = spreadToUse * vol * contractSize;
+      // Formula: Lot size * pip_value (from DB) * spread
+      // User requested: "Lot size * pip_value (from ib_symbol_spreads table) * spread"
+
+      const pipValuePerPoint = instrument?.pipValue ? Number(instrument.pipValue) : 1;
+      fees = vol * pipValuePerPoint * spreadToUse;
 
       // Debug logging
       /*
-      console.log('[FeeCalc] Dynamic:', {
+      console.log('[FeeCalc] Corrected:', {
         symbol: symbolUpper,
         vol,
-        contractSize,
-        pipValue,
-        sourceSpread: instrument?.spread ? 'DB' : 'Live',
+        pipValuePerPoint,
         spreadToUse,
         fees
       });
@@ -1375,30 +1465,30 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
 
   // Render financial details section
   const renderFinancialDetails = () => (
-    <div className="space-y-2 pt-2 border-t border-white/10">
+    <div className="space-y-2 pt-2 border-t border-foreground/10">
       <div className="flex items-center justify-between text-xs">
-        <span className="text-white/60">Fees:</span>
+        <span className="text-foreground/60">Fees:</span>
         <div className="flex items-center gap-1">
-          <span className="text-white price-font">≈ {calculateFinancialMetrics.fees.toFixed(2)} USD</span>
+          <span className="text-foreground price-font">≈ {calculateFinancialMetrics.fees.toFixed(2)} USD</span>
           <Tooltip text="Estimated commission and spread costs">
-            <HelpCircle className="h-3 w-3 text-white/40" />
+            <HelpCircle className="h-3 w-3 text-foreground/40" />
           </Tooltip>
         </div>
       </div>
 
       <div className="flex items-center justify-between text-xs">
-        <span className="text-white/60">Leverage:</span>
+        <span className="text-foreground/60">Leverage:</span>
         <div className="flex items-center gap-1">
-          <span className="text-white price-font">{calculateFinancialMetrics.leverage.startsWith('1:') ? calculateFinancialMetrics.leverage : `1:${calculateFinancialMetrics.leverage}`}</span>
+          <span className="text-foreground price-font">{calculateFinancialMetrics.leverage.startsWith('1:') ? calculateFinancialMetrics.leverage : `1:${calculateFinancialMetrics.leverage}`}</span>
           <Tooltip text="Account leverage ratio">
-            <HelpCircle className="h-3 w-3 text-white/40" />
+            <HelpCircle className="h-3 w-3 text-foreground/40" />
           </Tooltip>
         </div>
       </div>
 
       <div className="flex items-center justify-between text-xs">
-        <span className="text-white/60">Margin:</span>
-        <span className="text-white price-font">{calculateFinancialMetrics.margin.toFixed(2)} USD</span>
+        <span className="text-foreground/60">Margin:</span>
+        <span className="text-foreground price-font">{calculateFinancialMetrics.margin.toFixed(2)} USD</span>
       </div>
 
       {showMoreDetails && (
@@ -1406,18 +1496,18 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
 
 
           <div className="flex items-center justify-between text-xs">
-            <span className="text-white/60">Pip Value:</span>
-            <span className="text-white price-font">{calculateFinancialMetrics.pipValue.toFixed(2)} USD</span>
+            <span className="text-foreground/60">Pip Value:</span>
+            <span className="text-foreground price-font">{calculateFinancialMetrics.pipValue.toFixed(2)} USD</span>
           </div>
 
           <div className="flex items-center justify-between text-xs">
-            <span className="text-white/60">Volume Contract:</span>
-            <span className="text-white price-font">{calculateFinancialMetrics.volumeInUnits}</span>
+            <span className="text-foreground/60">Volume Contract:</span>
+            <span className="text-foreground price-font">{calculateFinancialMetrics.volumeInUnits}</span>
           </div>
 
           <div className="flex items-center justify-between text-xs">
-            <span className="text-white/60">Volume in USD:</span>
-            <span className="text-white price-font">{calculateFinancialMetrics.volumeInUSD.toFixed(2)} USD</span>
+            <span className="text-foreground/60">Volume in USD:</span>
+            <span className="text-foreground price-font">{calculateFinancialMetrics.volumeInUSD.toFixed(2)} USD</span>
           </div>
 
 
@@ -1426,7 +1516,7 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
 
       <button
         onClick={() => setShowMoreDetails(!showMoreDetails)}
-        className="w-full flex items-center justify-center gap-1 text-xs text-white/60 hover:text-white/80 pt-1"
+        className="w-full flex items-center justify-center gap-1 text-xs text-foreground/60 hover:text-foreground/80 pt-1"
       >
         {showMoreDetails ? (
           <>
@@ -1459,37 +1549,37 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
   ) => (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
-        <div className="text-xs font-medium text-white/80">{label}</div>
+        <div className="text-xs font-medium text-foreground/80">{label}</div>
         {showTooltip && (
           <Tooltip text={`Set ${label.toLowerCase()}`}>
-            <HelpCircle className="h-3.5 w-3.5 text-white/40" />
+            <HelpCircle className="h-3.5 w-3.5 text-foreground/40" />
           </Tooltip>
         )}
       </div>
-      <div className="flex items-stretch border border-white/10 rounded-md overflow-hidden bg-white/[0.02] focus-within:border-[#8B5CF6]">
+      <div className="flex items-stretch border border-foreground/10 rounded-md overflow-hidden bg-white/[0.02] focus-within:border-primary">
         <Input
           type="number"
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder="Not set"
-          className="flex-1 border-0 bg-transparent text-center price-font text-sm h-9 focus-visible:ring-0 focus-visible:ring-offset-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none placeholder:text-white/40"
+          className="flex-1 border-0 bg-transparent text-center price-font text-sm h-9 focus-visible:ring-0 focus-visible:ring-offset-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none placeholder:text-foreground/40"
         />
-        <select value={mode} onChange={(e) => onModeChange(e.target.value)} className="w-[70px] border-0 h-9 bg-transparent text-xs text-white focus:outline-none focus:ring-0">
+        <select value={mode} onChange={(e) => onModeChange(e.target.value)} className="w-[70px] border-0 h-9 bg-transparent text-xs text-foreground focus:outline-none focus:ring-0">
           {modeOptions.map(opt => (
-            <option key={opt.value} value={opt.value} className="bg-[#1a1f28]">{opt.label}</option>
+            <option key={opt.value} value={opt.value} className="bg-gray-900">{opt.label}</option>
           ))}
         </select>
         <button
           onClick={() => decrementField(value, onChange)}
           className="h-9 w-9 flex items-center justify-center hover:bg-white/5 cursor-pointer"
         >
-          <Minus className="h-3.5 w-3.5 text-white/60" />
+          <Minus className="h-3.5 w-3.5 text-foreground/60" />
         </button>
         <button
           onClick={() => incrementField(value, onChange)}
           className="h-9 w-9 flex items-center justify-center hover:bg-white/5 cursor-pointer"
         >
-          <Plus className="h-3.5 w-3.5 text-white/60" />
+          <Plus className="h-3.5 w-3.5 text-foreground/60" />
         </button>
       </div>
     </div>
@@ -1506,32 +1596,32 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
   }
 
   return (
-    <div className={cn("w-full h-full flex flex-col glass-card border border-white/10 rounded-lg overflow-hidden", className)} {...props}>
+    <div className={cn("w-full h-full flex flex-col glass-card border border-foreground/10 rounded-lg overflow-hidden", className)} {...props}>
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-white/[0.02]">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-foreground/10 bg-white/[0.02]">
         <div className="flex items-center gap-2.5">
           <div className="w-5 h-5">
             <FlagIcon symbol={symbol || 'BTCUSD'} />
           </div>
-          <span className="text-sm font-semibold text-white">{formatSymbolDisplay(symbol) || 'Select Symbol'}</span>
+          <span className="text-sm font-semibold text-foreground">{formatSymbolDisplay(symbol) || 'Select Symbol'}</span>
         </div>
         {onClose && (
           <button
             onClick={onClose}
-            className="h-7 w-7 flex items-center justify-center rounded-md hover:bg-white/10 hover:border border-transparent hover:border-white/20 cursor-pointer group"
+            className="h-7 w-7 flex items-center justify-center rounded-md hover:bg-white/10 hover:border border-transparent hover:border-foreground/20 cursor-pointer group"
             title="Close Order Panel"
           >
-            <X className="h-4 w-4 text-white/60 group-hover:text-white" />
+            <X className="h-4 w-4 text-foreground/60 group-hover:text-foreground" />
           </button>
         )}
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-thin">
         {/* Form Type Selector */}
-        <select value={formType} onChange={(e) => handleFormTypeChange(e.target.value as FormType)} className="w-full bg-white/[0.02] border border-white/10 rounded-md h-9 px-3 text-sm text-white focus:outline-none focus:ring-0 focus:border-[#8B5CF6]">
-          <option value="regular" className="bg-[#1a1f28]">Regular form</option>
-          <option value="one-click" className="bg-[#1a1f28]">One-click form</option>
-          <option value="risk-calculator" className="bg-[#1a1f28]">Risk calculator form</option>
+        <select value={formType} onChange={(e) => handleFormTypeChange(e.target.value as FormType)} className="w-full bg-white/[0.02] border border-foreground/10 rounded-md h-9 px-3 text-sm text-foreground focus:outline-none focus:ring-0 focus:border-primary">
+          <option value="regular" className="bg-gray-900">Regular form</option>
+          <option value="one-click" className="bg-gray-900">One-click form</option>
+          <option value="risk-calculator" className="bg-gray-900">Risk calculator form</option>
         </select>
 
         {/* ONE-CLICK FORM */}
@@ -1570,37 +1660,37 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
 
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <div className="text-xs font-medium text-white/80">Open price</div>
+                    <div className="text-xs font-medium text-foreground/80">Open price</div>
                     <Tooltip text={`Set open price for ${pendingOrderType === "limit" ? "limit" : "stop"} order`}>
-                      <HelpCircle className="h-3.5 w-3.5 text-white/40" />
+                      <HelpCircle className="h-3.5 w-3.5 text-foreground/40" />
                     </Tooltip>
                   </div>
-                  <div className="flex items-stretch border border-white/10 rounded-md overflow-hidden bg-white/[0.02] focus-within:border-[#8B5CF6]">
+                  <div className="flex items-stretch border border-foreground/10 rounded-md overflow-hidden bg-white/[0.02] focus-within:border-primary">
                     <Input
                       type="number"
                       value={openPrice}
                       onChange={(e) => setOpenPrice(e.target.value)}
                       placeholder={currentBuyPrice.toFixed(3)}
-                      className="flex-1 border-0 bg-transparent text-center price-font text-sm h-9 focus-visible:ring-0 focus-visible:ring-offset-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none placeholder:text-white/40"
+                      className="flex-1 border-0 bg-transparent text-center price-font text-sm h-9 focus-visible:ring-0 focus-visible:ring-offset-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none placeholder:text-foreground/40"
                     />
-                    <div className="flex items-center justify-center px-3 text-xs text-white/60 min-w-[50px]">
+                    <div className="flex items-center justify-center px-3 text-xs text-foreground/60 min-w-[50px]">
                       {pendingOrderType === "limit" ? "Limit" : "Stop"}
                     </div>
                     <button
                       onClick={() => decrementField(openPrice, setOpenPrice)}
                       className="h-9 w-9 flex items-center justify-center hover:bg-white/5 cursor-pointer"
                     >
-                      <Minus className="h-3.5 w-3.5 text-white/60" />
+                      <Minus className="h-3.5 w-3.5 text-foreground/60" />
                     </button>
                     <button
                       onClick={() => incrementField(openPrice, setOpenPrice)}
                       className="h-9 w-9 flex items-center justify-center hover:bg-white/5 cursor-pointer"
                     >
-                      <Plus className="h-3.5 w-3.5 text-white/60" />
+                      <Plus className="h-3.5 w-3.5 text-foreground/60" />
                     </button>
                   </div>
                   {openPrice && (
-                    <div className="text-xs text-white/60">
+                    <div className="text-xs text-foreground/60">
                       {((parseFloat(openPrice) - currentBuyPrice) * 10000).toFixed(1)} pips
                     </div>
                   )}
@@ -1609,8 +1699,8 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
             )}
 
             <div className="space-y-2">
-              <div className="text-xs font-medium text-white/80">Volume</div>
-              <div className="flex items-stretch border border-white/10 rounded-md overflow-hidden bg-white/[0.02] focus-within:border-[#8B5CF6]">
+              <div className="text-xs font-medium text-foreground/80">Volume</div>
+              <div className="flex items-stretch border border-foreground/10 rounded-md overflow-hidden bg-white/[0.02] focus-within:border-primary">
                 <Input
                   type="text"
                   inputMode="decimal"
@@ -1624,20 +1714,20 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
                   }}
                   className="flex-1 border-0 bg-transparent text-center price-font text-sm h-9 focus-visible:ring-0 focus-visible:ring-offset-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                 />
-                <div className="flex items-center justify-center px-3 text-xs text-white/60 min-w-[50px]">
+                <div className="flex items-center justify-center px-3 text-xs text-foreground/60 min-w-[50px]">
                   Lots
                 </div>
                 <button
                   onClick={decrementVolume}
                   className="h-9 w-9 flex items-center justify-center hover:bg-white/5 cursor-pointer"
                 >
-                  <Minus className="h-3.5 w-3.5 text-white/60" />
+                  <Minus className="h-3.5 w-3.5 text-foreground/60" />
                 </button>
                 <button
                   onClick={incrementVolume}
                   className="h-9 w-9 flex items-center justify-center hover:bg-white/5 cursor-pointer"
                 >
-                  <Plus className="h-3.5 w-3.5 text-white/60" />
+                  <Plus className="h-3.5 w-3.5 text-foreground/60" />
                 </button>
               </div>
             </div>
@@ -1681,45 +1771,45 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
 
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <div className="text-xs font-medium text-white/80">Open price</div>
+                    <div className="text-xs font-medium text-foreground/80">Open price</div>
                     <Tooltip text={`Set open price for ${pendingOrderType === "limit" ? "limit" : "stop"} order`}>
-                      <HelpCircle className="h-3.5 w-3.5 text-white/40" />
+                      <HelpCircle className="h-3.5 w-3.5 text-foreground/40" />
                     </Tooltip>
                   </div>
-                  <div className="flex items-stretch border border-white/10 rounded-md overflow-hidden bg-white/[0.02] focus-within:border-[#8B5CF6]">
+                  <div className="flex items-stretch border border-foreground/10 rounded-md overflow-hidden bg-white/[0.02] focus-within:border-primary">
                     <Input
                       type="number"
                       value={openPrice}
                       onChange={(e) => setOpenPrice(e.target.value)}
                       placeholder={currentBuyPrice.toFixed(3)}
-                      className="flex-1 border-0 bg-transparent text-center price-font text-sm h-9 focus-visible:ring-0 focus-visible:ring-offset-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none placeholder:text-white/40"
+                      className="flex-1 border-0 bg-transparent text-center price-font text-sm h-9 focus-visible:ring-0 focus-visible:ring-offset-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none placeholder:text-foreground/40"
                     />
-                    <div className="flex items-center justify-center px-3 text-xs text-white/60 min-w-[50px]">
+                    <div className="flex items-center justify-center px-3 text-xs text-foreground/60 min-w-[50px]">
                       {pendingOrderType === "limit" ? "Limit" : "Stop"}
                     </div>
                     <button
                       onClick={() => decrementField(openPrice, setOpenPrice)}
                       className="h-9 w-9 flex items-center justify-center hover:bg-white/5 cursor-pointer"
                     >
-                      <Minus className="h-3.5 w-3.5 text-white/60" />
+                      <Minus className="h-3.5 w-3.5 text-foreground/60" />
                     </button>
                     <button
                       onClick={() => incrementField(openPrice, setOpenPrice)}
                       className="h-9 w-9 flex items-center justify-center hover:bg-white/5 cursor-pointer"
                     >
-                      <Plus className="h-3.5 w-3.5 text-white/60" />
+                      <Plus className="h-3.5 w-3.5 text-foreground/60" />
                     </button>
                   </div>
                   {openPrice && (
-                    <div className="text-xs text-white/60">
+                    <div className="text-xs text-foreground/60">
                       {((parseFloat(openPrice) - currentBuyPrice) * 10000).toFixed(1)} pips
                       {pendingOrderType === "limit" && (
-                        <span className="ml-2 text-white/40">
+                        <span className="ml-2 text-foreground/40">
                           (Buy Limit: below current, Sell Limit: above current)
                         </span>
                       )}
                       {pendingOrderType === "stop" && (
-                        <span className="ml-2 text-white/40">
+                        <span className="ml-2 text-foreground/40">
                           (Buy Stop: above current, Sell Stop: below current)
                         </span>
                       )}
@@ -1730,8 +1820,8 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
             )}
 
             <div className="space-y-2">
-              <div className="text-xs font-medium text-white/80">Volume</div>
-              <div className="flex items-stretch border border-white/10 rounded-md overflow-hidden bg-white/[0.02] focus-within:border-[#8B5CF6]">
+              <div className="text-xs font-medium text-foreground/80">Volume</div>
+              <div className="flex items-stretch border border-foreground/10 rounded-md overflow-hidden bg-white/[0.02] focus-within:border-primary">
                 <Input
                   type="text"
                   inputMode="decimal"
@@ -1745,20 +1835,20 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
                   }}
                   className="flex-1 border-0 bg-transparent text-center price-font text-sm h-9 focus-visible:ring-0 focus-visible:ring-offset-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                 />
-                <div className="flex items-center justify-center px-3 text-xs text-white/60 min-w-[50px]">
+                <div className="flex items-center justify-center px-3 text-xs text-foreground/60 min-w-[50px]">
                   Lots
                 </div>
                 <button
                   onClick={decrementVolume}
                   className="h-9 w-9 flex items-center justify-center hover:bg-white/5 cursor-pointer"
                 >
-                  <Minus className="h-3.5 w-3.5 text-white/60" />
+                  <Minus className="h-3.5 w-3.5 text-foreground/60" />
                 </button>
                 <button
                   onClick={incrementVolume}
                   className="h-9 w-9 flex items-center justify-center hover:bg-white/5 cursor-pointer"
                 >
-                  <Plus className="h-3.5 w-3.5 text-white/60" />
+                  <Plus className="h-3.5 w-3.5 text-foreground/60" />
                 </button>
               </div>
             </div>
@@ -1800,28 +1890,28 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
             {renderPriceButtonsBordered(false, true)}
 
             {/* Removed redundant Tabs for Market/Pending in Risk Calculator */}
-            <div className="text-sm font-semibold text-white/90 border-b border-white/5 pb-2 mb-1">
+            <div className="text-sm font-semibold text-foreground/90 border-b border-foreground/5 pb-2 mb-1">
               Market Execution
             </div>
 
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <div className="text-xs font-medium text-white/80">Risk</div>
+                <div className="text-xs font-medium text-foreground/80">Risk</div>
                 <Tooltip text="Maximum amount you're willing to risk on this trade">
-                  <HelpCircle className="h-3.5 w-3.5 text-white/40" />
+                  <HelpCircle className="h-3.5 w-3.5 text-foreground/40" />
                 </Tooltip>
               </div>
-              <div className="flex items-stretch border border-white/10 rounded-md overflow-hidden bg-white/[0.02] focus-within:border-[#8B5CF6]">
+              <div className="flex items-stretch border border-foreground/10 rounded-md overflow-hidden bg-white/[0.02] focus-within:border-primary">
                 <Input
                   type="number"
                   value={risk}
                   onChange={(e) => setRisk(e.target.value)}
                   placeholder="Not set"
-                  className="flex-1 border-0 bg-transparent text-center price-font text-sm h-9 focus-visible:ring-0 focus-visible:ring-offset-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none placeholder:text-white/40"
+                  className="flex-1 border-0 bg-transparent text-center price-font text-sm h-9 focus-visible:ring-0 focus-visible:ring-offset-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none placeholder:text-foreground/40"
                 />
-                <select value={riskMode} onChange={(e) => setRiskMode(e.target.value as "usd" | "percent")} className="w-[70px] border-0 h-9 bg-transparent text-xs text-white focus:outline-none focus:ring-0">
-                  <option value="usd" className="bg-[#1a1f28]">USD</option>
-                  <option value="percent" className="bg-[#1a1f28]">%</option>
+                <select value={riskMode} onChange={(e) => setRiskMode(e.target.value as "usd" | "percent")} className="w-[70px] border-0 h-9 bg-transparent text-xs text-foreground focus:outline-none focus:ring-0">
+                  <option value="usd" className="bg-gray-900">USD</option>
+                  <option value="percent" className="bg-gray-900">%</option>
                 </select>
                 <button
                   onClick={() => {
@@ -1831,7 +1921,7 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
                   }}
                   className="h-9 w-9 flex items-center justify-center hover:bg-white/5 cursor-pointer"
                 >
-                  <Minus className="h-3.5 w-3.5 text-white/60" />
+                  <Minus className="h-3.5 w-3.5 text-foreground/60" />
                 </button>
                 <button
                   onClick={() => {
@@ -1841,16 +1931,16 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
                   }}
                   className="h-9 w-9 flex items-center justify-center hover:bg-white/5 cursor-pointer"
                 >
-                  <Plus className="h-3.5 w-3.5 text-white/60" />
+                  <Plus className="h-3.5 w-3.5 text-foreground/60" />
                 </button>
               </div>
               {riskMode === "percent" && risk && (
-                <div className="text-xs text-white/60 text-center">
+                <div className="text-xs text-foreground/60 text-center">
                   {((parseFloat(risk) || 0) * (currentBalance?.equity || 0) / 100).toFixed(2)} USD
                 </div>
               )}
               {riskMode === "usd" && calculateRiskBasedVolume !== null && (
-                <div className="text-xs text-white/80 text-center font-medium">
+                <div className="text-xs text-foreground/80 text-center font-medium">
                   {calculateRiskBasedVolume.toFixed(2)} lots
                 </div>
               )}
@@ -1858,26 +1948,26 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
 
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <div className="text-xs font-medium text-white/80">Stop Loss</div>
+                <div className="text-xs font-medium text-foreground/80">Stop Loss</div>
                 <Tooltip text="Stop loss distance in pips (negative for Buy, positive for Sell)">
-                  <HelpCircle className="h-3.5 w-3.5 text-white/40" />
+                  <HelpCircle className="h-3.5 w-3.5 text-foreground/40" />
                 </Tooltip>
               </div>
-              <div className="flex items-stretch border border-white/10 rounded-md overflow-hidden bg-white/[0.02] focus-within:border-[#8B5CF6]">
+              <div className="flex items-stretch border border-foreground/10 rounded-md overflow-hidden bg-white/[0.02] focus-within:border-primary">
                 <Input
                   type="number"
                   value={stopLoss}
                   onChange={(e) => setStopLoss(e.target.value)}
                   placeholder="Not set"
-                  className="flex-1 border-0 bg-transparent text-center price-font text-sm h-9 focus-visible:ring-0 focus-visible:ring-offset-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none placeholder:text-white/40"
+                  className="flex-1 border-0 bg-transparent text-center price-font text-sm h-9 focus-visible:ring-0 focus-visible:ring-offset-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none placeholder:text-foreground/40"
                 />
                 <select
                   value={stopLossMode}
                   onChange={(e) => setStopLossMode(e.target.value as "pips" | "price")}
-                  className="w-[70px] border-0 h-9 bg-transparent text-xs text-white focus:outline-none focus:ring-0 text-center"
+                  className="w-[70px] border-0 h-9 bg-transparent text-xs text-foreground focus:outline-none focus:ring-0 text-center"
                 >
-                  <option value="pips" className="bg-[#1a1f28]">Pips</option>
-                  <option value="price" className="bg-[#1a1f28]">Price</option>
+                  <option value="pips" className="bg-gray-900">Pips</option>
+                  <option value="price" className="bg-gray-900">Price</option>
                 </select>
                 <button
                   onClick={() => {
@@ -1886,7 +1976,7 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
                   }}
                   className="h-9 w-9 flex items-center justify-center hover:bg-white/5 cursor-pointer"
                 >
-                  <Minus className="h-3.5 w-3.5 text-white/60" />
+                  <Minus className="h-3.5 w-3.5 text-foreground/60" />
                 </button>
                 <button
                   onClick={() => {
@@ -1895,13 +1985,13 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
                   }}
                   className="h-9 w-9 flex items-center justify-center hover:bg-white/5 cursor-pointer"
                 >
-                  <Plus className="h-3.5 w-3.5 text-white/60" />
+                  <Plus className="h-3.5 w-3.5 text-foreground/60" />
                 </button>
               </div>
               {(calculatedStopLossPrice !== null || (stopLossMode === "price" && stopLoss)) && calculateRiskBasedVolume !== null && (
                 <div className="space-y-0.5">
                   {stopLossMode === "pips" && stopLoss && !isNaN(parseFloat(stopLoss)) && (
-                    <div className="text-xs text-white/60 text-center flex justify-center gap-3">
+                    <div className="text-xs text-foreground/60 text-center flex justify-center gap-3">
                       <span>B: {(currentBuyPrice - parseFloat(stopLoss) * getPipSize).toFixed(2)}</span>
                       <span>S: {(currentSellPrice + parseFloat(stopLoss) * getPipSize).toFixed(2)}</span>
                     </div>
@@ -1922,26 +2012,26 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
 
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <div className="text-xs font-medium text-white/80">Take Profit</div>
+                <div className="text-xs font-medium text-foreground/80">Take Profit</div>
                 <Tooltip text="Take profit distance in pips">
-                  <HelpCircle className="h-3.5 w-3.5 text-white/40" />
+                  <HelpCircle className="h-3.5 w-3.5 text-foreground/40" />
                 </Tooltip>
               </div>
-              <div className="flex items-stretch border border-white/10 rounded-md overflow-hidden bg-white/[0.02] focus-within:border-[#8B5CF6]">
+              <div className="flex items-stretch border border-foreground/10 rounded-md overflow-hidden bg-white/[0.02] focus-within:border-primary">
                 <Input
                   type="number"
                   value={takeProfit}
                   onChange={(e) => setTakeProfit(e.target.value)}
                   placeholder="Not set"
-                  className="flex-1 border-0 bg-transparent text-center price-font text-sm h-9 focus-visible:ring-0 focus-visible:ring-offset-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none placeholder:text-white/40"
+                  className="flex-1 border-0 bg-transparent text-center price-font text-sm h-9 focus-visible:ring-0 focus-visible:ring-offset-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none placeholder:text-foreground/40"
                 />
                 <select
                   value={takeProfitMode}
                   onChange={(e) => setTakeProfitMode(e.target.value as "pips" | "price")}
-                  className="w-[70px] border-0 h-9 bg-transparent text-xs text-white focus:outline-none focus:ring-0 text-center"
+                  className="w-[70px] border-0 h-9 bg-transparent text-xs text-foreground focus:outline-none focus:ring-0 text-center"
                 >
-                  <option value="pips" className="bg-[#1a1f28]">Pips</option>
-                  <option value="price" className="bg-[#1a1f28]">Price</option>
+                  <option value="pips" className="bg-gray-900">Pips</option>
+                  <option value="price" className="bg-gray-900">Price</option>
                 </select>
                 <button
                   onClick={() => {
@@ -1950,7 +2040,7 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
                   }}
                   className="h-9 w-9 flex items-center justify-center hover:bg-white/5 cursor-pointer"
                 >
-                  <Minus className="h-3.5 w-3.5 text-white/60" />
+                  <Minus className="h-3.5 w-3.5 text-foreground/60" />
                 </button>
                 <button
                   onClick={() => {
@@ -1959,13 +2049,13 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
                   }}
                   className="h-9 w-9 flex items-center justify-center hover:bg-white/5 cursor-pointer"
                 >
-                  <Plus className="h-3.5 w-3.5 text-white/60" />
+                  <Plus className="h-3.5 w-3.5 text-foreground/60" />
                 </button>
               </div>
               {(calculatedTakeProfitPrice !== null || (takeProfitMode === "price" && takeProfit)) && calculateRiskBasedVolume !== null && (
                 <div className="space-y-0.5">
                   {takeProfitMode === "pips" && calculatedTakeProfitPrice !== null && (
-                    <div className="text-xs text-white/60 text-center">
+                    <div className="text-xs text-foreground/60 text-center">
                       {calculatedTakeProfitPrice.toFixed(2)}
                     </div>
                   )}

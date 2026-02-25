@@ -53,15 +53,15 @@ export default function Tooltip({ children, text, className = '', placement = 'b
   }
 
   const arrowClasses = {
-    bottom: 'bottom-full left-1/2 transform -translate-x-1/2 border-b-[#2a353e]',
-    right: 'right-full top-1/2 transform -translate-y-1/2 border-r-[#2a353e]',
-    top: 'top-full left-1/2 transform -translate-x-1/2 border-t-[#2a353e]',
-    left: 'left-full top-1/2 transform -translate-y-1/2 border-l-[#2a353e]'
+    bottom: 'bottom-full left-1/2 transform -translate-x-1/2 border-b-gray-800',
+    right: 'right-full top-1/2 transform -translate-y-1/2 border-r-gray-800',
+    top: 'top-full left-1/2 transform -translate-x-1/2 border-t-gray-800',
+    left: 'left-full top-1/2 transform -translate-y-1/2 border-l-gray-800'
   }
 
   const tooltipContent = (
     <div
-      className="absolute px-2 py-1 bg-[#2a353e] text-white text-xs rounded shadow-lg whitespace-nowrap z-[9999] border border-[#4a5568] pointer-events-none transition-opacity duration-75"
+      className="absolute px-2 py-1 bg-gray-800 text-foreground text-xs rounded shadow-lg whitespace-nowrap z-[9999] border border-[#4a5568] pointer-events-none transition-opacity duration-75"
       style={{
         top: coords.top,
         left: coords.left,

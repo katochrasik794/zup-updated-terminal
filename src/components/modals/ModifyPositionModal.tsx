@@ -6,6 +6,7 @@ import Tooltip from '../ui/Tooltip';
 
 import { useTrading } from '../../context/TradingContext';
 import { useAccount } from '../../context/AccountContext';
+import { cn } from '../../lib/utils';
 
 const ModifyPositionModal = () => {
   const { modifyModalState, setModifyModalState, requestModifyPosition } = useTrading();
@@ -217,6 +218,55 @@ const ModifyPositionModal = () => {
         return;
       }
 
+      // Validation logic
+      const isBuy = position.type === 'Buy' || position.type === 'Buy Limit' || position.type === 'Buy Stop' || position.side === 1;
+      const currentPrice = parseFloat(String(position.currentPrice || position.price || '0').replace(/,/g, ''));
+      const entryPrice = price || parseFloat(String(position.openPrice || position.price || '0').replace(/,/g, ''));
+
+      if (sl && sl > 0) {
+        if (isBuy) {
+          if (sl >= currentPrice) {
+            alert("Buy Stop Loss must be below the current price.");
+            return;
+          }
+          if (position.isOrder && sl >= entryPrice) {
+            alert("Buy Stop Loss must be below the entry price.");
+            return;
+          }
+        } else {
+          if (sl <= currentPrice) {
+            alert("Sell Stop Loss must be above the current price.");
+            return;
+          }
+          if (position.isOrder && sl <= entryPrice) {
+            alert("Sell Stop Loss must be above the entry price.");
+            return;
+          }
+        }
+      }
+
+      if (tp && tp > 0) {
+        if (isBuy) {
+          if (tp <= currentPrice) {
+            alert("Buy Take Profit must be above the current price.");
+            return;
+          }
+          if (position.isOrder && tp <= entryPrice) {
+            alert("Buy Take Profit must be above the entry price.");
+            return;
+          }
+        } else {
+          if (tp >= currentPrice) {
+            alert("Sell Take Profit must be below the current price.");
+            return;
+          }
+          if (position.isOrder && tp >= entryPrice) {
+            alert("Sell Take Profit must be below the entry price.");
+            return;
+          }
+        }
+      }
+
       requestModifyPosition({
         id: orderId,
         tp: tp,
@@ -230,10 +280,10 @@ const ModifyPositionModal = () => {
 
   return ReactDOM.createPortal(
     <div
-      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/10"
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-background/10"
       onClick={handleBackdropClick}
     >
-      <div className="bg-[#02040d] border border-gray-800 rounded-lg w-[400px] shadow-2xl overflow-hidden font-sans text-gray-200">
+      <div className="bg-background border border-gray-800 rounded-lg w-[400px] shadow-2xl overflow-hidden font-sans text-foreground">
         {/* Header */}
         <div className="px-4 pt-4 pb-2 flex justify-between items-start">
           <div>
@@ -243,30 +293,30 @@ const ModifyPositionModal = () => {
               </div>
               <div className="flex items-baseline gap-2">
                 <span className="text-[16px] font-bold text-gray-100 tracking-wide">{position.symbol}</span>
-                <span className="text-[13px] text-[#8b9096] font-normal">{position.volume} lots</span>
+                <span className="text-[13px] text-gray-400 font-normal">{position.volume} lots</span>
               </div>
             </div>
             <div className="flex gap-1 pl-9 text-[13px]">
-              <span className={`font-medium ${position.type === 'Buy' || position.side === 1 ? 'text-[#0099ff]' : 'text-[#f6465d]'}`}>
+              <span className={`font-medium ${position.type === 'Buy' || position.side === 1 ? 'text-[#0099ff]' : 'text-danger'}`}>
                 {position.type || (position.side === 1 ? 'Buy' : 'Sell')}
               </span>
-              <span className="text-[#8b9096]">at {position.openPrice || position.price}</span>
+              <span className="text-gray-400">at {position.openPrice || position.price}</span>
             </div>
           </div>
 
           <div className="flex items-start gap-4">
             <div className="text-right">
-              <div className={`flex items-baseline justify-end gap-1 ${parseFloat(position.pl) >= 0 ? 'text-[#00ffaa]' : 'text-[#ff444f]'}`}>
+              <div className={`flex items-baseline justify-end gap-1 ${parseFloat(position.pl) >= 0 ? 'text-success' : 'text-[#ff444f]'}`}>
                 <span className="text-[15px] font-medium">{position.pl || '0.00'}</span>
-                <span className="text-[11px] text-[#8b9096]">USD</span>
+                <span className="text-[11px] text-gray-400">USD</span>
               </div>
-              <div className="text-[#e1e1e1] font-medium text-[13px]">
+              <div className="text-gray-100 font-medium text-[13px]">
                 {position.currentPrice || position.price}
               </div>
             </div>
             <button
               onClick={onClose}
-              className="text-[#8b9096] hover:text-white transition-colors cursor-pointer mt-1"
+              className="text-gray-400 hover:text-foreground transition-colors cursor-pointer mt-1"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -281,30 +331,30 @@ const ModifyPositionModal = () => {
           {position.isOrder && (
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <label className="text-[12px] text-[#8b9096] font-medium">Entry Price</label>
+                <label className="text-[12px] text-gray-400 font-medium">Entry Price</label>
               </div>
-              <div className="flex h-[38px] border border-[#2a3038] rounded hover:border-[#8b9096] transition-colors group focus-within:border-[#0099ff] bg-[#1e222d]">
+              <div className="flex h-[38px] border border-gray-800 rounded hover:border-gray-700 transition-colors group focus-within:border-primary bg-gray-900">
                 <input
                   type="text"
                   placeholder="Price"
                   value={priceValue}
                   onChange={(e) => setPriceValue(e.target.value)}
-                  className="flex-1 bg-transparent px-3 text-[14px] text-white placeholder-[#585c63] outline-none"
+                  className="flex-1 bg-transparent px-3 text-[14px] text-foreground placeholder-gray-500 outline-none"
                 />
-                <div className="flex items-center border-l border-[#2a3038]">
+                <div className="flex items-center border-l border-gray-800">
                   <div className="flex h-full">
                     <button
                       onClick={() => adjustValue(setPriceValue, priceValue, -0.1)}
-                      className="w-[32px] h-full flex items-center justify-center text-[#8b9096] hover:bg-[#2a3038] hover:text-white transition-colors"
+                      className="w-[32px] h-full flex items-center justify-center text-gray-400 hover:bg-gray-800 hover:text-foreground transition-colors"
                     >
                       <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
                       </svg>
                     </button>
-                    <div className="w-[1px] h-full bg-[#2a3038]"></div>
+                    <div className="w-[1px] h-full bg-gray-800"></div>
                     <button
                       onClick={() => adjustValue(setPriceValue, priceValue, 0.1)}
-                      className="w-[32px] h-full flex items-center justify-center text-[#8b9096] hover:bg-[#2a3038] hover:text-white transition-colors"
+                      className="w-[32px] h-full flex items-center justify-center text-gray-400 hover:bg-gray-800 hover:text-foreground transition-colors"
                     >
                       <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -319,43 +369,43 @@ const ModifyPositionModal = () => {
           {/* Take Profit */}
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <label className="text-[12px] text-[#8b9096] font-medium">Take Profit</label>
+              <label className="text-[12px] text-gray-400 font-medium">Take Profit</label>
               <Tooltip text="Set a Take Profit if you want your order to close automatically at the price level you have specified. Setting a Take Profit allows you to lock in profits." placement="top">
-                <div className="text-[#8b9096] cursor-help hover:text-white transition-colors">
+                <div className="text-gray-400 cursor-help hover:text-foreground transition-colors">
                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                 </div>
               </Tooltip>
             </div>
-            <div className="flex h-[38px] border border-[#2a3038] rounded hover:border-[#8b9096] transition-colors group focus-within:border-[#0099ff] bg-[#1e222d]">
+            <div className="flex h-[38px] border border-gray-800 rounded hover:border-gray-700 transition-colors group focus-within:border-primary bg-gray-900">
               <input
                 type="text"
                 placeholder="Not set"
                 value={tpValue}
                 onChange={(e) => setTpValue(e.target.value)}
-                className="flex-1 bg-transparent px-3 text-[14px] text-white placeholder-[#585c63] outline-none"
+                className="flex-1 bg-transparent px-3 text-[14px] text-foreground placeholder-gray-500 outline-none"
               />
-              <div className="flex items-center border-l border-[#2a3038]">
-                <button className="px-3 h-full text-[12px] text-[#8b9096] hover:text-white flex items-center gap-1 transition-colors hover:bg-[#2a3038]">
+              <div className="flex items-center border-l border-gray-800">
+                <button className="px-3 h-full text-[12px] text-gray-400 hover:text-foreground flex items-center gap-1 transition-colors hover:bg-gray-800">
                   Price
                   <svg className="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 24 24">
                     <path d="M7 10l5 5 5-5z" />
                   </svg>
                 </button>
-                <div className="flex h-full border-l border-[#2a3038]">
+                <div className="flex h-full border-l border-gray-800">
                   <button
                     onClick={() => adjustValue(setTpValue, tpValue, -0.1)}
-                    className="w-[32px] h-full flex items-center justify-center text-[#8b9096] hover:bg-[#2a3038] hover:text-white transition-colors"
+                    className="w-[32px] h-full flex items-center justify-center text-gray-400 hover:bg-gray-800 hover:text-foreground transition-colors"
                   >
                     <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
                     </svg>
                   </button>
-                  <div className="w-[1px] h-full bg-[#2a3038]"></div>
+                  <div className="w-[1px] h-full bg-gray-800"></div>
                   <button
                     onClick={() => adjustValue(setTpValue, tpValue, 0.1)}
-                    className="w-[32px] h-full flex items-center justify-center text-[#8b9096] hover:bg-[#2a3038] hover:text-white transition-colors"
+                    className="w-[32px] h-full flex items-center justify-center text-gray-400 hover:bg-gray-800 hover:text-foreground transition-colors"
                   >
                     <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -368,14 +418,14 @@ const ModifyPositionModal = () => {
               const stats = calculateStats(parseFloat(String(tpValue).replace(/,/g, '')));
               if (!stats) return null;
               return (
-                <div className="flex items-center gap-2 mt-1.5 text-[11px] text-[#8b9096]">
+                <div className="flex items-center gap-2 mt-1.5 text-[11px] text-gray-400">
                   <span>{stats.pips} pips</span>
-                  <span className="text-[#2a3038]">|</span>
-                  <span className={stats.isProfit ? 'text-[#00ffaa]' : 'text-[#ff444f]'}>
+                  <span className="text-gray-800">|</span>
+                  <span className={stats.isProfit ? 'text-success' : 'text-[#ff444f]'}>
                     {stats.isProfit ? '+' : ''}{stats.usd} USD
                   </span>
-                  <span className="text-[#2a3038]">|</span>
-                  <span className={stats.isProfit ? 'text-[#00ffaa]' : 'text-[#ff444f]'}>
+                  <span className="text-gray-800">|</span>
+                  <span className={stats.isProfit ? 'text-success' : 'text-[#ff444f]'}>
                     {stats.isProfit ? '+' : ''}{stats.percent}%
                   </span>
                 </div>
@@ -386,43 +436,43 @@ const ModifyPositionModal = () => {
           {/* Stop Loss */}
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <label className="text-[12px] text-[#8b9096] font-medium">Stop Loss</label>
+              <label className="text-[12px] text-gray-400 font-medium">Stop Loss</label>
               <Tooltip text="Set a Stop Loss if you want your order to close automatically at the price level you have specified. Setting a Stop Loss enables you to limit losses." placement="top">
-                <div className="text-[#8b9096] cursor-help hover:text-white transition-colors">
+                <div className="text-gray-400 cursor-help hover:text-foreground transition-colors">
                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                 </div>
               </Tooltip>
             </div>
-            <div className="flex h-[38px] border border-[#2a3038] rounded hover:border-[#8b9096] transition-colors group focus-within:border-[#0099ff] bg-[#1e222d]">
+            <div className="flex h-[38px] border border-gray-800 rounded hover:border-gray-700 transition-colors group focus-within:border-primary bg-gray-900">
               <input
                 type="text"
                 placeholder="Not set"
                 value={slValue}
                 onChange={(e) => setSlValue(e.target.value)}
-                className="flex-1 bg-transparent px-3 text-[14px] text-white placeholder-[#585c63] outline-none"
+                className="flex-1 bg-transparent px-3 text-[14px] text-foreground placeholder-gray-500 outline-none"
               />
-              <div className="flex items-center border-l border-[#2a3038]">
-                <button className="px-3 h-full text-[12px] text-[#8b9096] hover:text-white flex items-center gap-1 transition-colors hover:bg-[#2a3038]">
+              <div className="flex items-center border-l border-gray-800">
+                <button className="px-3 h-full text-[12px] text-gray-400 hover:text-foreground flex items-center gap-1 transition-colors hover:bg-gray-800">
                   Price
                   <svg className="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 24 24">
                     <path d="M7 10l5 5 5-5z" />
                   </svg>
                 </button>
-                <div className="flex h-full border-l border-[#2a3038]">
+                <div className="flex h-full border-l border-gray-800">
                   <button
                     onClick={() => adjustValue(setSlValue, slValue, -0.1)}
-                    className="w-[32px] h-full flex items-center justify-center text-[#8b9096] hover:bg-[#2a3038] hover:text-white transition-colors"
+                    className="w-[32px] h-full flex items-center justify-center text-gray-400 hover:bg-gray-800 hover:text-foreground transition-colors"
                   >
                     <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
                     </svg>
                   </button>
-                  <div className="w-[1px] h-full bg-[#2a3038]"></div>
+                  <div className="w-[1px] h-full bg-gray-800"></div>
                   <button
                     onClick={() => adjustValue(setSlValue, slValue, 0.1)}
-                    className="w-[32px] h-full flex items-center justify-center text-[#8b9096] hover:bg-[#2a3038] hover:text-white transition-colors"
+                    className="w-[32px] h-full flex items-center justify-center text-gray-400 hover:bg-gray-800 hover:text-foreground transition-colors"
                   >
                     <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -435,14 +485,14 @@ const ModifyPositionModal = () => {
               const stats = calculateStats(parseFloat(String(slValue).replace(/,/g, '')));
               if (!stats) return null;
               return (
-                <div className="flex items-center gap-2 mt-1.5 text-[11px] text-[#8b9096]">
+                <div className="flex items-center gap-2 mt-1.5 text-[11px] text-gray-400">
                   <span>{stats.pips} pips</span>
-                  <span className="text-[#2a3038]">|</span>
-                  <span className={stats.isProfit ? 'text-[#00ffaa]' : 'text-[#ff444f]'}>
+                  <span className="text-gray-800">|</span>
+                  <span className={stats.isProfit ? 'text-success' : 'text-[#ff444f]'}>
                     {stats.isProfit ? '+' : ''}{stats.usd} USD
                   </span>
-                  <span className="text-[#2a3038]">|</span>
-                  <span className={stats.isProfit ? 'text-[#00ffaa]' : 'text-[#ff444f]'}>
+                  <span className="text-gray-800">|</span>
+                  <span className={stats.isProfit ? 'text-success' : 'text-[#ff444f]'}>
                     {stats.isProfit ? '+' : ''}{stats.percent}%
                   </span>
                 </div>
@@ -453,7 +503,7 @@ const ModifyPositionModal = () => {
           {/* Action Button */}
           <button
             onClick={handleAction}
-            className="w-full h-[40px] bg-[#8b5cf6] hover:bg-[#8b5cf6] text-black text-[14px] font-medium rounded transition-colors mt-2"
+            className="w-full h-[40px] bg-primary hover:opacity-90 text-white text-[14px] font-medium rounded transition-colors mt-2"
           >
             {position.isOrder ? 'Modify order' : 'Modify position'}
           </button>
