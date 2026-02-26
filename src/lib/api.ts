@@ -308,3 +308,8 @@ export const positionsApi = {
       comment: params.comment,
     }),
 };
+
+export const accountsApi = {
+  topup: (accountId: string) =>
+    apiClient.post(`/api/accounts/${accountId}/topup`),
+};

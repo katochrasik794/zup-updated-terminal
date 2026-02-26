@@ -12,6 +12,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { cn } from "@/lib/utils"
 import { LoadingWave } from "@/components/ui/loading-wave"
 import { authApi, apiClient } from "@/lib/api"
+import { useTheme } from "@/context/ThemeContext"
 
 export default function LoginPage() {
   const [showPassword, setShowPassword] = React.useState(false)
@@ -24,6 +25,7 @@ export default function LoginPage() {
   const [agreeToTerms, setAgreeToTerms] = React.useState(false)
   const [isLoading, setIsLoading] = React.useState(false)
   const [error, setError] = React.useState("")
+  const { theme } = useTheme()
 
   // Check for auto-login on mount
   React.useEffect(() => {
@@ -135,18 +137,29 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
-      <header className="bg-[#01040D]">
+      <header className="bg-background border-b border-border/40">
         <div className="container mx-auto px-6 py-4">
           <Link href="/" className="inline-flex items-center gap-3">
-            <Image
-              src="/logo-full.png"
-              alt="Zuperior logo"
-              width={100}
-              height={200}
-              className="rounded-sm object-contain"
-              unoptimized
-              priority
-            />
+            {theme === 'dark' ? (
+              <img
+                src="/logo-full.png"
+                alt="Zuperior logo"
+                width={100}
+                className="rounded-sm object-contain"
+              />
+            ) : (
+              <img
+                src="/logo-light.png"
+                alt="Zuperior logo"
+                width={100}
+                className="rounded-sm object-contain"
+                onError={(e) => {
+                  // Fallback
+                  e.currentTarget.src = "/logo-full.png";
+                  e.currentTarget.style.filter = "invert(1)";
+                }}
+              />
+            )}
           </Link>
         </div>
       </header>
@@ -162,7 +175,7 @@ export default function LoginPage() {
           ) : (
             <>
               <div className="text-center mb-8">
-                <h2 className="text-3xl font-bold text-white mb-2">Welcome to Zuperior</h2>
+                <h2 className="text-3xl font-bold text-foreground mb-2">Welcome to Zuperior</h2>
               </div>
 
               <Tabs defaultValue="signin" className="w-full">
@@ -208,7 +221,7 @@ export default function LoginPage() {
                         <button
                           type="button"
                           onClick={() => setShowPassword(!showPassword)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/60 transition-colors"
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
                           disabled={isLoading}
                         >
                           {showPassword ? (
@@ -239,10 +252,10 @@ export default function LoginPage() {
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-white/8 bg-[#01040D]/50">
+      <footer className="border-t border-border/40 bg-muted/30">
         <div className="container mx-auto px-6 py-8">
           <div className="grid md:grid-cols-2 gap-8">
-            <div className="space-y-4 text-xs text-white/60 leading-relaxed">
+            <div className="space-y-4 text-xs text-muted-foreground leading-relaxed">
               <p>
                 Zuperior does not offer services to residents of certain jurisdictions including the USA, Iran, North Korea, the European Union,
                 the United Kingdom and others. The content of the website including translations should not be construed as meaning for
@@ -279,7 +292,7 @@ export default function LoginPage() {
                   Complaints Handling Policy
                 </Link>
               </div>
-              <p className="text-xs text-white/60">© 2008-2025, Zuperior</p>
+              <p className="text-xs text-muted-foreground">© 2008-2025, Zuperior</p>
             </div>
           </div>
         </div>

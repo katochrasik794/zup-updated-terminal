@@ -5,7 +5,7 @@ import { FiChevronRight, FiHelpCircle } from 'react-icons/fi'
 import { usePrivacy } from '../../context/PrivacyContext';
 import { useAccount } from '../../context/AccountContext';
 import { formatCurrency, cn } from '../../lib/utils';
-import { apiClient } from '../../lib/api';
+import { apiClient, accountsApi } from '../../lib/api';
 
 export default function AccountDropdown({ isOpen, onClose }) {
   const { hideBalance, toggleHideBalance } = usePrivacy();
@@ -15,8 +15,41 @@ export default function AccountDropdown({ isOpen, onClose }) {
     isLoading: isAccountsLoading,
     isAccountSwitching,
     currentBalance,
-    balances
+    balances,
+    currentAccount,
+    refreshBalance
   } = useAccount();
+
+  const [isTopUpLoading, setIsTopUpLoading] = useState(false);
+
+  const handleTopUp = async () => {
+    if (!currentAccountId || isTopUpLoading) return;
+
+    // If it's a real account, redirect to the CRM deposit page
+    if (currentAccount?.accountType === 'Live') {
+      window.open('https://dashboard.zuperior.com/deposit', '_blank');
+      onClose();
+      return;
+    }
+
+    try {
+      setIsTopUpLoading(true);
+      const response = await accountsApi.topup(currentAccountId);
+
+      if (response.success) {
+        // Use alert instead of CustomEvent to avoid NaN toast hijack
+        alert(response.message || 'Account topped up successfully!');
+        // Refresh balance
+        refreshBalance(currentAccountId);
+      } else {
+        throw new Error(response.message || 'Failed to top up');
+      }
+    } catch (error: any) {
+      alert(error.message || 'An error occurred during top up');
+    } finally {
+      setIsTopUpLoading(false);
+    }
+  };
 
   // const [currentData, setCurrentData] = useState<any>(null); // Removed local state
   // const [listBalances, setListBalances] = useState<Record<string, any>>({}); // Removed local state
@@ -128,8 +161,12 @@ export default function AccountDropdown({ isOpen, onClose }) {
             );
           })}
 
-          <button className="w-full py-2.5 mt-2 border border-gray-800 hover:bg-gray-800 text-foreground rounded text-[13px] font-medium transition-colors cursor-pointer uppercase">
-            Top Up
+          <button
+            onClick={handleTopUp}
+            disabled={isTopUpLoading}
+            className="w-full py-2.5 mt-2 border border-gray-800 hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed text-foreground rounded text-[13px] font-medium transition-colors cursor-pointer uppercase"
+          >
+            {isTopUpLoading ? 'Processing...' : 'Top Up'}
           </button>
         </div>
 

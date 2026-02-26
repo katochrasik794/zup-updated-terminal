@@ -284,133 +284,143 @@ export default function Navbar({ logoLarge, logoSmall }: NavbarProps) {
   }, []); // Empty deps - only run once
 
   return (
-    <nav className="bg-background flex-shrink-0 border-t border-x border-gray-800">
-      <div className="flex items-center h-14 px-2">
-        {/* Logo */}
-        <div className="px-2 flex-shrink-0">
-          <div className='flex items-center'>
-            <div className="text-yellow-300 font-semi-bold">
-              <img
-                src={theme === 'dark' ? '/logo-dark.png' : '/logo-light.png'}
-                className='h-10 w-auto object-contain'
-                alt="Zuperior"
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Instrument Tabs */}
-        <div className="flex-1 ml-1 min-w-0 overflow-x-auto navbar-scrollbar">
-          <div className="flex items-center min-w-max">
-            <div className="flex items-center ">
-              <div className="flex gap-0">
-                {tabs.map((tab) => (
-                  <InstrumentTab
-                    key={tab.id}
-                    tab={tab}
-                    isActive={tab.isActive}
-                    onClick={handleTabClick}
-                    onClose={handleCloseTab}
-                  />
-                ))}
-              </div>
-
-              {/* Add Tab Button */}
-              <div className="flex items-center h-full relative">
-                <button
-                  ref={addTabButtonRef}
-                  className="cursor-pointer px-2 py-1 text-gray-400 hover:text-foreground hover:bg-gray-800 rounded-md transition-colors mx-1 flex items-center justify-center h-8 border border-transparent hover:border-gray-400 "
-                  data-test="add-tab-button"
-                  type="button"
-                  onClick={handleAddTab}
-                >
-                  <FiPlus size={18} className="stroke-current fill-white text-foreground cursor-pointer" />
-                </button>
-
-                {/* Symbol Search Popup */}
-                <SymbolSearchPopup
-                  isOpen={isSymbolSearchOpen}
-                  onClose={() => setIsSymbolSearchOpen(false)}
-                  onSelectSymbol={handleSelectSymbol}
-                  triggerRef={addTabButtonRef}
+    <>
+      <nav className="bg-background flex-shrink-0 border-t border-x border-gray-800">
+        <div className="flex items-center h-14 px-2">
+          {/* Logo */}
+          <div className="px-2 flex-shrink-0">
+            <div className='flex items-center'>
+              <div className="text-yellow-300 font-semi-bold">
+                <img
+                  src={theme === 'dark' ? '/logo-dark.png' : '/logo-light.png'}
+                  className='h-10 w-auto object-contain'
+                  alt="Zuperior"
                 />
               </div>
             </div>
           </div>
-        </div>
 
-        {/* Right Section */}
-        <div className="flex items-center gap-1.5 pr-2 flex-shrink-0">
-          {/* WebSocket Status (Live indicator) */}
-          <WebSocketStatus showDetails={false} positionsConnected={positionsConnected} />
+          {/* Instrument Tabs */}
+          <div className="flex-1 ml-1 min-w-0 overflow-x-auto navbar-scrollbar">
+            <div className="flex items-center min-w-max">
+              <div className="flex items-center ">
+                <div className="flex gap-0">
+                  {tabs.map((tab) => (
+                    <InstrumentTab
+                      key={tab.id}
+                      tab={tab}
+                      isActive={tab.isActive}
+                      onClick={handleTabClick}
+                      onClose={handleCloseTab}
+                    />
+                  ))}
+                </div>
 
-          {/* Account Button */}
-          <div className="relative">
-            <button
-              className="flex items-center gap-1.5 px-2 py-1 rounded-md hover:bg-white/5 group"
-              onClick={() => setIsAccountDropdownOpen(!isAccountDropdownOpen)}
-            >
-              <div className="flex flex-col items-start">
-                <div className="flex items-center gap-1">
-                  <span className="text-[10px] text-foreground/60">
-                    <span
-                      className={cn(
-                        "px-1 py-0.5 rounded text-[10px] font-medium",
-                        accountInfo.type === "Live" ? "bg-warning/20 text-warning" : "bg-info/20 text-info",
-                      )}
-                    >
-                      {accountInfo.type}
+                {/* Add Tab Button */}
+                <div className="flex items-center h-full relative">
+                  <button
+                    ref={addTabButtonRef}
+                    className="cursor-pointer px-2 py-1 text-gray-400 hover:text-foreground hover:bg-gray-800 rounded-md transition-colors mx-1 flex items-center justify-center h-8 border border-transparent hover:border-gray-400 "
+                    data-test="add-tab-button"
+                    type="button"
+                    onClick={handleAddTab}
+                  >
+                    <FiPlus size={18} className="stroke-current fill-white text-foreground cursor-pointer" />
+                  </button>
+
+                  {/* Symbol Search Popup */}
+                  <SymbolSearchPopup
+                    isOpen={isSymbolSearchOpen}
+                    onClose={() => setIsSymbolSearchOpen(false)}
+                    onSelectSymbol={handleSelectSymbol}
+                    triggerRef={addTabButtonRef}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Right Section */}
+          <div className="flex items-center gap-1.5 pr-2 flex-shrink-0">
+            {/* WebSocket Status (Live indicator) */}
+            <WebSocketStatus showDetails={false} positionsConnected={positionsConnected} />
+
+            {/* Account Button */}
+            <div className="relative">
+              <button
+                className="flex items-center gap-1.5 px-2 py-1 rounded-md hover:bg-white/5 group"
+                onClick={() => setIsAccountDropdownOpen(!isAccountDropdownOpen)}
+              >
+                <div className="flex flex-col items-start">
+                  <div className="flex items-center gap-1">
+                    <span className="text-[10px] text-foreground/60">
+                      <span
+                        className={cn(
+                          "px-1 py-0.5 rounded text-[10px] font-medium",
+                          accountInfo.type === "Live" ? "bg-warning/20 text-warning" : "bg-info/20 text-info",
+                        )}
+                      >
+                        {accountInfo.type}
+                      </span>
+                      &nbsp;
+                      <span className="text-[11px]">{user?.name || "Loading..."}</span>
                     </span>
-                    &nbsp;
-                    <span className="text-[11px]">{user?.name || "Loading..."}</span>
+                  </div>
+                  <span className="text-xs font-semibold text-success leading-tight">
+                    {hideBalance ? "......" : `${formatCurrency(balance, 2)} USD`}
                   </span>
                 </div>
-                <span className="text-xs font-semibold text-success leading-tight">
-                  {hideBalance ? "......" : `${formatCurrency(balance, 2)} USD`}
-                </span>
-              </div>
-              <ChevronDown className="h-3 w-3 text-foreground/40 group-hover:text-foreground/60 ml-0.5" />
-            </button>
+                <ChevronDown className="h-3 w-3 text-foreground/40 group-hover:text-foreground/60 ml-0.5" />
+              </button>
 
-            {/* Account Dropdown */}
-            <AccountDropdown
-              isOpen={isAccountDropdownOpen}
-              onClose={() => setIsAccountDropdownOpen(false)}
-            />
-          </div>
+              {/* Account Dropdown */}
+              <AccountDropdown
+                isOpen={isAccountDropdownOpen}
+                onClose={() => setIsAccountDropdownOpen(false)}
+              />
+            </div>
 
-          {/* Theme Toggle */}
-          <IconButton
-            onClick={toggleTheme}
-            className="p-1.5"
-            tooltip={theme === 'dark' ? "Switch to Light Mode" : "Switch to Dark Mode"}
-          >
-            {theme === 'dark' ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
-          </IconButton>
-
-          {/* User Icon */}
-          <div className="relative">
+            {/* Theme Toggle */}
             <IconButton
-              onClick={() => setIsProfileDropdownOpen(!isProfileDropdownOpen)}
+              onClick={toggleTheme}
               className="p-1.5"
-              tooltip="Account Profile"
+              tooltip={theme === 'dark' ? "Switch to Light Mode" : "Switch to Dark Mode"}
             >
-              <User className="h-3.5 w-3.5" />
+              {theme === 'dark' ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
             </IconButton>
-            <ProfileDropdown
-              isOpen={isProfileDropdownOpen}
-              onClose={() => setIsProfileDropdownOpen(false)}
-            />
-          </div>
 
-          {/* Deposit Button */}
-          <Button size="sm" className="ml-1 h-7 px-3 text-xs bg-primary" asChild>
-            <a href="https://dashboard.zuperior.com/deposit" target="_blank" rel="noreferrer">
+            {/* User Icon */}
+            <div className="relative">
+              <IconButton
+                onClick={() => setIsProfileDropdownOpen(!isProfileDropdownOpen)}
+                className="p-1.5"
+                tooltip="Account Profile"
+              >
+                <User className="h-3.5 w-3.5" />
+              </IconButton>
+              <ProfileDropdown
+                isOpen={isProfileDropdownOpen}
+                onClose={() => setIsProfileDropdownOpen(false)}
+              />
+            </div>
+
+            <Button
+              size="sm"
+              className="ml-1 h-7 px-3 text-xs bg-primary"
+              onClick={() => {
+                if (accountInfo.type === 'Live') {
+                  window.open('https://dashboard.zuperior.com/deposit', '_blank');
+                } else {
+                  setIsDepositPopupOpen(true);
+                }
+              }}
+            >
               Deposit
-            </a>
-          </Button>
+            </Button>
+          </div>
         </div>
-      </div>
-    </nav>
+      </nav>
+      <DepositPopup isOpen={isDepositPopupOpen} onClose={() => setIsDepositPopupOpen(false)} />
+    </>
   )
 }

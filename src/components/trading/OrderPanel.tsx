@@ -74,15 +74,65 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
   // Use live prices if available, otherwise fall back to defaults
   const currentSellPrice = quote.bid ?? 0
   const currentBuyPrice = quote.ask ?? 0
-  const spreadVal = (quote.spread || 0) * 100
-  const currentSpread = React.useMemo(() => {
-    // Priority: DB spread > Live Quote Spread
-    if (instrument?.spread && instrument.spread > 0) {
-      // Return spread from DB as points.
-      return `${instrument.spread} pts`
+
+  // Get pip size based on symbol type (kept for SL/TP offset logic)
+  const getPipSize = React.useMemo(() => {
+    const symbolUpper = (symbol || '').toUpperCase()
+    const cat = (instrument?.category || '').toLowerCase()
+
+    if (symbolUpper.includes('JPY')) {
+      return 0.01
+    } else if (cat.includes('crypto') || symbolUpper.includes('BTC') || symbolUpper.includes('ETH')) {
+      return 1.00 // 1 point = 1 dollar
+    } else if (cat.includes('index') || cat.includes('indice') || symbolUpper.includes('US30') || symbolUpper.includes('SPX') || symbolUpper.includes('NAS')) {
+      return 1.00 // 1 point = 1 unit (4500 -> 4520 is 20 points)
+    } else if (cat.includes('metal') || symbolUpper.includes('XAU') || symbolUpper.includes('XAG')) {
+      return 1.00 // 1 point = 1 dollar (2500 -> 2520 is 20 points)
+    } else {
+      return 0.0001 // Forex default (0.0001 = 1 pip)
     }
-    return `${spreadVal.toFixed(2)} pips`
-  }, [instrument, spreadVal])
+  }, [symbol, instrument])
+
+  // Real point size for spread calculation (based on exact quoting digits)
+  const getPointSize = React.useMemo(() => {
+    const symbolUpper = (symbol || '').toUpperCase()
+    const cat = (instrument?.category || '').toLowerCase()
+
+    if (cat.includes('crypto') || symbolUpper.includes('BTC') || symbolUpper.includes('ETH')) {
+      return 1.00; // Force 1 point = 1 dollar for crypto, so spread 26.38 remains 26.38
+    }
+
+    let digits = 5;
+    if (instrument?.digits !== undefined) {
+      digits = instrument.digits;
+    } else {
+      if (symbolUpper.includes('JPY')) {
+        digits = 3;
+      } else if (symbolUpper.includes('XAU') || symbolUpper.includes('XAG') || symbolUpper.includes('GOLD') || symbolUpper.includes('SILVER')) {
+        digits = 2;
+      } else if (cat.includes('index') || symbolUpper.includes('US30') || symbolUpper.includes('SPX') || symbolUpper.includes('NAS')) {
+        digits = 2; // Usually 1 or 2
+      }
+    }
+    // Limit digits to sensible bounds like formatPriceFunction
+    digits = Math.min(Math.max(digits, 1), 6);
+    return Math.pow(10, -digits);
+  }, [symbol, instrument])
+
+  const currentSpread = React.useMemo(() => {
+    if (currentBuyPrice > 0 && currentSellPrice > 0) {
+      const rawSpread = Math.max(0, currentBuyPrice - currentSellPrice)
+
+      if (getPointSize === 1) {
+        // For crypto with 1 point size, display the exact difference rounded to 2 decimals
+        return `${rawSpread.toFixed(2)} pts`
+      } else {
+        const spreadInPoints = Math.round(rawSpread / getPointSize)
+        return `${spreadInPoints} pts`
+      }
+    }
+    return `0 pts`
+  }, [currentBuyPrice, currentSellPrice, getPointSize])
 
   const [formType, setFormType] = React.useState<FormType>("regular")
   const [orderType, setOrderType] = React.useState<"market" | "limit" | "pending">("market")
@@ -423,23 +473,7 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
     (window as any).__SET_ORDER_PREVIEW__(previewPayload)
   }, [pendingOrderSide, orderType, openPrice, volume, currentBuyPrice, currentSellPrice, symbol, pendingOrderType, takeProfit, stopLoss, takeProfitMode, stopLossMode])
 
-  // Get pip size based on symbol type
-  const getPipSize = React.useMemo(() => {
-    const symbolUpper = (symbol || '').toUpperCase()
-    const cat = (instrument?.category || '').toLowerCase()
-
-    if (symbolUpper.includes('JPY')) {
-      return 0.01
-    } else if (cat.includes('crypto') || symbolUpper.includes('BTC') || symbolUpper.includes('ETH')) {
-      return 1.00 // 1 point = 1 dollar
-    } else if (cat.includes('index') || cat.includes('indice') || symbolUpper.includes('US30') || symbolUpper.includes('SPX') || symbolUpper.includes('NAS')) {
-      return 1.00 // 1 point = 1 unit (4500 -> 4520 is 20 points)
-    } else if (cat.includes('metal') || symbolUpper.includes('XAU') || symbolUpper.includes('XAG')) {
-      return 1.00 // 1 point = 1 dollar (2500 -> 2520 is 20 points)
-    } else {
-      return 0.0001 // Forex default (0.0001 = 1 pip)
-    }
-  }, [symbol, instrument])
+  // getPipSize is memoized above
 
   // Get default TP/SL offsets in "points/pips" (20 for all instruments as requested)
   const getDefaultOffsets = React.useMemo(() => {
@@ -1408,25 +1442,28 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
       // Assuming commission is per lot?
       fees = vol * instrument.commission
     } else {
-      // Fee Calculation
-      // Use spread from DB (instrument.spread) if available, as requested by user.
-      // If not, fall back to live quote spread.
+      // Calculate Fees
+      // Use real-time spread from ask - bid per user request
 
       let spreadToUse = 0;
-
-      if (instrument?.spread && instrument.spread > 0) {
-        // Backend now maps this from ib_symbol_spreads (startup/pro spread)
-        spreadToUse = instrument.spread;
-      } else {
-        spreadToUse = quote.spread || 0;
+      if (currentBuyPrice > 0 && currentSellPrice > 0) {
+        const rawSpread = Math.max(0, currentBuyPrice - currentSellPrice);
+        spreadToUse = Math.round(rawSpread / getPointSize);
       }
 
-      // Calculate Fees
       // Formula: Lot size * pip_value (from DB) * spread
-      // User requested: "Lot size * pip_value (from ib_symbol_spreads table) * spread"
 
       const pipValuePerPoint = instrument?.pipValue ? Number(instrument.pipValue) : 1;
       fees = vol * pipValuePerPoint * spreadToUse;
+
+      // User requested: "divide the fees by 10 for forex pairs only"
+      const cat = (instrument?.category || '').toLowerCase();
+      const symbolUpper = (symbol || '').toUpperCase();
+      const isForex = !cat.includes('crypto') && !symbolUpper.includes('BTC') && !symbolUpper.includes('ETH') && !cat.includes('index') && !symbolUpper.includes('US30') && !symbolUpper.includes('SPX') && !symbolUpper.includes('NAS') && !cat.includes('metal') && !symbolUpper.includes('XAU') && !symbolUpper.includes('XAG') && !symbolUpper.includes('GOLD') && !symbolUpper.includes('SILVER');
+
+      if (isForex) {
+        fees = fees / 10;
+      }
 
       // Debug logging
       /*
@@ -1463,7 +1500,7 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
       volumeInUSD,
       credit
     }
-  }, [volume, currentBuyPrice, openPrice, orderType, symbol, currentBalance, quote.spread, instrument])
+  }, [volume, currentBuyPrice, currentSellPrice, openPrice, orderType, symbol, currentBalance, instrument, getPointSize])
 
   // Render financial details section
   const renderFinancialDetails = () => (

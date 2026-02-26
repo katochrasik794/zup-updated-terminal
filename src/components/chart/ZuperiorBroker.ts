@@ -258,6 +258,25 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 		}
 		return 0;
 	}
+	private _getLiveValues(rootId: string) {
+		const liveData = (typeof window !== 'undefined' ? (window as any).__LIVE_POSITIONS_DATA__ : null);
+		if (!liveData) return null;
+
+		const idStr = String(rootId);
+		// Check both open positions and pending orders in the server-synced data
+		const entity =
+			liveData.openPositions?.find((p: any) => String(p.ticket || p.id) === idStr) ||
+			liveData.pendingOrders?.find((o: any) => String(o.ticket || o.orderId || o.id) === idStr);
+
+		if (entity) {
+			return {
+				takeProfit: Number(entity.takeProfit || entity.TakeProfit || entity.PriceTP || entity.tp || 0),
+				stopLoss: Number(entity.stopLoss || entity.StopLoss || entity.PriceSL || entity.sl || 0)
+			};
+		}
+		return null;
+	}
+
 
 	private _triggerSnapBack(entity: Order | Position, originalTP?: Order, originalSL?: Order) {
 		// Small delay to ensure TradingView has finished its internal drag state before we force an update
@@ -1577,10 +1596,21 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 		}
 
 		// Capture initial bracket states BEFORE any optimistic modifications or validations
+		// CRITICAL: We use server-synced data (__LIVE_POSITIONS_DATA__) for the snapshot
+		// because TradingView might have mutated the local _orderById objects already.
+		const liveValues = this._getLiveValues(positionId);
 		const tpId = `${originalPosition.id}_TP`;
 		const slId = `${originalPosition.id}_SL`;
-		const originalTP = this._orderById[tpId] ? { ...this._orderById[tpId] } : undefined;
-		const originalSL = this._orderById[slId] ? { ...this._orderById[slId] } : undefined;
+
+		const originalTP = this._orderById[tpId] ? {
+			...this._orderById[tpId],
+			limitPrice: liveValues ? liveValues.takeProfit : this._orderById[tpId].limitPrice
+		} : undefined;
+
+		const originalSL = this._orderById[slId] ? {
+			...this._orderById[slId],
+			stopPrice: liveValues ? liveValues.stopLoss : this._orderById[slId].stopPrice
+		} : undefined;
 
 		// Pre-conditions Check (Kill Switch, Market Closed, Free Margin)
 		if (!this._checkPreConditions('modify', originalPosition.symbol, originalPosition.qty)) {
@@ -1622,6 +1652,16 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 				profit: null,
 				error: validationError,
 			});
+
+			// CRITICAL FIX: The `originalPosition` object might have been mutated by TV before returning here.
+			// Restore pre-drag state to ensure snap-back works dynamically.
+			// NOTE: SL brackets use `stopPrice`, while TP brackets use `limitPrice`.
+			if (originalPosition.takeProfit !== originalTP?.limitPrice) {
+				originalPosition.takeProfit = originalTP ? originalTP.limitPrice : undefined;
+			}
+			if (originalPosition.stopLoss !== originalSL?.stopPrice) {
+				originalPosition.stopLoss = originalSL ? originalSL.stopPrice : undefined;
+			}
 
 			this._triggerSnapBack(originalPosition, originalTP, originalSL);
 
@@ -2024,40 +2064,63 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 		});
 	}
 	public async editOrder(orderId: string, modification: any): Promise<void> {
-		let originalOrder = this._orderById[orderId];
-		if (!originalOrder) {
-			console.error(`[ZuperiorBroker] Order not found: ${orderId}`);
-			return Promise.reject('Order not found');
-		}
-
-		// Capture initial bracket states BEFORE any optimistic modifications or validations
-		const tpIdSnapshot = `${originalOrder.id}_TP`;
-		const slIdSnapshot = `${originalOrder.id}_SL`;
-		const originalTP = this._orderById[tpIdSnapshot] ? { ...this._orderById[tpIdSnapshot] } : undefined;
-		const originalSL = this._orderById[slIdSnapshot] ? { ...this._orderById[slIdSnapshot] } : undefined;
-
 		const idStr = orderId.toString();
 		const isTP = idStr.includes('_TP');
 		const isSL = idStr.includes('_SL');
 
-		// Handle bracket redirection to parent for both ghost and real orders
-		// This ensures dragging a TP/SL bracket modifies the parent's TP/SL instead of the bracket's price
-		if (originalOrder.parentId && (isTP || isSL)) {
-			const parent = this._orderById[originalOrder.parentId];
-			if (parent) {
-				console.log('[ZuperiorBroker] editOrder: Redirecting bracket modification to parent:', parent.id);
-				const targetId = originalOrder.parentId.toString();
+		// 1. Resolve Root ID: If this is a bracket, the "real" order we care about is the parent
+		const piece = this._orderById[orderId];
+		const rootId = (piece?.parentId && (isTP || isSL)) ? piece.parentId.toString() : idStr;
 
-				// Map bracket price modification back to parent TP/SL
-				const targetModification: any = {};
-				if (isTP) targetModification.takeProfit = modification.limitPrice !== undefined ? modification.limitPrice : modification.takeProfit;
-				if (isSL) targetModification.stopLoss = modification.stopPrice !== undefined ? modification.stopPrice : modification.stopLoss;
-
-				// Critical: update our pointers to the parent order and target modification
-				originalOrder = parent;
-				orderId = targetId;
-				modification = targetModification;
+		// POSITION REDIRECTION: If the parent is actually a position, we must use position-specific logic
+		// This is critical for snap-back to work on market order brackets.
+		if (piece?.parentId && (isTP || isSL)) {
+			const parentPos = this._positionById[rootId];
+			if (parentPos) {
+				console.log('[ZuperiorBroker] editOrder: Redirecting position bracket modification:', rootId);
+				const mappedMod: any = {};
+				if (isTP) mappedMod.takeProfit = modification.limitPrice;
+				if (isSL) mappedMod.stopLoss = modification.stopPrice;
+				return this.editPositionBrackets(rootId, mappedMod);
 			}
+		}
+
+		let originalOrder = this._orderById[rootId];
+
+		if (!originalOrder) {
+			console.error(`[ZuperiorBroker] Order not found: ${rootId} (requested: ${orderId})`);
+			return Promise.reject('Order not found');
+		}
+
+		// 2. Capture initial states OF THE ROOT AND ITS BRACKETS
+		// CRITICAL: We use server-synced data (__LIVE_POSITIONS_DATA__) for the snapshot
+		// because TradingView might have mutated the local _orderById objects already.
+		const liveValues = this._getLiveValues(rootId);
+		const tpIdSnapshot = `${originalOrder.id}_TP`;
+		const slIdSnapshot = `${originalOrder.id}_SL`;
+
+		const originalTP = this._orderById[tpIdSnapshot] ? {
+			...this._orderById[tpIdSnapshot],
+			limitPrice: liveValues ? liveValues.takeProfit : this._orderById[tpIdSnapshot].limitPrice
+		} : undefined;
+
+		const originalSL = this._orderById[slIdSnapshot] ? {
+			...this._orderById[slIdSnapshot],
+			stopPrice: liveValues ? liveValues.stopLoss : this._orderById[slIdSnapshot].stopPrice
+		} : undefined;
+
+		// 3. Handle bracket redirection
+		if (piece?.parentId && (isTP || isSL)) {
+			console.log('[ZuperiorBroker] editOrder: Redirecting bracket modification to parent:', rootId);
+
+			// Map bracket price modification back to parent TP/SL
+			const targetModification: any = {};
+			if (isTP) targetModification.takeProfit = modification.limitPrice !== undefined ? modification.limitPrice : modification.takeProfit;
+			if (isSL) targetModification.stopLoss = modification.stopPrice !== undefined ? modification.stopPrice : modification.stopLoss;
+
+			// Update pointer and args
+			orderId = rootId;
+			modification = targetModification;
 		}
 
 		// Pre-conditions Check (Kill Switch, Market Closed, Free Margin)
@@ -2108,6 +2171,17 @@ export class ZuperiorBroker extends AbstractBrokerMinimal {
 				profit: null,
 				error: validationError,
 			});
+
+			// CRITICAL FIX: The `originalOrder` object might have been mutated by TV before returning here.
+			// We MUST restore the parent order's TP/SL fields to their pre-drag state
+			// *before* calling _triggerSnapBack so the lines physically snap back on the chart.
+			// NOTE: SL brackets use `stopPrice`, while TP brackets use `limitPrice`.
+			if (originalOrder.takeProfit !== originalTP?.limitPrice) {
+				originalOrder.takeProfit = originalTP ? originalTP.limitPrice : undefined;
+			}
+			if (originalOrder.stopLoss !== originalSL?.stopPrice) {
+				originalOrder.stopLoss = originalSL ? originalSL.stopPrice : undefined;
+			}
 
 			this._triggerSnapBack(originalOrder, originalTP, originalSL);
 
