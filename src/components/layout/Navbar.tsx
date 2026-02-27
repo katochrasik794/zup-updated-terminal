@@ -295,6 +295,17 @@ export default function Navbar({ logoLarge, logoSmall }: NavbarProps) {
                   src={theme === 'dark' ? '/logo-dark.png' : '/logo-light.png'}
                   className='h-10 w-auto object-contain'
                   alt="Zuperior"
+                  onError={(e) => {
+                    const target = e.currentTarget;
+                    if (target.src.includes('logo-light.png') || target.src.includes('logo-dark.png')) {
+                      target.src = '/logo-full.png';
+                      // If we are in light theme and falling back to full logo, 
+                      // we might need to invert if logo-full is designed for dark
+                      if (theme === 'light') {
+                        target.style.filter = 'invert(1)';
+                      }
+                    }
+                  }}
                 />
               </div>
             </div>
