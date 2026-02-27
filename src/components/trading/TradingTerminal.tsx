@@ -89,15 +89,16 @@ export default function TradingTerminal() {
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
+      const closedSet = new Set(closedTickets);
       (window as any).__LIVE_POSITIONS_DATA__ = {
-        openPositions: rawPositions || [],
-        pendingOrders: rawPendingOrders || [],
+        openPositions: (rawPositions || []).filter(p => !closedSet.has(p.ticket.toString())),
+        pendingOrders: (rawPendingOrders || []).filter(o => !closedSet.has(o.ticket.toString())),
         closedPositions: rawClosedPositions || [],
       };
       // Notify ZuperiorBroker to refresh immediately
       window.dispatchEvent(new CustomEvent('zuperior-positions-updated'));
     }
-  }, [rawPositions, rawPendingOrders, rawClosedPositions]);
+  }, [rawPositions, rawPendingOrders, rawClosedPositions, closedTickets]);
 
   // Fetch closed positions on initial load and account changes
   useEffect(() => {
