@@ -292,12 +292,13 @@ export default function Navbar({ logoLarge, logoSmall }: NavbarProps) {
             <div className='flex items-center'>
               <div className="text-yellow-300 font-semi-bold">
                 <img
-                  src={theme === 'dark' ? '/logo-dark.png' : '/logo-light.png'}
+                  key={theme}
+                  src={theme === 'dark' ? logoLarge : '/logo-light.png'}
                   className='h-10 w-auto object-contain'
                   alt="Zuperior"
                   onError={(e) => {
                     const target = e.currentTarget;
-                    if (target.src.includes('logo-light.png') || target.src.includes('logo-dark.png')) {
+                    if (target.src.includes('logo-light.png') || target.src.includes('logo-dark.png') || target.src.includes('logo-full.png')) {
                       target.src = '/logo-full.png';
                       // If we are in light theme and falling back to full logo, 
                       // we might need to invert if logo-full is designed for dark

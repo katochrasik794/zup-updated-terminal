@@ -58,17 +58,15 @@ export const TVChartContainer = (props: any) => {
 
     // Function to apply theme-specific overrides and change the native TV theme
     const applyTheme = useCallback((targetTheme: Theme) => {
-        if (!window.tvWidget) return;
+        if (!window.tvWidget || !isChartReady.current) return;
 
         try {
             const tvTheme = targetTheme === 'dark' ? 'Dark' : 'Light';
+            const isDark = targetTheme === 'dark';
 
-            const changePromise = (window.tvWidget as any).changeTheme
-                ? (window.tvWidget as any).changeTheme(tvTheme)
-                : Promise.resolve();
-
-            changePromise.then(() => {
-                const isDark = targetTheme === 'dark';
+            // 1. Change the native theme
+            (window.tvWidget as any).changeTheme(tvTheme).then(() => {
+                // 2. Apply theme-specific overrides after theme change
                 const bg = isDark ? '#01040d' : '#ffffff';
                 const grid = isDark ? 'rgba(0, 0, 0, 0)' : '#F3F4F6';
                 const text = isDark ? '#9CA3AF' : '#4B5563';
@@ -76,15 +74,18 @@ export const TVChartContainer = (props: any) => {
 
                 (window.tvWidget as any).applyOverrides({
                     "paneProperties.background": bg,
+                    "paneProperties.backgroundType": "solid",
                     "paneProperties.vertGridProperties.color": grid,
                     "paneProperties.horzGridProperties.color": grid,
                     "scalesProperties.textColor": text,
                     "crossHairProperties.color": crosshair,
                     "mainSeriesProperties.bidLineColor": "#EF4444",
                     "mainSeriesProperties.askLineColor": "#3B82F6",
+                    "tradingProperties.bidLineColor": "#EF4444",
+                    "tradingProperties.askLineColor": "#3B82F6",
                 });
             }).catch((e: any) => {
-                console.warn('[TVChartContainer] Error in changeTheme promise:', e);
+                console.warn('[TVChartContainer] Failed to change theme:', e);
             });
         } catch (e) {
             console.warn('[TVChartContainer] Failed to apply theme', e);
