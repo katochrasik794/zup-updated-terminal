@@ -642,17 +642,12 @@ export default function TradingTerminal() {
   }, [currentAccount, symbol]);
 
   const handleBuyOrder = useCallback(async (orderData: any) => {
-    if (!currentAccountId || (typeof window !== 'undefined' && (window as any).__IS_PROCESSING_TRADE__)) {
+    if (!currentAccountId) {
       return;
-    }
-
-    if (typeof window !== 'undefined') {
-      (window as any).__IS_PROCESSING_TRADE__ = true;
     }
 
     // Check kill switch status
     if (checkKillSwitch('buy')) {
-      if (typeof window !== 'undefined') (window as any).__IS_PROCESSING_TRADE__ = false;
       return;
     }
 
@@ -680,7 +675,6 @@ export default function TradingTerminal() {
           profit: null,
           error: 'Insufficient Funds Order not placed',
         });
-        if (typeof window !== 'undefined') (window as any).__IS_PROCESSING_TRADE__ = false;
         return;
       }
 
@@ -700,7 +694,6 @@ export default function TradingTerminal() {
             profit: null,
             error: 'Price not available. Order not placed.',
           });
-          if (typeof window !== 'undefined') (window as any).__IS_PROCESSING_TRADE__ = false;
           return;
         }
 
@@ -711,7 +704,6 @@ export default function TradingTerminal() {
         }
 
         if (!accessToken) {
-          if (typeof window !== 'undefined') (window as any).__IS_PROCESSING_TRADE__ = false;
           throw new Error('Failed to get MetaAPI access token');
         }
 
@@ -790,7 +782,6 @@ export default function TradingTerminal() {
             profit: null,
             error: 'Open price is required for pending orders',
           });
-          if (typeof window !== 'undefined') (window as any).__IS_PROCESSING_TRADE__ = false;
           return;
         }
 
@@ -889,22 +880,15 @@ export default function TradingTerminal() {
         profit: null,
         error: error?.message || 'Not enough money',
       });
-    } finally {
-      if (typeof window !== 'undefined') (window as any).__IS_PROCESSING_TRADE__ = false;
     }
   }, [currentAccountId, currentBalance, metaApiTokens, getMetaApiToken, symbol, lastQuotes, isMarketClosed, normalizeSymbol, refetchPositions, checkKillSwitch]);
 
   const handleSellOrder = useCallback(async (orderData: any) => {
-    if (!currentAccountId || (typeof window !== 'undefined' && (window as any).__IS_PROCESSING_TRADE__)) {
+    if (!currentAccountId) {
       return;
     }
 
-    if (typeof window !== 'undefined') {
-      (window as any).__IS_PROCESSING_TRADE__ = true;
-    }
-
     if (checkKillSwitch('sell')) {
-      if (typeof window !== 'undefined') (window as any).__IS_PROCESSING_TRADE__ = false;
       return;
     }
 
@@ -914,7 +898,6 @@ export default function TradingTerminal() {
       // Check if market is closed BEFORE optimistic injection
       if (isMarketClosed(chosenSymbol)) {
         setMarketClosedToast('Market closed');
-        if (typeof window !== 'undefined') (window as any).__IS_PROCESSING_TRADE__ = false;
         return;
       }
 
@@ -932,7 +915,6 @@ export default function TradingTerminal() {
           profit: null,
           error: 'Insufficient Funds Order not placed',
         });
-        if (typeof window !== 'undefined') (window as any).__IS_PROCESSING_TRADE__ = false;
         return;
       }
 
@@ -952,7 +934,6 @@ export default function TradingTerminal() {
             profit: null,
             error: 'Price not available. Order not placed.',
           });
-          if (typeof window !== 'undefined') (window as any).__IS_PROCESSING_TRADE__ = false;
           return;
         }
 
@@ -963,7 +944,6 @@ export default function TradingTerminal() {
         }
 
         if (!accessToken) {
-          if (typeof window !== 'undefined') (window as any).__IS_PROCESSING_TRADE__ = false;
           throw new Error('Failed to get MetaAPI access token');
         }
 
@@ -1039,7 +1019,6 @@ export default function TradingTerminal() {
             profit: null,
             error: 'Open price is required for pending orders',
           });
-          if (typeof window !== 'undefined') (window as any).__IS_PROCESSING_TRADE__ = false;
           return;
         }
 
@@ -1138,8 +1117,6 @@ export default function TradingTerminal() {
         profit: null,
         error: error?.message || 'Not enough money',
       });
-    } finally {
-      if (typeof window !== 'undefined') (window as any).__IS_PROCESSING_TRADE__ = false;
     }
   }, [currentAccountId, currentBalance, metaApiTokens, getMetaApiToken, symbol, lastQuotes, isMarketClosed, normalizeSymbol, refetchPositions, checkKillSwitch]);
 

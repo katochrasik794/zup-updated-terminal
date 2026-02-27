@@ -758,7 +758,10 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
               lastPreviewData.current = 'null';
             }
 
-            // Await execution to ensure isLoading blocks further clicks
+            // RE-ENABLE UI IMMEDIATELY after reset, allowing for next order
+            setIsLoading(false);
+
+            // Await execution
             await onSell?.({
               orderType,
               pendingOrderType: orderType === "pending" ? pendingOrderType : undefined,
@@ -779,7 +782,7 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
         )}
       >
         <div className="text-xs text-white/80 mb-1">Sell</div>
-        <div className="price-font text-foreground font-bold text-sm leading-tight">
+        <div className="price-font text-white font-bold text-sm leading-tight">
           {formatPriceForPanel(currentSellPrice)}
         </div>
       </button>
@@ -812,6 +815,9 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
               lastPreviewData.current = 'null';
             }
 
+            // RE-ENABLE UI IMMEDIATELY after reset
+            setIsLoading(false);
+
             // Await execution
             await onBuy?.({
               orderType,
@@ -823,7 +829,6 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
             });
           } catch (err) {
             console.error("[OrderPanel] Buy order failed:", err);
-          } finally {
             setIsLoading(false);
           }
         }}
@@ -833,12 +838,12 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
         )}
       >
         <div className="text-xs text-white/80 mb-1">Buy</div>
-        <div className="price-font text-foreground font-bold text-sm leading-tight">
+        <div className="price-font text-white font-bold text-sm leading-tight">
           {formatPriceForPanel(currentBuyPrice)}
         </div>
       </button>
 
-      <div className="absolute left-1/2 bottom-0 -translate-x-1/2 px-2 py-0.5 rounded backdrop-blur-xl bg-white/[0.03] border border-foreground/10 text-[10px] text-foreground/80 font-medium whitespace-nowrap z-10">
+      <div className="absolute left-1/2 bottom-0 -translate-x-1/2 px-2 py-0.5 rounded backdrop-blur-xl bg-gray-500/20 border border-foreground/20 text-[10px] text-foreground font-bold whitespace-nowrap z-10 shadow-sm">
         {currentSpread} {isConnected && <span className="text-green-500 ml-1">●</span>}
       </div>
     </div >
@@ -990,10 +995,12 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
                   lastPreviewData.current = 'null';
                 }
 
+                // RE-ENABLE UI IMMEDIATELY
+                setIsLoading(false);
+
                 await onSell(orderData)
               } catch (err) {
                 console.error("[OrderPanel] Sell order (bordered) failed:", err);
-              } finally {
                 setIsLoading(false);
               }
             }
@@ -1080,10 +1087,12 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
                   lastPreviewData.current = 'null';
                 }
 
+                // RE-ENABLE UI IMMEDIATELY
+                setIsLoading(false);
+
                 await onBuy(orderData)
               } catch (err) {
                 console.error("[OrderPanel] Buy order (bordered) failed:", err);
-              } finally {
                 setIsLoading(false);
               }
             }
@@ -1310,12 +1319,14 @@ const OrderPanel: React.FC<OrderPanelProps> = ({
                   lastPreviewData.current = 'null';
                 }
 
+                // RE-ENABLE UI IMMEDIATELY
+                setIsLoading(false);
+
                 // Await the handler execution
                 await handler(orderData);
               } catch (err) {
                 console.error("[OrderPanel] Confirm order failed:", err);
                 setPendingOrderSide(null);
-              } finally {
                 setIsLoading(false);
               }
             }}
